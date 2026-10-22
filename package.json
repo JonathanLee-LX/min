@@ -1,0 +1,24 @@
+{
+  "name": "min",
+  "private": true,
+  "type": "module",
+  "description": "min — a minimal, extensible TypeScript agent harness",
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "build": "pnpm -r --filter=@min/* run build",
+    "test": "pnpm -r --filter=@min/* run test",
+    "typecheck": "pnpm -r --filter=@min/* run typecheck",
+    "example": "pnpm --filter=@min/example-basic start"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@min/tui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TUI for min — Phase 2 placeholder",
+  "type": "module",
+  "scripts": {
+    "build": "echo \"@min/tui is a Phase 2 placeholder\"",
+    "typecheck": "echo \"skip\"",
+    "test": "echo \"skip\""
+  }
+}

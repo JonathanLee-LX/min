@@ -1,0 +1,12 @@
+{
+  "name": "@min/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLI for min — Phase 2 placeholder",
+  "type": "module",
+  "scripts": {
+    "build": "echo \"@min/cli is a Phase 2 placeholder\"",
+    "typecheck": "echo \"skip\"",
+    "test": "echo \"skip\""
+  }
+}
