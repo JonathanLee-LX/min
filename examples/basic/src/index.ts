@@ -48,8 +48,16 @@ function resolveProvider(): ModelProvider {
     });
   }
   if (kind === "deepseek") {
+    // Default: Responses API. Set DEEPSEEK_API=chat for Chat Completions.
+    const api =
+      process.env.DEEPSEEK_API === "chat"
+        ? ("chat" as const)
+        : ("responses" as const);
     return deepseekProvider({
-      model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+      api,
+      model:
+        process.env.DEEPSEEK_MODEL ??
+        (api === "chat" ? "deepseek-chat" : "deepseek-flash"),
     });
   }
 

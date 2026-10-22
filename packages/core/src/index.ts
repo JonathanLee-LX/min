@@ -61,7 +61,10 @@ export {
   type OpenAIProviderOptions,
 } from "./providers/openai.js";
 export {
-  deepseekProvider,
   openaiChatProvider,
   type OpenAIChatProviderOptions,
 } from "./providers/openai-chat.js";
+export {
+  deepseekProvider,
+  type DeepSeekProviderOptions,
+} from "./providers/deepseek.js";

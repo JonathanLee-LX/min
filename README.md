@@ -38,7 +38,7 @@ PROVIDER=openai OPENAI_API_KEY=... pnpm example
 PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
 ```
 
-DeepSeek uses OpenAI-compatible **Chat Completions** (`deepseekProvider` / `openaiChatProvider`), not the Responses API.
+DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.
 
 ## Usage
 

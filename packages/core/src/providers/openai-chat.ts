@@ -110,24 +110,6 @@ export function openaiChatProvider(
   };
 }
 
-/** Convenience: DeepSeek via OpenAI-compatible Chat Completions. */
-export function deepseekProvider(
-  opts: Omit<OpenAIChatProviderOptions, "baseURL" | "id" | "model"> & {
-    baseURL?: string;
-    model?: string;
-  } = {},
-): ModelProvider {
-  return openaiChatProvider({
-    ...opts,
-    id: "deepseek",
-    baseURL: opts.baseURL ?? "https://api.deepseek.com",
-    apiKey:
-      opts.apiKey ??
-      process.env.DEEPSEEK_API_KEY ??
-      process.env.OPENAI_API_KEY,
-    model: opts.model ?? "deepseek-chat",
-  });
-}
 
 function toChatTools(tools: ToolDefinition[]): ChatCompletionTool[] {
   return tools.map((t) => ({
