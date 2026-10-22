@@ -5,10 +5,12 @@
  * With a real key:
  *   PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm example
  *   PROVIDER=openai OPENAI_API_KEY=... pnpm example
+ *   PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
  */
 import {
   anthropicProvider,
   createAgent,
+  deepseekProvider,
   defineTool,
   mockProvider,
   openaiProvider,
@@ -43,6 +45,11 @@ function resolveProvider(): ModelProvider {
   if (kind === "openai") {
     return openaiProvider({
       model: process.env.OPENAI_MODEL ?? "gpt-4.1",
+    });
+  }
+  if (kind === "deepseek") {
+    return deepseekProvider({
+      model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
     });
   }
 

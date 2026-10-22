@@ -60,3 +60,8 @@ export {
   openaiProvider,
   type OpenAIProviderOptions,
 } from "./providers/openai.js";
+export {
+  deepseekProvider,
+  openaiChatProvider,
+  type OpenAIChatProviderOptions,
+} from "./providers/openai-chat.js";

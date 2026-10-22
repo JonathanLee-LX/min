@@ -35,7 +35,10 @@ Live providers (optional):
 ```bash
 PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm example
 PROVIDER=openai OPENAI_API_KEY=... pnpm example
+PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
 ```
+
+DeepSeek uses OpenAI-compatible **Chat Completions** (`deepseekProvider` / `openaiChatProvider`), not the Responses API.
 
 ## Usage
 
