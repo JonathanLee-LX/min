@@ -12,7 +12,36 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
-  apps/cli: {}
+  apps/cli:
+    dependencies:
+      '@min/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@min/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
+      '@min/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.5
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.7(@types/node@22.20.5)(tsx@4.23.15)
 
   apps/tui: {}
 
@@ -101,6 +130,28 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.5
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.7(@types/node@22.20.5)(tsx@4.23.15)
+
+  packages/tools:
+    dependencies:
+      '@min/core':
+        specifier: workspace:*
+        version: link:../core
       zod:
         specifier: ^3.24.2
         version: 3.25.76

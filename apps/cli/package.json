@@ -2,11 +2,35 @@
   "name": "@min/cli",
   "version": "0.1.0",
   "private": true,
-  "description": "CLI for min — Phase 2 placeholder",
+  "description": "Minimal CLI for the min agent harness",
   "type": "module",
+  "bin": {
+    "min": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "echo \"@min/cli is a Phase 2 placeholder\"",
-    "typecheck": "echo \"skip\"",
-    "test": "echo \"skip\""
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@min/core": "workspace:*",
+    "@min/skills": "workspace:*",
+    "@min/tools": "workspace:*",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

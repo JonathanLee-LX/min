@@ -15,8 +15,10 @@ packages/
   core/      @min/core     harness (Runner, tools, providers, extensions)
   mcp/       @min/mcp      MCP client extension
   skills/    @min/skills   Agent Skills (SKILL.md) extension
+  tools/     @min/tools    sandboxed read/write/glob/bash
 apps/
-  cli/ tui/ webui/         Phase 2 placeholders
+  cli/       @min/cli      minimal one-shot + REPL
+  tui/ webui/              placeholders
 examples/
   basic/                   Offline mock example (+ optional live providers)
 ```
@@ -28,6 +30,8 @@ pnpm install
 pnpm build
 pnpm test
 pnpm example          # mock provider, no API key needed
+pnpm min -- "list files here"   # CLI with workspace tools (mock if no key)
+pnpm min -- -i                  # interactive REPL
 ```
 
 Live providers (optional):
@@ -36,9 +40,14 @@ Live providers (optional):
 PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm example
 PROVIDER=openai OPENAI_API_KEY=... pnpm example
 PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
+DEEPSEEK_API_KEY=... pnpm min -- "summarize README.md"
 ```
 
 DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.
+
+### Workspace tools (`@min/tools`)
+
+Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, `bash`, all scoped to `--cwd`.
 
 ## Usage
 

@@ -8,7 +8,8 @@
     "build": "pnpm -r --filter=@min/* run build",
     "test": "pnpm -r --filter=@min/* run test",
     "typecheck": "pnpm -r --filter=@min/* run typecheck",
-    "example": "pnpm --filter=@min/example-basic start"
+    "example": "pnpm --filter=@min/example-basic start",
+    "min": "pnpm --filter=@min/cli exec tsx src/cli.ts"
   },
   "engines": {
     "node": ">=20"
