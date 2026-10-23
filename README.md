@@ -17,7 +17,7 @@ packages/
   skills/    @min/skills   Agent Skills (SKILL.md) + allowed-tools gate
   tools/     @min/tools    sandboxed read/write/glob/bash
   session/   @min/session  conversation sessions + context budget + input queue
-  app/       @min/runtime      shared runtime wiring for CLI / TUI
+  runtime/   @min/runtime  shared composition layer for CLI / TUI
 apps/
   cli/       @min/cli      one-shot + REPL
   tui/       @min/tui      Ink terminal UI
