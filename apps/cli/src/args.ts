@@ -148,7 +148,8 @@ During a run:
   Ctrl+C              abort the current turn (REPL stays open)
 
 REPL commands:
-  /help  /session  /reset  /exit
+  /help  /session  /reset  /queue  /dense  /exit
+  (lines typed during a run are queued; drained after the agent pass)
 
 Context:
   Full history is stored in the session; only a budgeted suffix is sent to the model.
