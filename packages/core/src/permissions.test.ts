@@ -87,6 +87,45 @@ describe("permission enforcement", () => {
     await agent.dispose();
   });
 
+  it("applies grantRoot via onPermissionAsk before execute", async () => {
+    const roots: string[] = [];
+    const read = defineTool({
+      name: "read_file",
+      description: "read",
+      inputSchema: z.object({ path: z.string() }),
+      async execute({ path }) {
+        return { content: `ok:${path}` };
+      },
+    });
+
+    const agent = await createAgent({
+      provider: mockProvider([
+        {
+          toolCalls: [{ name: "read_file", arguments: { path: "../x" } }],
+        },
+        { text: "read done" },
+      ]),
+      tools: [read],
+      permissionHandler: () => ({
+        action: "ask",
+        reason: "need root",
+        grantRoot: "/tmp/granted-root",
+      }),
+    });
+
+    const result = await agent.run({
+      input: "read outside",
+      onPermissionAsk: async (req) => {
+        if (req.grantRoot) roots.push(req.grantRoot);
+        return "allow";
+      },
+    });
+
+    expect(roots).toEqual(["/tmp/granted-root"]);
+    expect(JSON.stringify(result.messages)).toContain("ok:../x");
+    await agent.dispose();
+  });
+
   it("treats ask without approver as deny", async () => {
     const agent = await createAgent({
       provider: mockProvider([

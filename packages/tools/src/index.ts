@@ -10,7 +10,7 @@ import {
   type WorkspaceToolsOptions,
 } from "./tools.js";
 
-export { createSandbox, SandboxError, type Sandbox } from "./sandbox.js";
+export { createSandbox, SandboxError, type Sandbox, type ProbeResult } from "./sandbox.js";
 export {
   createWorkspaceTools,
   type WorkspaceToolsOptions,
@@ -39,6 +39,8 @@ export interface WorkspaceExtensionOptions extends WorkspaceToolsOptions {
    * (caller may set their own). Default true.
    */
   enforcePermissions?: boolean;
+  /** Extra roots granted for the whole process/session at startup. */
+  addRoots?: string[];
 }
 
 /**
@@ -52,12 +54,16 @@ export function workspaceTools(
   permissions: WorkspacePermissionPolicy;
 } {
   const { sandbox, tools } = createWorkspaceTools(opts);
+  if (opts.addRoots?.length) {
+    sandbox.addRoots(opts.addRoots);
+  }
+
   const allow = opts.include ? new Set(opts.include) : null;
   const filtered = allow
     ? tools.filter((t) => allow.has(t.name as WorkspaceToolName))
     : tools;
 
-  const permissions = createWorkspacePermissionPolicy(opts.permissions);
+  const permissions = createWorkspacePermissionPolicy(sandbox, opts.permissions);
   const enforce = opts.enforcePermissions !== false;
 
   const ext = defineExtension({
@@ -72,9 +78,10 @@ export function workspaceTools(
       api.appendSystem(
         [
           "You have workspace tools scoped to a sandbox root.",
-          `Sandbox root: ${sandbox.root}`,
-          "Use relative paths. Prefer read_file/glob before bash when inspecting files.",
-          "Permission policy: reads/writes usually allowed; bash may require approval (except a small allowlist).",
+          `Primary sandbox root: ${sandbox.root}`,
+          "Use relative paths when possible. Prefer read_file/glob before bash when inspecting files.",
+          "Paths outside the sandbox require user approval to add a session root (tight directory only).",
+          "Permission policy: reads/writes usually allowed inside roots; bash may require approval.",
           "If a tool returns Permission denied, choose a safer approach or ask the user.",
         ].join("\n"),
       );

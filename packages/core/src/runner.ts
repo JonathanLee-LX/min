@@ -202,13 +202,14 @@ export class Runner {
     const answer = await input.onPermissionAsk({
       toolCall: ctx.toolCall,
       reason: decision.reason,
+      grantRoot: decision.grantRoot,
     });
 
     if (answer === "deny") {
       return { ok: false, reason: decision.reason };
     }
 
-    // allow | allow_session — session grant is handled by the ask callback side
+    // allow | allow_session — grants (tool / root) are applied by the ask callback
     return { ok: true, reason: decision.reason };
   }
 }

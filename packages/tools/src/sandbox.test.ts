@@ -6,11 +6,29 @@ import { createSandbox, SandboxError } from "./sandbox.js";
 import { createWorkspaceTools } from "./tools.js";
 
 describe("sandbox", () => {
-  it("resolves inside root and rejects escapes", () => {
-    const root = "/tmp/min-sandbox-root";
+  it("resolves inside root and rejects escapes", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "min-sb-"));
     const sb = createSandbox(root);
-    expect(sb.resolve("a/b")).toBe(path.resolve(root, "a/b"));
+    expect(sb.resolve("a/b")).toBe(path.join(root, "a/b"));
     expect(() => sb.resolve("../outside")).toThrow(SandboxError);
+  });
+
+  it("probe suggests a tight root and grantRoot enables resolve", async () => {
+    const primary = await mkdtemp(path.join(tmpdir(), "min-primary-"));
+    const outside = await mkdtemp(path.join(tmpdir(), "min-outside-"));
+    await writeFile(path.join(outside, "secret.txt"), "sec", "utf8");
+
+    const sb = createSandbox(primary);
+    const relEscape = path.relative(primary, path.join(outside, "secret.txt"));
+    const probed = sb.probe(relEscape);
+    expect(probed.ok).toBe(false);
+    if (probed.ok) throw new Error("expected escape");
+    expect(probed.suggestedRoot).toBe(outside);
+
+    expect(() => sb.resolve(relEscape)).toThrow(SandboxError);
+    sb.grantRoot(probed.suggestedRoot);
+    expect(sb.sessionRoots).toContain(outside);
+    expect(sb.resolve(relEscape)).toBe(path.join(outside, "secret.txt"));
   });
 });
 

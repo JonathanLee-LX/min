@@ -19,10 +19,21 @@ describe("parseArgs", () => {
 
   it("enables repl and permission flags", () => {
     expect(parseArgs(["-i"]).repl).toBe(true);
-    expect(parseArgs(["-y", "--allow-bash", "--ask-write"])).toMatchObject({
+    expect(
+      parseArgs([
+        "-y",
+        "--allow-bash",
+        "--ask-write",
+        "--allow-root-grant",
+        "--add-root",
+        "/tmp/extra",
+      ]),
+    ).toMatchObject({
       yes: true,
       allowBash: true,
       askWrite: true,
+      allowRootGrant: true,
+      addRoots: ["/tmp/extra"],
     });
   });
 });

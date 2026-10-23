@@ -7,7 +7,12 @@ import type { Message, ToolCallPart } from "./types.js";
 export type PermissionDecision =
   | { action: "allow" }
   | { action: "deny"; reason: string }
-  | { action: "ask"; reason: string };
+  | {
+      action: "ask";
+      reason: string;
+      /** When set, approving grants this directory as a session sandbox root. */
+      grantRoot?: string;
+    };
 
 export type PermissionAskResult = "allow" | "deny" | "allow_session";
 
@@ -25,4 +30,5 @@ export type PermissionHandler = (
 export interface PermissionAskRequest {
   toolCall: ToolCallPart;
   reason: string;
+  grantRoot?: string;
 }

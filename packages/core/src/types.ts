@@ -97,6 +97,7 @@ export interface RunInput {
   onPermissionAsk?: (req: {
     toolCall: ToolCallPart;
     reason: string;
+    grantRoot?: string;
   }) => Promise<"allow" | "deny" | "allow_session">;
 }
 

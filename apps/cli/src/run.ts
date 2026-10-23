@@ -12,8 +12,7 @@ import {
 } from "@min/tools";
 import { access } from "node:fs/promises";
 import path from "node:path";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { resolveProvider } from "./provider.js";
 
@@ -30,6 +29,7 @@ export async function createCliAgent(args: CliArgs): Promise<CliRuntime> {
   if (!args.noTools) {
     const ext = workspaceTools({
       root: args.cwd,
+      addRoots: args.addRoots,
       permissions: {
         write: args.askWrite ? "ask" : "allow",
         bash: args.allowBash || args.yes ? "allow" : "ask",
@@ -65,7 +65,7 @@ export async function createCliAgent(args: CliArgs): Promise<CliRuntime> {
 export async function runTurn(
   runtime: CliRuntime,
   turnInput: string | Message[],
-  rl?: ReturnType<typeof createInterface>,
+  rl?: ReadlineInterface,
 ): Promise<{ text: string; messages: Message[] }> {
   const { agent, permissions, args } = runtime;
 
@@ -73,6 +73,27 @@ export async function runTurn(
     input: turnInput,
     onEvent: printEvent,
     onPermissionAsk: async (req) => {
+      // Root expansion: -y alone never grants; need --allow-root-grant or interactive.
+      if (req.grantRoot) {
+        if (args.allowRootGrant && (args.yes || !process.stdin.isTTY)) {
+          permissions?.grantRoot(req.grantRoot);
+          return "allow";
+        }
+        if (args.yes && !args.allowRootGrant) {
+          return "deny";
+        }
+        if (!rl || !process.stdin.isTTY) {
+          return "deny";
+        }
+        const answer = await promptRootGrant(rl, req.reason, req.grantRoot);
+        if (answer === "deny") return "deny";
+        permissions?.grantRoot(req.grantRoot);
+        if (answer === "allow_session") {
+          permissions?.grantSession(req.toolCall);
+        }
+        return answer;
+      }
+
       if (args.yes) {
         return "allow";
       }
@@ -94,12 +115,32 @@ export async function runTurn(
 }
 
 async function promptPermission(
-  rl: ReturnType<typeof createInterface>,
+  rl: ReadlineInterface,
   reason: string,
 ): Promise<PermissionAskResult> {
   console.log(`\n⚠ permission: ${reason}`);
   const line = (
-    await rl.question("Allow? [y]es / [n]o / [a]lways this session > ")
+    await rl.question("Allow? [y]es / [n]o / [a]lways this tool > ")
+  )
+    .trim()
+    .toLowerCase();
+
+  if (line === "y" || line === "yes") return "allow";
+  if (line === "a" || line === "always") return "allow_session";
+  return "deny";
+}
+
+async function promptRootGrant(
+  rl: ReadlineInterface,
+  reason: string,
+  grantRoot: string,
+): Promise<PermissionAskResult> {
+  console.log(`\n⚠ session root grant: ${reason}`);
+  console.log(`   add root: ${grantRoot}`);
+  const line = (
+    await rl.question(
+      "Grant session root? [y]es / [n]o / [a]lways (root + this tool) > ",
+    )
   )
     .trim()
     .toLowerCase();

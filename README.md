@@ -53,15 +53,17 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 | Surface | Default | Notes |
 |---------|---------|--------|
-| read / glob | allow | Path sandbox still applies |
+| read / glob | allow | Inside primary + session roots |
 | write_file | allow | `--ask-write` to confirm |
 | bash | ask | Small allowlist (`git`, `ls`, `pnpm`, …) auto-passes |
-| path escape | deny | Hard sandbox error |
+| path outside roots | ask | Approving adds a **tight session root** (`dirname` / dir itself) |
 
-- Interactive ask: `[y]es / [n]o / [a]lways this session`
-- One-shot without TTY: `ask` → deny (use `-y` or `--allow-bash`)
+- Interactive ask: `[y]es / [n]o / [a]lways…`
+- `-y` auto-approves tool prompts but **not** root expansion (needs `--allow-root-grant` or interactive)
+- Seed roots: `--add-root <dir>` (repeatable)
+- One-shot without TTY: `ask` → deny unless flags allow
 - Denied tools return `tool_result` with `isError` — the run continues
-- Core only enforces `allow \| deny \| ask`; policy lives in `@min/tools` / CLI
+- Core only enforces `allow \| deny \| ask` (+ optional `grantRoot`); policy lives in `@min/tools` / CLI
 
 ## Usage
 

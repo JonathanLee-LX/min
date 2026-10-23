@@ -6,12 +6,16 @@ export interface CliArgs {
   model?: string;
   skillsDir?: string;
   noTools: boolean;
-  /** Approve all permission prompts for this process. */
+  /** Approve tool permission prompts (does NOT auto-expand sandbox roots). */
   yes: boolean;
   /** Force bash permission mode to allow. */
   allowBash: boolean;
   /** Force write_file permission mode to ask. */
   askWrite: boolean;
+  /** Allow -y / non-interactive approval of session root grants. */
+  allowRootGrant: boolean;
+  /** Extra roots seeded at startup. */
+  addRoots: string[];
   prompt?: string;
 }
 
@@ -25,6 +29,8 @@ export function parseArgs(argv: string[]): CliArgs {
     yes: false,
     allowBash: false,
     askWrite: false,
+    allowRootGrant: false,
+    addRoots: [],
   };
 
   const positional: string[] = [];
@@ -46,6 +52,12 @@ export function parseArgs(argv: string[]): CliArgs {
       args.allowBash = true;
     } else if (a === "--ask-write") {
       args.askWrite = true;
+    } else if (a === "--allow-root-grant") {
+      args.allowRootGrant = true;
+    } else if (a === "--add-root") {
+      const dir = argv[++i];
+      if (!dir) throw new Error("--add-root requires a directory");
+      args.addRoots.push(dir);
     } else if (a === "--cwd") {
       args.cwd = argv[++i] ?? args.cwd;
     } else if (a === "--provider") {
@@ -80,19 +92,22 @@ Options:
   --provider <name>   mock | deepseek | openai | anthropic
                       (default: DEEPSEEK_API_KEY → deepseek, else mock)
   --model <id>        provider model id
-  --cwd <dir>         workspace sandbox root (default: .)
+  --cwd <dir>         primary sandbox root (default: .)
+  --add-root <dir>    seed an extra session root (repeatable)
   --skills <dir>      skills directory (optional)
   --no-tools          do not register workspace tools
-  -y, --yes           auto-approve permission prompts
+  -y, --yes           auto-approve tool prompts (NOT root expansion)
   --allow-bash        allow bash without prompting
   --ask-write         confirm write_file (default: allow)
+  --allow-root-grant  allow non-interactive / -y approval of session root grants
   -i, --repl          interactive mode
   -h, --help          show help
 
 Permissions (defaults):
-  read/glob  allow
-  write      allow   (use --ask-write to confirm)
-  bash       ask     (small allowlist auto-passes; --allow-bash / -y to skip)
+  read/glob  allow (inside roots)
+  write      allow (inside roots; --ask-write to confirm)
+  bash       ask   (small allowlist auto-passes)
+  outside root → ask to add a tight session root (y/a both grant for session)
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY

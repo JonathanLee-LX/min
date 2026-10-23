@@ -4,6 +4,7 @@ import type {
   PermissionHandler,
   ToolCallPart,
 } from "@min/core";
+import type { Sandbox } from "./sandbox.js";
 
 export type PermissionMode = "allow" | "ask" | "deny";
 
@@ -24,7 +25,8 @@ export interface WorkspacePermissionOptions {
 export interface WorkspacePermissionPolicy {
   handler: PermissionHandler;
   grantSession: (toolCall: ToolCallPart) => void;
-  /** Test/helper: clear session grants. */
+  grantRoot: (absDir: string) => void;
+  /** Test/helper: clear session tool grants and session roots. */
   clearSession: () => void;
 }
 
@@ -50,8 +52,10 @@ const DEFAULT_BASH_ALLOW = [
 /**
  * Fluency-first policy:
  * read/write allow by default; bash asks (small allowlist auto-passes).
+ * Paths outside sandbox roots ask to grant a session root.
  */
 export function createWorkspacePermissionPolicy(
+  sandbox: Sandbox,
   opts: WorkspacePermissionOptions = {},
 ): WorkspacePermissionPolicy {
   const read = opts.read ?? "allow";
@@ -65,17 +69,29 @@ export function createWorkspacePermissionPolicy(
   ): PermissionDecision => {
     const { name, arguments: args } = ctx.toolCall;
 
-    if (sessionGrants.has(name)) {
-      return { action: "allow" };
-    }
+    if (name === "read_file" || name === "write_file" || name === "glob") {
+      const userPath = pathArg(name, args);
+      const probed = sandbox.probe(userPath);
+      if (!probed.ok) {
+        return {
+          action: "ask",
+          reason: `path outside sandbox → add session root "${probed.suggestedRoot}" for "${userPath}"`,
+          grantRoot: probed.suggestedRoot,
+        };
+      }
 
-    if (name === "read_file" || name === "glob") {
+      if (sessionGrants.has(name)) {
+        return { action: "allow" };
+      }
+
+      if (name === "write_file") {
+        return modeDecision(write, `write_file path="${userPath}"`);
+      }
       return modeDecision(read, `read tool "${name}"`);
     }
 
-    if (name === "write_file") {
-      const path = typeof args.path === "string" ? args.path : "?";
-      return modeDecision(write, `write_file path="${path}"`);
+    if (sessionGrants.has(name)) {
+      return { action: "allow" };
     }
 
     if (name === "bash") {
@@ -90,7 +106,6 @@ export function createWorkspacePermissionPolicy(
       );
     }
 
-    // Unknown tools registered alongside workspace tools: allow (other extensions).
     return { action: "allow" };
   };
 
@@ -99,10 +114,21 @@ export function createWorkspacePermissionPolicy(
     grantSession(toolCall) {
       sessionGrants.add(toolCall.name);
     },
+    grantRoot(absDir) {
+      sandbox.grantRoot(absDir);
+    },
     clearSession() {
       sessionGrants.clear();
+      sandbox.clearSessionRoots();
     },
   };
+}
+
+function pathArg(name: string, args: Record<string, unknown>): string {
+  if (name === "glob") {
+    return typeof args.dir === "string" ? args.dir : ".";
+  }
+  return typeof args.path === "string" ? args.path : ".";
 }
 
 function modeDecision(mode: PermissionMode, reason: string): PermissionDecision {
@@ -113,7 +139,6 @@ function modeDecision(mode: PermissionMode, reason: string): PermissionDecision 
 
 function matchesAllowPrefix(command: string, prefixes: string[]): boolean {
   if (!command) return false;
-  // Exact match for bare commands like `pwd` / `ls`
   for (const prefix of prefixes) {
     const p = prefix.trimEnd();
     if (prefix.endsWith(" ") || prefix.endsWith("\t")) {
