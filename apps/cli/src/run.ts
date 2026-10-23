@@ -1,99 +1,43 @@
 import {
-  createAgent,
-  type Agent,
+  createRuntime,
+  resolveProvider,
+  sessionDirFor as appSessionDir,
+  type Runtime,
   type PermissionAskResult,
-} from "@min/core";
-import { skills } from "@min/skills";
-import {
-  createFsStore,
-  createSession,
-  DEFAULT_MAX_CONTEXT_TOKENS,
-  type Session,
-  type SessionStore,
-} from "@min/session";
-import {
-  workspaceTools,
-  type WorkspacePermissionPolicy,
-} from "@min/tools";
-import { access } from "node:fs/promises";
-import path from "node:path";
+} from "@min/runtime";
+import { createFsStore } from "@min/session";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { createEventPrinter } from "./events.js";
 import { isAbortError, withSigintAbort } from "./interrupt.js";
-import { resolveProvider } from "./provider.js";
 import { contextBudgetLog } from "./session-extensions.js";
 
-const BASE_SYSTEM = [
-  "You are min, a concise coding agent.",
-  "Use tools when they help. Keep answers short unless asked for detail.",
-].join(" ");
-
-export interface CliRuntime {
-  agent: Agent;
-  session: Session;
-  store?: SessionStore;
-  permissions?: WorkspacePermissionPolicy;
-  args: CliArgs;
-}
+export type CliRuntime = Runtime & { args: CliArgs };
 
 export function sessionDirFor(args: CliArgs): string {
-  return path.resolve(args.sessionDir ?? path.join(args.cwd, ".min/sessions"));
+  return appSessionDir(args.cwd, args.sessionDir);
 }
 
 export async function createCliRuntime(args: CliArgs): Promise<CliRuntime> {
-  const extensions = [];
-  let permissions: WorkspacePermissionPolicy | undefined;
-
-  if (!args.noTools) {
-    const ext = workspaceTools({
-      root: args.cwd,
-      addRoots: args.addRoots,
-      permissions: {
-        write: args.askWrite ? "ask" : "allow",
-        bash: args.allowBash || args.yes ? "allow" : "ask",
-      },
-    });
-    extensions.push(ext);
-    permissions = ext.permissions;
-  }
-
-  const skillsDir = args.skillsDir
-    ? path.resolve(args.skillsDir)
-    : path.join(args.cwd, "skills");
-  if (await exists(skillsDir)) {
-    extensions.push(skills({ dirs: [skillsDir] }));
-  }
-
-  const agent = await createAgent({
+  const runtime = await createRuntime({
+    cwd: args.cwd,
     provider: resolveProvider({
       provider: args.provider,
       model: args.model,
     }),
-    extensions,
-    system: BASE_SYSTEM,
-    maxTurns: 20,
+    sessionId: args.sessionId,
+    sessionDir: args.sessionDir,
+    noSessionStore: args.noSessionStore,
+    noTools: args.noTools,
+    skillsDir: args.skillsDir,
+    addRoots: args.addRoots,
+    askWrite: args.askWrite,
+    allowBash: args.allowBash || args.yes,
+    maxContextTokens: args.maxContextTokens,
+    maxUserTurns: args.maxUserTurns,
+    sessionExtensions: [contextBudgetLog()],
   });
-
-  const store = args.noSessionStore
-    ? undefined
-    : createFsStore(sessionDirFor(args));
-
-  const session = await createSession({
-    agent,
-    store,
-    id: args.sessionId,
-    systemForBudget: BASE_SYSTEM,
-    budget: {
-      maxContextTokens: args.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
-      maxUserTurns: args.maxUserTurns,
-      reservedOutputTokens: 1024,
-    },
-    // Session kernel stays thin; CLI packs observability as an extension.
-    extensions: [contextBudgetLog()],
-  });
-
-  return { agent, session, store, permissions, args };
+  return { ...runtime, args };
 }
 
 export async function listSessions(args: CliArgs): Promise<void> {
@@ -116,12 +60,9 @@ export async function runTurn(
 ): Promise<void> {
   const { session, permissions, args } = runtime;
   const printer = createEventPrinter();
-  // Only pause a TTY readline so Ctrl+C hits our AbortController.
-  // Pausing a piped stdin drops buffered REPL lines (/session, /reset, …).
   const pauseRl = Boolean(rl && process.stdin.isTTY);
   if (pauseRl) rl!.pause();
 
-  // While readline is paused, line-buffer stdin into the session input queue.
   const stopQueueListen = pauseRl
     ? listenStdinQueue(session.inputQueue)
     : undefined;
@@ -182,7 +123,6 @@ export async function runTurn(
 
       printer.endTextLine();
 
-      // Fallback when provider has no stream (e.g. Anthropic today).
       if (!printer.didStreamText() && result.text) {
         process.stdout.write(`\n${result.text}\n`);
       }
@@ -199,9 +139,8 @@ export async function runTurn(
   }
 }
 
-/** Line-buffer stdin into the session queue (TTY interjections during a run). */
 function listenStdinQueue(
-  queue: Session["inputQueue"],
+  queue: Runtime["session"]["inputQueue"],
 ): (() => void) | undefined {
   if (!queue || !process.stdin.isTTY) return undefined;
   let buf = "";
@@ -256,13 +195,4 @@ async function promptRootGrant(
   if (line === "y" || line === "yes") return "allow";
   if (line === "a" || line === "always") return "allow_session";
   return "deny";
-}
-
-async function exists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
-  }
 }

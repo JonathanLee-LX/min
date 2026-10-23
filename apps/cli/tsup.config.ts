@@ -12,5 +12,12 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
-  external: ["@min/core", "@min/session", "@min/skills", "@min/tools", "zod"],
+  external: [
+    "@min/runtime",
+    "@min/core",
+    "@min/session",
+    "@min/skills",
+    "@min/tools",
+    "zod",
+  ],
 });

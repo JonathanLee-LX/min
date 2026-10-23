@@ -4,12 +4,21 @@ import {
   type Extension,
 } from "@min/core";
 import { z } from "zod";
+import {
+  createAllowedToolsGate,
+  type AllowedToolsGate,
+} from "./allowed-tools.js";
 import { filesystemSkillSource } from "./filesystem.js";
 import type { Skill, SkillMeta, SkillSource } from "./types.js";
 
 export type { Skill, SkillMeta, SkillSource } from "./types.js";
 export { parseSkillMarkdown, toSkill } from "./parse.js";
 export { filesystemSkillSource } from "./filesystem.js";
+export {
+  createAllowedToolsGate,
+  type AllowedToolsGate,
+  type AllowedToolsGateOptions,
+} from "./allowed-tools.js";
 
 export interface SkillsExtensionOptions {
   /** Local skill root directories. */
@@ -23,12 +32,25 @@ export interface SkillsExtensionOptions {
   registerLoadTool?: boolean;
   /** Tool name for loading a skill body. Default: load_skill */
   loadToolName?: string;
+  /**
+   * Shared allowlist gate. When omitted, a gate is created and attached
+   * on the extension as `.allowedToolsGate` for the host to compose.
+   */
+  allowedToolsGate?: AllowedToolsGate;
+  /**
+   * When true (default), activate allowed-tools on successful load_skill.
+   */
+  enforceAllowedTools?: boolean;
 }
+
+export type SkillsExtension = Extension & {
+  allowedToolsGate: AllowedToolsGate;
+};
 
 /**
  * Load Agent Skills (SKILL.md) and expose them to the harness.
  */
-export function skills(options: SkillsExtensionOptions = {}): Extension {
+export function skills(options: SkillsExtensionOptions = {}): SkillsExtension {
   const sources: SkillSource[] = [...(options.sources ?? [])];
   if (options.dirs?.length) {
     sources.push(filesystemSkillSource({ dirs: options.dirs }));
@@ -36,9 +58,13 @@ export function skills(options: SkillsExtensionOptions = {}): Extension {
 
   const registerLoadTool = options.registerLoadTool !== false;
   const loadToolName = options.loadToolName ?? "load_skill";
+  const enforceAllowedTools = options.enforceAllowedTools !== false;
+  const allowedToolsGate =
+    options.allowedToolsGate ??
+    createAllowedToolsGate({ passthrough: [loadToolName] });
   const loaded = new Set<string>();
 
-  return defineExtension({
+  const ext = defineExtension({
     name: "skills",
 
     async setup(api) {
@@ -51,7 +77,12 @@ export function skills(options: SkillsExtensionOptions = {}): Extension {
 
       const catalogText = [
         "Available skills (use the load_skill tool to read full instructions when relevant):",
-        ...catalog.map((s) => `- ${s.name}: ${s.description}`),
+        ...catalog.map((s) => {
+          const tools = s.allowedTools?.length
+            ? ` [tools: ${s.allowedTools.join(", ")}]`
+            : "";
+          return `- ${s.name}: ${s.description}${tools}`;
+        }),
       ].join("\n");
       api.appendSystem(catalogText);
 
@@ -87,8 +118,14 @@ export function skills(options: SkillsExtensionOptions = {}): Extension {
             }
 
             loaded.add(name);
-            const text = `# Skill: ${skill.name}\n\n${skill.body}`;
-            // Also append to system for subsequent turns
+            if (enforceAllowedTools) {
+              allowedToolsGate.activate(skill);
+            }
+
+            const allowNote = skill.allowedTools?.length
+              ? `\n\n(allowed-tools for this skill: ${skill.allowedTools.join(", ")})`
+              : "";
+            const text = `# Skill: ${skill.name}\n\n${skill.body}${allowNote}`;
             api.appendSystem(text);
             return { content: text };
           },
@@ -96,4 +133,6 @@ export function skills(options: SkillsExtensionOptions = {}): Extension {
       );
     },
   });
+
+  return Object.assign(ext, { allowedToolsGate });
 }

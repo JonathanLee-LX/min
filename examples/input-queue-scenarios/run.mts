@@ -3,6 +3,8 @@
  *
  * A) Task in progress + successive information supplements (enqueue)
  * B) Task direction set, then rapidly revised (dense-latest keeps newest)
+ *
+ * Both scenarios register @min/tools so the model can read the repo.
  */
 import {
   createAgent,
@@ -14,6 +16,7 @@ import {
   createSession,
   defineSessionExtension,
 } from "@min/session";
+import { workspaceTools } from "@min/tools";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -98,14 +101,21 @@ function printUserTurns(
 }
 
 async function makeSession(label: string) {
+  const root = resolve(process.cwd());
+  const toolsExt = workspaceTools({
+    root,
+    permissions: { write: "allow", bash: "allow" },
+  });
+
   const agent = await createAgent({
     provider: resolveDemoProvider(),
+    extensions: [toolsExt],
     system: [
       "You are min, a concise coding agent.",
       "If the user revises the task, follow the latest revision.",
-      "Keep each answer under ~120 Chinese characters unless they ask for more.",
+      "Use read_file/glob when you need repo files. Keep answers short unless asked.",
     ].join(" "),
-    maxTurns: 3,
+    maxTurns: 8,
   });
 
   const queue = createInputQueue({
@@ -140,22 +150,24 @@ async function makeSession(label: string) {
   return { agent, session, queue };
 }
 
-/** A: mid-task information supplements (spaced → separate enqueue items). */
 async function scenarioSupplement() {
   banner("场景 A：任务进行中补充信息（enqueue，间隔 > 1.5s）");
   console.log(`设定:
   1. 用户先下任务：说明 Session 内核与扩展点
   2. 执行中补充：强调 Store 可替换
   3. 稍后再补充：不要展开 Assembler
-  期望: 首次 agent 结束后 drain 两次补充（合并为一次 follow-up 用户消息）`);
+  期望: 首次 agent 结束后 drain 两次补充（合并为一次 follow-up）`);
 
   const { agent, session, queue } = await makeSession("supplement");
 
   const running = session.run(
-    "请用两三句话说明 @min/session 里 Session 内核负责什么、扩展点有哪些。",
+    "请阅读 packages/session 相关说明（可用工具），用两三句话说明 Session 内核负责什么、扩展点有哪些。",
     {
       onEvent(e) {
         if (e.type === "text_delta") process.stdout.write(e.text);
+        if (e.type === "tool_call") {
+          console.log(`\n→ ${e.toolCall.name}(${JSON.stringify(e.toolCall.arguments).slice(0, 100)})`);
+        }
       },
     },
   );
@@ -174,14 +186,13 @@ async function scenarioSupplement() {
   await agent.dispose();
 }
 
-/** B: set direction, then rapidly change direction (dense-latest). */
 async function scenarioRedirect() {
   banner("场景 B：先定方向，再密集改方向（dense-latest）");
   console.log(`设定:
   1. 用户先要求：把 README 译成日文
   2. 很快改口：只译 Why min
   3. 再改方向：不要翻译，改成三条中文 bullet 概括
-  期望: dense-latest 只保留最后一条方向；follow-up 只有一次`);
+  期望: dense-latest 只保留最后一条方向；可用 read_file 读 README`);
 
   const { agent, session, queue } = await makeSession("redirect");
 
@@ -190,6 +201,9 @@ async function scenarioRedirect() {
     {
       onEvent(e) {
         if (e.type === "text_delta") process.stdout.write(e.text);
+        if (e.type === "tool_call") {
+          console.log(`\n→ ${e.toolCall.name}(${JSON.stringify(e.toolCall.arguments).slice(0, 100)})`);
+        }
       },
     },
   );
@@ -215,7 +229,7 @@ async function scenarioRedirect() {
   await agent.dispose();
 }
 
-banner("input-queue scenarios");
+banner("input-queue scenarios (+ @min/tools)");
 await scenarioSupplement();
 await scenarioRedirect();
 banner("done");

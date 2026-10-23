@@ -2,11 +2,36 @@
   "name": "@min/tui",
   "version": "0.1.0",
   "private": true,
-  "description": "TUI for min — Phase 2 placeholder",
+  "description": "Terminal UI for the min agent harness",
   "type": "module",
+  "bin": {
+    "min-tui": "./dist/tui.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "echo \"@min/tui is a Phase 2 placeholder\"",
-    "typecheck": "echo \"skip\"",
-    "test": "echo \"skip\""
+    "build": "tsup",
+    "dev": "tsx src/tui.tsx",
+    "start": "tsx src/tui.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@min/runtime": "workspace:*",
+    "@min/session": "workspace:*",
+    "ink": "^5.2.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^18.3.18",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

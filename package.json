@@ -11,7 +11,9 @@
     "example": "pnpm --filter=@min/example-basic start",
     "example:queue": "pnpm --filter=@min/example-input-queue-scenarios start",
     "min": "pnpm --filter=@min/cli exec tsx src/cli.ts",
-    "link:cli": "pnpm --filter=@min/cli run build && pnpm --filter=@min/cli exec pnpm link --global"
+    "min-tui": "pnpm --filter=@min/tui exec tsx src/tui.tsx",
+    "link:cli": "pnpm --filter=@min/cli run build && pnpm --filter=@min/cli exec pnpm link --global",
+    "link:tui": "pnpm --filter=@min/tui run build && pnpm --filter=@min/tui exec pnpm link --global"
   },
   "engines": {
     "node": ">=20"

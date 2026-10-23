@@ -1,0 +1,38 @@
+{
+  "name": "@min/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared runtime composition layer for min CLI / TUI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@min/core": "workspace:*",
+    "@min/session": "workspace:*",
+    "@min/skills": "workspace:*",
+    "@min/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

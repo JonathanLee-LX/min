@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@min/runtime": "workspace:*",
     "@min/core": "workspace:*",
     "@min/session": "workspace:*",
     "@min/skills": "workspace:*",

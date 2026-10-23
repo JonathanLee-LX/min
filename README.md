@@ -1,6 +1,6 @@
 # min
 
-A minimal, extensible TypeScript **agent harness**. Core packages + a usable CLI (streaming, Ctrl+C interrupt, sessions); TUI / WebUI remain placeholders.
+A minimal, extensible TypeScript **agent harness**. Core packages, CLI (streaming / interrupt / sessions / input queue), and an Ink TUI; WebUI remains a placeholder.
 
 ## Why min
 
@@ -14,14 +14,17 @@ A minimal, extensible TypeScript **agent harness**. Core packages + a usable CLI
 packages/
   core/      @min/core     harness (Runner, tools, providers, extensions)
   mcp/       @min/mcp      MCP client extension
-  skills/    @min/skills   Agent Skills (SKILL.md) extension
+  skills/    @min/skills   Agent Skills (SKILL.md) + allowed-tools gate
   tools/     @min/tools    sandboxed read/write/glob/bash
-  session/   @min/session  conversation sessions + context budget
+  session/   @min/session  conversation sessions + context budget + input queue
+  app/       @min/runtime      shared runtime wiring for CLI / TUI
 apps/
-  cli/       @min/cli      minimal one-shot + REPL
-  tui/ webui/              placeholders
+  cli/       @min/cli      one-shot + REPL
+  tui/       @min/tui      Ink terminal UI
+  webui/                   placeholder
 examples/
   basic/                   Offline mock example (+ optional live providers)
+  input-queue-scenarios/   supplement / redirect queue demos
 ```
 
 ## Quick start
