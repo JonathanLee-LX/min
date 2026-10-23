@@ -130,8 +130,11 @@ export interface ClientOptions {
 }
 
 /**
- * UI-facing facade. CLI / TUI / WebUI share this surface.
- * Does not replace Runtime (composition) or Session (history / queue authority).
+ * UI-facing facade — the experience contract between apps and the engine.
+ *
+ * Goals: unify top-level UX across CLI/TUI/WebUI, hide Session/Core details,
+ * and keep layers decoupled. Does not replace Runtime (composition) or
+ * Session (history / queue authority).
  */
 export interface MinClient {
   readonly queue: ClientQueueApi;
