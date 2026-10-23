@@ -1,12 +1,12 @@
+import type { PermissionContext } from "@min/core";
 import { describe, expect, it } from "vitest";
 import { createAllowedToolsGate } from "./allowed-tools.js";
 
-const ctx = (name: string) =>
-  ({
-    toolCall: { type: "tool_call" as const, id: "1", name, arguments: {} },
-    messages: [],
-    turn: 1,
-  }) as const;
+const ctx = (name: string): PermissionContext => ({
+  toolCall: { type: "tool_call", id: "1", name, arguments: {} },
+  messages: [],
+  turn: 1,
+});
 
 describe("createAllowedToolsGate", () => {
   it("allows all tools until a restricted skill is activated", async () => {
