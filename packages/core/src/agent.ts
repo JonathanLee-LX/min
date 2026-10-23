@@ -4,6 +4,7 @@ import {
   type Extension,
   type ExtensionState,
 } from "./extension.js";
+import type { PermissionHandler } from "./permissions.js";
 import type { ModelProvider } from "./provider.js";
 import { Runner } from "./runner.js";
 import { ToolRegistry, type Tool } from "./tools.js";
@@ -16,6 +17,8 @@ export interface CreateAgentOptions {
   system?: string;
   maxTurns?: number;
   maxTokens?: number;
+  /** Optional override; otherwise uses handler set by extensions. */
+  permissionHandler?: PermissionHandler;
 }
 
 export interface Agent {
@@ -56,6 +59,7 @@ export async function createAgent(opts: CreateAgentOptions): Promise<Agent> {
     system: resolveSystem,
     maxTurns: opts.maxTurns,
     maxTokens: opts.maxTokens,
+    permissionHandler: opts.permissionHandler ?? state.permissionHandler,
   });
 
   return {

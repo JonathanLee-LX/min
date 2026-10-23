@@ -9,6 +9,13 @@ export {
   type Hooks,
   type HookContext,
 } from "./extension.js";
+export type {
+  PermissionAskRequest,
+  PermissionAskResult,
+  PermissionContext,
+  PermissionDecision,
+  PermissionHandler,
+} from "./permissions.js";
 export {
   assistantMessage,
   lastAssistantText,

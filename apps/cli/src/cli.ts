@@ -1,8 +1,8 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import type { Message } from "@min/core";
 import { helpText, parseArgs } from "./args.js";
 import { createCliAgent, runTurn } from "./run.js";
-import type { Message } from "@min/core";
 
 async function main(): Promise<void> {
   let args;
@@ -25,26 +25,36 @@ async function main(): Promise<void> {
     return;
   }
 
-  const agent = await createCliAgent(args);
-  console.error(`provider=${agent.provider.id}  cwd=${args.cwd}`);
+  const runtime = await createCliAgent(args);
+  console.error(`provider=${runtime.agent.provider.id}  cwd=${args.cwd}`);
+  if (!args.noTools) {
+    const bashMode = args.allowBash || args.yes ? "allow" : "ask";
+    const writeMode = args.askWrite ? "ask" : "allow";
+    console.error(`permissions: read=allow write=${writeMode} bash=${bashMode}`);
+  }
+
+  // Shared readline for REPL + permission prompts
+  const needsRl = args.repl || (!args.yes && process.stdin.isTTY);
+  const rl = needsRl
+    ? createInterface({ input, output, terminal: true })
+    : undefined;
 
   try {
     if (!args.repl) {
-      await runTurn(agent, args.prompt!);
+      await runTurn(runtime, args.prompt!, rl);
       return;
     }
 
     let history: Message[] | undefined;
     if (args.prompt) {
-      const first = await runTurn(agent, args.prompt);
+      const first = await runTurn(runtime, args.prompt, rl);
       history = first.messages;
     }
 
-    const rl = createInterface({ input, output, terminal: true });
-    console.log('REPL — type a message, or /exit to quit.');
+    console.log("REPL — type a message, or /exit to quit.");
 
     while (true) {
-      const line = (await rl.question("\nmin> ")).trim();
+      const line = (await rl!.question("\nmin> ")).trim();
       if (!line) continue;
       if (line === "/exit" || line === "/quit") break;
 
@@ -53,16 +63,15 @@ async function main(): Promise<void> {
         : line;
 
       try {
-        const turn = await runTurn(agent, inputMessages);
+        const turn = await runTurn(runtime, inputMessages, rl);
         history = turn.messages;
       } catch (err) {
         console.error(err instanceof Error ? err.message : err);
       }
     }
-
-    rl.close();
   } finally {
-    await agent.dispose();
+    rl?.close();
+    await runtime.agent.dispose();
   }
 }
 

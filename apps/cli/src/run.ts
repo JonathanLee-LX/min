@@ -1,16 +1,42 @@
-import { createAgent, type Agent, type Message, type RunEvent } from "@min/core";
+import {
+  createAgent,
+  type Agent,
+  type Message,
+  type PermissionAskResult,
+  type RunEvent,
+} from "@min/core";
 import { skills } from "@min/skills";
-import { workspaceTools } from "@min/tools";
+import {
+  workspaceTools,
+  type WorkspacePermissionPolicy,
+} from "@min/tools";
 import { access } from "node:fs/promises";
 import path from "node:path";
+import { createInterface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import type { CliArgs } from "./args.js";
 import { resolveProvider } from "./provider.js";
 
-export async function createCliAgent(args: CliArgs): Promise<Agent> {
+export interface CliRuntime {
+  agent: Agent;
+  permissions?: WorkspacePermissionPolicy;
+  args: CliArgs;
+}
+
+export async function createCliAgent(args: CliArgs): Promise<CliRuntime> {
   const extensions = [];
+  let permissions: WorkspacePermissionPolicy | undefined;
 
   if (!args.noTools) {
-    extensions.push(workspaceTools({ root: args.cwd }));
+    const ext = workspaceTools({
+      root: args.cwd,
+      permissions: {
+        write: args.askWrite ? "ask" : "allow",
+        bash: args.allowBash || args.yes ? "allow" : "ask",
+      },
+    });
+    extensions.push(ext);
+    permissions = ext.permissions;
   }
 
   const skillsDir = args.skillsDir
@@ -20,7 +46,7 @@ export async function createCliAgent(args: CliArgs): Promise<Agent> {
     extensions.push(skills({ dirs: [skillsDir] }));
   }
 
-  return createAgent({
+  const agent = await createAgent({
     provider: resolveProvider({
       provider: args.provider,
       model: args.model,
@@ -32,20 +58,55 @@ export async function createCliAgent(args: CliArgs): Promise<Agent> {
     ].join(" "),
     maxTurns: 20,
   });
+
+  return { agent, permissions, args };
 }
 
 export async function runTurn(
-  agent: Agent,
-  input: string | Message[],
+  runtime: CliRuntime,
+  turnInput: string | Message[],
+  rl?: ReturnType<typeof createInterface>,
 ): Promise<{ text: string; messages: Message[] }> {
+  const { agent, permissions, args } = runtime;
+
   const result = await agent.run({
-    input,
+    input: turnInput,
     onEvent: printEvent,
+    onPermissionAsk: async (req) => {
+      if (args.yes) {
+        return "allow";
+      }
+      if (!rl || !process.stdin.isTTY) {
+        return "deny";
+      }
+      const answer = await promptPermission(rl, req.reason);
+      if (answer === "allow_session" && permissions) {
+        permissions.grantSession(req.toolCall);
+      }
+      return answer;
+    },
   });
+
   if (result.text) {
     process.stdout.write(`\n${result.text}\n`);
   }
   return { text: result.text, messages: result.messages };
+}
+
+async function promptPermission(
+  rl: ReturnType<typeof createInterface>,
+  reason: string,
+): Promise<PermissionAskResult> {
+  console.log(`\n⚠ permission: ${reason}`);
+  const line = (
+    await rl.question("Allow? [y]es / [n]o / [a]lways this session > ")
+  )
+    .trim()
+    .toLowerCase();
+
+  if (line === "y" || line === "yes") return "allow";
+  if (line === "a" || line === "always") return "allow_session";
+  return "deny";
 }
 
 function printEvent(event: RunEvent): void {
@@ -53,6 +114,8 @@ function printEvent(event: RunEvent): void {
     const args = JSON.stringify(event.toolCall.arguments);
     const clipped = args.length > 120 ? `${args.slice(0, 117)}...` : args;
     console.log(`\n→ ${event.toolCall.name}(${clipped})`);
+  } else if (event.type === "permission" && event.decision === "deny") {
+    console.log(`⛔ denied ${event.toolCall.name}: ${event.reason ?? ""}`);
   } else if (event.type === "tool_result") {
     const body = event.content.replace(/\s+/g, " ").trim();
     const clipped = body.length > 160 ? `${body.slice(0, 157)}...` : body;

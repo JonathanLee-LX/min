@@ -1,3 +1,4 @@
+import type { PermissionHandler } from "./permissions.js";
 import type { Message, ToolCallPart } from "./types.js";
 import type { Tool, ToolContext, ToolResult, ToolRegistry } from "./tools.js";
 
@@ -25,6 +26,8 @@ export interface ExtensionApi {
   /** Mutate system prompt before the run (extensions may append). */
   appendSystem(text: string): void;
   getTools(): ToolRegistry;
+  /** Last writer wins. Policy extensions call this once in setup. */
+  setPermissionHandler(handler: PermissionHandler): void;
 }
 
 export interface Extension {
@@ -70,6 +73,7 @@ export interface ExtensionState {
   systemAppend: string[];
   hooks: HookBus;
   tools: ToolRegistry;
+  permissionHandler?: PermissionHandler;
 }
 
 export function createExtensionApi(state: ExtensionState): ExtensionApi {
@@ -85,6 +89,9 @@ export function createExtensionApi(state: ExtensionState): ExtensionApi {
     },
     getTools() {
       return state.tools;
+    },
+    setPermissionHandler(handler) {
+      state.permissionHandler = handler;
     },
   };
 }

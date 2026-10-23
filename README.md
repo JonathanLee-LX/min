@@ -49,6 +49,20 @@ DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider`
 
 Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, `bash`, all scoped to `--cwd`.
 
+### Permissions (fluency-first)
+
+| Surface | Default | Notes |
+|---------|---------|--------|
+| read / glob | allow | Path sandbox still applies |
+| write_file | allow | `--ask-write` to confirm |
+| bash | ask | Small allowlist (`git`, `ls`, `pnpm`, …) auto-passes |
+| path escape | deny | Hard sandbox error |
+
+- Interactive ask: `[y]es / [n]o / [a]lways this session`
+- One-shot without TTY: `ask` → deny (use `-y` or `--allow-bash`)
+- Denied tools return `tool_result` with `isError` — the run continues
+- Core only enforces `allow \| deny \| ask`; policy lives in `@min/tools` / CLI
+
 ## Usage
 
 ```ts

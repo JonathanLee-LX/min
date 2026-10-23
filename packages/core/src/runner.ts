@@ -6,6 +6,7 @@ import {
   toolResultPart,
   userMessage,
 } from "./messages.js";
+import type { PermissionHandler } from "./permissions.js";
 import type { ModelProvider } from "./provider.js";
 import type { ToolRegistry } from "./tools.js";
 import type { Message, RunEvent, RunInput, RunResult } from "./types.js";
@@ -18,6 +19,7 @@ export interface RunnerOptions {
   system?: string | (() => string | undefined);
   maxTurns?: number;
   maxTokens?: number;
+  permissionHandler?: PermissionHandler;
 }
 
 export class Runner {
@@ -82,9 +84,51 @@ export class Runner {
           await emit({ type: "tool_call", toolCall: call });
           await this.opts.hooks.emitBeforeTool({ ...hookCtx, toolCall: call });
 
-          const toolResult = await this.opts.tools.execute(call.name, call.arguments, {
+          const permitted = await this.resolvePermission(input, {
+            toolCall: call,
+            messages,
+            turn: turns,
             signal,
           });
+
+          if (!permitted.ok) {
+            await emit({
+              type: "permission",
+              toolCall: call,
+              decision: "deny",
+              reason: permitted.reason,
+            });
+            const denied = {
+              content: `Permission denied: ${permitted.reason}`,
+              isError: true as const,
+            };
+            await this.opts.hooks.emitAfterTool({
+              ...hookCtx,
+              toolCall: call,
+              result: denied,
+            });
+            await emit({
+              type: "tool_result",
+              toolCallId: call.id,
+              content: denied.content,
+              isError: true,
+            });
+            results.push(toolResultPart(call.id, denied.content, true));
+            continue;
+          }
+
+          await emit({
+            type: "permission",
+            toolCall: call,
+            decision: "allow",
+            reason: permitted.reason,
+          });
+
+          const toolResult = await this.opts.tools.execute(
+            call.name,
+            call.arguments,
+            { signal },
+          );
 
           await this.opts.hooks.emitAfterTool({
             ...hookCtx,
@@ -118,5 +162,53 @@ export class Runner {
       await emit({ type: "error", error });
       throw error;
     }
+  }
+
+  private async resolvePermission(
+    input: RunInput,
+    ctx: {
+      toolCall: import("./types.js").ToolCallPart;
+      messages: Message[];
+      turn: number;
+      signal?: AbortSignal;
+    },
+  ): Promise<{ ok: true; reason?: string } | { ok: false; reason: string }> {
+    const handler = this.opts.permissionHandler;
+    if (!handler) return { ok: true };
+
+    const decision = await handler(ctx);
+    if (decision.action === "allow") {
+      return { ok: true };
+    }
+    if (decision.action === "deny") {
+      return { ok: false, reason: decision.reason };
+    }
+
+    // ask
+    await input.onEvent?.({
+      type: "permission",
+      toolCall: ctx.toolCall,
+      decision: "ask",
+      reason: decision.reason,
+    });
+
+    if (!input.onPermissionAsk) {
+      return {
+        ok: false,
+        reason: `${decision.reason} (no interactive approver; pass onPermissionAsk or --yes)`,
+      };
+    }
+
+    const answer = await input.onPermissionAsk({
+      toolCall: ctx.toolCall,
+      reason: decision.reason,
+    });
+
+    if (answer === "deny") {
+      return { ok: false, reason: decision.reason };
+    }
+
+    // allow | allow_session — session grant is handled by the ask callback side
+    return { ok: true, reason: decision.reason };
   }
 }

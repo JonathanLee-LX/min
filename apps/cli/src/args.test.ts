@@ -17,7 +17,12 @@ describe("parseArgs", () => {
     expect(args.repl).toBe(false);
   });
 
-  it("enables repl", () => {
+  it("enables repl and permission flags", () => {
     expect(parseArgs(["-i"]).repl).toBe(true);
+    expect(parseArgs(["-y", "--allow-bash", "--ask-write"])).toMatchObject({
+      yes: true,
+      allowBash: true,
+      askWrite: true,
+    });
   });
 });
