@@ -15,5 +15,5 @@ export default defineConfig({
   esbuildOptions(options) {
     options.jsx = "automatic";
   },
-  external: ["@min/runtime", "@min/session", "ink", "react"],
+  external: ["@min/client", "@min/runtime", "ink", "react"],
 });

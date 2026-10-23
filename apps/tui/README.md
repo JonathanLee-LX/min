@@ -1,18 +1,11 @@
-# @min/tui
+# `@min/tui`
 
-Ink-based terminal UI for the min agent harness. Shares runtime wiring with the CLI via `@min/runtime` (skills `allowed-tools` gate + workspace tools).
+Ink terminal UI for min. Drives `@min/client` (same experience contract as CLI / Web).
 
-## Run
-
-```bash
-pnpm --filter=@min/tui build
-pnpm --filter=@min/tui start
-# or globally after link:
-pnpm --filter=@min/tui exec pnpm link --global
-min-tui --help
-```
+Visual language is intentionally aligned with Web (shadcn chat): brand **min**,
+user lines in green, assistant plain, tools muted, permission prompt inline.
 
 ```bash
-min-tui -y
-DEEPSEEK_API_KEY=... min-tui --provider deepseek
+pnpm min-tui
+pnpm min-tui -- --provider mock
 ```

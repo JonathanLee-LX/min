@@ -1,8 +1,14 @@
-import { createRuntime, resolveProvider, type Runtime } from "@min/runtime";
+import {
+  createClient,
+  type ClientEvent,
+  type MinClient,
+} from "@min/client";
+import { resolveProvider } from "@min/runtime";
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 
+/** Chat-style lines — aligned with Web (user right/green, assistant default, tools muted). */
 type LogLine = {
   id: number;
   kind: "user" | "assistant" | "tool" | "sys";
@@ -11,14 +17,20 @@ type LogLine = {
 
 export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
-  const [runtime, setRuntime] = useState<Runtime | null>(null);
+  const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [statusLabel, setStatusLabel] = useState("idle");
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [stream, setStream] = useState("");
+  const [pendingPerm, setPendingPerm] = useState<{
+    id: string;
+    reason: string;
+  } | null>(null);
   const seq = useRef(0);
-  const runtimeRef = useRef<Runtime | null>(null);
+  const clientRef = useRef<MinClient | null>(null);
+  const streamBuf = useRef("");
 
   const push = useCallback((kind: LogLine["kind"], text: string) => {
     seq.current += 1;
@@ -28,9 +40,10 @@ export function App({ args }: { args: TuiArgs }) {
 
   useEffect(() => {
     let cancelled = false;
+    let unsub: (() => void) | undefined;
     (async () => {
       try {
-        const rt = await createRuntime({
+        const c = await createClient({
           cwd: args.cwd,
           provider: resolveProvider({
             provider: args.provider,
@@ -40,82 +53,146 @@ export function App({ args }: { args: TuiArgs }) {
           noTools: args.noTools,
           allowBash: args.yes,
           askWrite: false,
+          autoApprovePermission: args.yes ? true : undefined,
         });
         if (cancelled) {
-          await rt.session.dispose();
-          await rt.agent.dispose();
+          await c.dispose();
           return;
         }
-        runtimeRef.current = rt;
-        setRuntime(rt);
+        clientRef.current = c;
+        setClient(c);
+        const st = c.getStatus();
         push(
           "sys",
-          `provider=${rt.agent.provider.id}  session=${rt.session.id}  cwd=${args.cwd}`,
+          `provider=${st.provider}  session=${st.sessionId}  cwd=${st.cwd}`,
         );
+
+        unsub = c.subscribe((e: ClientEvent) => {
+          if (e.type === "status") {
+            setStatusLabel(e.status);
+            setBusy(e.status !== "idle");
+            return;
+          }
+          if (e.type === "assistant_delta") {
+            streamBuf.current += e.text;
+            setStream(streamBuf.current);
+            return;
+          }
+          if (e.type === "assistant_done") {
+            streamBuf.current = "";
+            setStream("");
+            if (e.text) push("assistant", e.text);
+            return;
+          }
+          if (e.type === "tool_start") {
+            push(
+              "tool",
+              `→ ${e.name}(${JSON.stringify(e.args).slice(0, 80)})`,
+            );
+            return;
+          }
+          if (e.type === "tool_end") {
+            push(
+              "tool",
+              `← ${e.ok ? "" : "ERR "}${e.preview.slice(0, 120)}`,
+            );
+            return;
+          }
+          if (e.type === "queued") {
+            push("sys", `queued (${e.queueSize})`);
+            return;
+          }
+          if (e.type === "follow_up") {
+            push("sys", `follow-up: ${e.texts.join(" | ").slice(0, 100)}`);
+            return;
+          }
+          if (e.type === "error") {
+            push("sys", e.aborted ? "aborted" : e.message);
+            return;
+          }
+          if (e.type === "permission") {
+            setPendingPerm({ id: e.id, reason: e.reason });
+          }
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       }
     })();
     return () => {
       cancelled = true;
+      unsub?.();
     };
-  }, [args.cwd, args.provider, args.model, args.sessionId, args.noTools, args.yes, push]);
+  }, [
+    args.cwd,
+    args.provider,
+    args.model,
+    args.sessionId,
+    args.noTools,
+    args.yes,
+    push,
+  ]);
 
   useEffect(() => {
     return () => {
-      const rt = runtimeRef.current;
-      if (!rt) return;
-      void rt.session.dispose();
-      void rt.agent.dispose();
+      const c = clientRef.current;
+      if (!c) return;
+      void c.dispose();
     };
   }, []);
 
   const send = useCallback(
     async (text: string) => {
-      if (!runtime || busy || !text.trim()) return;
+      if (!client || !text.trim()) return;
+      if (pendingPerm) return;
       const prompt = text.trim();
-      setBusy(true);
+      streamBuf.current = "";
       setStream("");
       push("user", prompt);
-      try {
-        let buf = "";
-        const result = await runtime.session.run(prompt, {
-          onEvent(e) {
-            if (e.type === "text_delta") {
-              buf += e.text;
-              setStream(buf);
-            } else if (e.type === "tool_call") {
-              push(
-                "tool",
-                `→ ${e.toolCall.name}(${JSON.stringify(e.toolCall.arguments).slice(0, 80)})`,
-              );
-            } else if (e.type === "tool_result") {
-              const body = e.content.replace(/\s+/g, " ").trim();
-              push(
-                "tool",
-                `← ${e.isError ? "ERR " : ""}${body.slice(0, 120)}`,
-              );
-            }
-          },
-          onPermissionAsk: async () => (args.yes ? "allow" : "deny"),
-        });
-        setStream("");
-        if (result.text) push("assistant", result.text);
-      } catch (err) {
-        push("sys", err instanceof Error ? err.message : String(err));
-      } finally {
-        setBusy(false);
-      }
+      await client.send(prompt);
     },
-    [runtime, busy, push, args.yes],
+    [client, pendingPerm, push],
   );
 
   useInput((ch, key) => {
+    if (pendingPerm && client) {
+      if (ch === "y" || ch === "Y") {
+        client.respondPermission(pendingPerm.id, "allow");
+        setPendingPerm(null);
+        return;
+      }
+      if (ch === "n" || ch === "N") {
+        client.respondPermission(pendingPerm.id, "deny");
+        setPendingPerm(null);
+        return;
+      }
+      if (ch === "a" || ch === "A") {
+        client.respondPermission(pendingPerm.id, "allow_session");
+        setPendingPerm(null);
+        return;
+      }
+      return;
+    }
+
     if (key.ctrl && ch === "c") {
+      if (busy && client) {
+        client.abort();
+        return;
+      }
       exit();
       return;
     }
-    if (busy) return;
+    if (busy) {
+      if (key.return && input.trim() && client) {
+        const line = input.trim();
+        setInput("");
+        try {
+          client.queue.push(line);
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
     if (key.return) {
       const line = input;
       setInput("");
@@ -123,15 +200,17 @@ export function App({ args }: { args: TuiArgs }) {
         exit();
         return;
       }
-      if (line === "/session" && runtime) {
+      if (line === "/session" && client) {
+        const s = client.getSession();
         push(
           "sys",
-          `session ${runtime.session.id}  msgs=${runtime.session.messages.length}  queue=${runtime.session.inputQueue?.size ?? 0}`,
+          `session ${s.id}  msgs=${s.messageCount}  queue=${client.queue.size}`,
         );
         return;
       }
-      if (line === "/reset" && runtime) {
-        runtime.session.reset();
+      if (line === "/reset" && client) {
+        client.reset();
+        setLogs([]);
         push("sys", "history cleared");
         return;
       }
@@ -155,24 +234,22 @@ export function App({ args }: { args: TuiArgs }) {
     );
   }
 
-  if (!runtime) {
+  if (!client) {
     return (
       <Box padding={1}>
-        <Text dimColor>starting min-tui…</Text>
+        <Text dimColor>starting min…</Text>
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" paddingX={1}>
-      <Box borderStyle="single" borderColor="cyan" paddingX={1}>
-        <Text bold color="cyan">
-          min-tui
-        </Text>
+    <Box flexDirection="column" paddingX={1} height="100%">
+      <Box paddingX={1} paddingY={0}>
+        <Text bold>min</Text>
         <Text dimColor>
           {" "}
-          · {runtime.agent.provider.id} · {runtime.session.id}
-          {busy ? " · running…" : ""}
+          · {client.getStatus().provider} · {statusLabel}
+          {busy ? " · running" : ""}
         </Text>
       </Box>
 
@@ -184,30 +261,45 @@ export function App({ args }: { args: TuiArgs }) {
               l.kind === "user"
                 ? "green"
                 : l.kind === "tool"
-                  ? "yellow"
+                  ? "gray"
                   : l.kind === "sys"
-                    ? "gray"
+                    ? "magenta"
                     : undefined
             }
             wrap="truncate"
           >
-            {l.kind === "user" ? `you> ${l.text}` : l.text}
+            {l.kind === "user"
+              ? `you  ${l.text}`
+              : l.kind === "assistant"
+                ? `min  ${l.text}`
+                : l.text}
           </Text>
         ))}
         {stream ? (
           <Text>
-            {stream}
-            <Text dimColor>▌</Text>
+            min  {stream}
+            <Text dimColor>▍</Text>
           </Text>
         ) : null}
       </Box>
 
-      <Box marginTop={1} borderStyle="single" borderColor="gray" paddingX={1}>
-        <Text color="cyan">{"> </Text>
-        <Text>{input}</Text>
-        <Text dimColor>{busy ? " (wait)" : "█"}</Text>
-      </Box>
-      <Text dimColor>Enter send · /session /reset /exit · Ctrl+C quit</Text>
+      {pendingPerm ? (
+        <Box marginTop={1} paddingX={1}>
+          <Text color="yellow">
+            permission: {pendingPerm.reason}  [y/n/a]
+          </Text>
+        </Box>
+      ) : (
+        <Box marginTop={1} paddingX={1}>
+          <Text color="green">you </Text>
+          <Text>{input}</Text>
+          <Text dimColor>{busy ? " · enter queues" : "▊"}</Text>
+        </Box>
+      )}
+      <Text dimColor>
+        Enter send · busy: Enter queues · /session /reset /exit · Ctrl+C
+        abort/quit
+      </Text>
     </Box>
   );
 }

@@ -2,11 +2,49 @@
   "name": "@min/webui",
   "version": "0.1.0",
   "private": true,
-  "description": "Web UI for min — Phase 2 placeholder",
+  "description": "B/S Web UI for min — Node server (MinClient) + Vite/React/shadcn",
   "type": "module",
+  "bin": {
+    "min-web": "./dist/server.js"
+  },
   "scripts": {
-    "build": "echo \"@min/webui is a Phase 2 placeholder\"",
-    "typecheck": "echo \"skip\"",
-    "test": "echo \"skip\""
+    "dev": "concurrently -k \"pnpm dev:server\" \"pnpm dev:web\"",
+    "dev:server": "tsx watch src/server/main.ts",
+    "dev:web": "vite",
+    "build": "rm -rf dist && pnpm build:server && pnpm build:web",
+    "build:web": "vite build",
+    "build:server": "tsup",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.app.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@min/client": "workspace:*",
+    "@min/runtime": "workspace:*",
+    "@radix-ui/react-scroll-area": "^1.2.3",
+    "@radix-ui/react-slot": "^1.1.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.487.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.3",
+    "@types/node": "^22.14.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "tailwindcss": "^4.1.3",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.2.5",
+    "vitest": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -13,6 +13,7 @@ export default defineConfig({
     js: "#!/usr/bin/env node",
   },
   external: [
+    "@min/client",
     "@min/runtime",
     "@min/core",
     "@min/session",

@@ -3,7 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
 import { handleReplCommand } from "./repl.js";
-import { createCliRuntime, listSessions, runTurn } from "./run.js";
+import { createCliClient, listSessions, runTurn } from "./run.js";
 
 loadEnvFiles();
 
@@ -33,10 +33,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runtime = await createCliRuntime(args);
-  console.error(`provider=${runtime.agent.provider.id}  cwd=${args.cwd}`);
+  const cli = await createCliClient(args);
+  const st = cli.client.getStatus();
+  console.error(`provider=${st.provider}  cwd=${args.cwd}`);
   console.error(
-    `session=${runtime.session.id}  maxContextTokens=${args.maxContextTokens}`,
+    `session=${st.sessionId}  maxContextTokens=${args.maxContextTokens}`,
   );
   if (!args.noTools) {
     const bashMode = args.allowBash || args.yes ? "allow" : "ask";
@@ -49,49 +50,48 @@ async function main(): Promise<void> {
     ? createInterface({
         input,
         output,
-        // Auto-detect: forcing terminal:true on pipes breaks line-oriented REPL scripts.
         terminal: Boolean(process.stdin.isTTY),
       })
     : undefined;
 
   try {
     if (!args.repl) {
-      await runTurn(runtime, args.prompt!, rl);
+      await runTurn(cli, args.prompt!, rl);
       return;
     }
 
     if (args.prompt) {
-      await runTurn(runtime, args.prompt, rl);
+      await runTurn(cli, args.prompt, rl);
     }
 
-    console.log("REPL — type a message, /help for commands, Ctrl+C to interrupt a run.");
+    console.log(
+      "REPL — type a message, /help for commands, Ctrl+C to interrupt a run.",
+    );
 
     while (true) {
       let line: string;
       try {
         line = (await rl!.question("\nmin> ")).trim();
       } catch {
-        // stdin closed / readline closed
         break;
       }
       if (!line) continue;
 
-      const cmd = handleReplCommand(runtime, line);
+      const cmd = handleReplCommand(cli, line);
       if (cmd?.type === "exit") break;
       if (cmd?.type === "handled") continue;
 
       const prompt = cmd?.type === "prompt" ? cmd.text : line;
 
       try {
-        await runTurn(runtime, prompt, rl);
+        await runTurn(cli, prompt, rl);
       } catch (err) {
         console.error(err instanceof Error ? err.message : err);
       }
     }
   } finally {
     rl?.close();
-    await runtime.session.dispose();
-    await runtime.agent.dispose();
+    await cli.client.dispose();
   }
 }
 

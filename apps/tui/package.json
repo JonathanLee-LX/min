@@ -18,8 +18,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@min/client": "workspace:*",
     "@min/runtime": "workspace:*",
-    "@min/session": "workspace:*",
     "ink": "^5.2.0",
     "react": "^18.3.1"
   },

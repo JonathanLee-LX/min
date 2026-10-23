@@ -1,10 +1,9 @@
 import {
-  createRuntime,
-  resolveProvider,
-  sessionDirFor as appSessionDir,
-  type Runtime,
-  type PermissionAskResult,
-} from "@min/runtime";
+  createClient,
+  type MinClient,
+  type PermissionAnswer,
+} from "@min/client";
+import { resolveProvider, sessionDirFor as appSessionDir } from "@min/runtime";
 import { createFsStore } from "@min/session";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
@@ -12,14 +11,17 @@ import { createEventPrinter } from "./events.js";
 import { isAbortError, withSigintAbort } from "./interrupt.js";
 import { contextBudgetLog } from "./session-extensions.js";
 
-export type CliRuntime = Runtime & { args: CliArgs };
+export type CliClient = {
+  client: MinClient;
+  args: CliArgs;
+};
 
 export function sessionDirFor(args: CliArgs): string {
   return appSessionDir(args.cwd, args.sessionDir);
 }
 
-export async function createCliRuntime(args: CliArgs): Promise<CliRuntime> {
-  const runtime = await createRuntime({
+export async function createCliClient(args: CliArgs): Promise<CliClient> {
+  const client = await createClient({
     cwd: args.cwd,
     provider: resolveProvider({
       provider: args.provider,
@@ -36,8 +38,15 @@ export async function createCliRuntime(args: CliArgs): Promise<CliRuntime> {
     maxContextTokens: args.maxContextTokens,
     maxUserTurns: args.maxUserTurns,
     sessionExtensions: [contextBudgetLog()],
+    applyRootGrant: false, // CLI applies grantRoot after interactive confirm
+    autoApprovePermission: args.yes
+      ? (req) => {
+          if (req.grantRoot && !args.allowRootGrant) return "deny";
+          return "allow";
+        }
+      : undefined,
   });
-  return { ...runtime, args };
+  return { client, args };
 }
 
 export async function listSessions(args: CliArgs): Promise<void> {
@@ -54,95 +63,133 @@ export async function listSessions(args: CliArgs): Promise<void> {
 }
 
 export async function runTurn(
-  runtime: CliRuntime,
+  cli: CliClient,
   prompt: string,
   rl?: ReadlineInterface,
 ): Promise<void> {
-  const { session, permissions, args } = runtime;
+  const { client, args } = cli;
   const printer = createEventPrinter();
   const pauseRl = Boolean(rl && process.stdin.isTTY);
   if (pauseRl) rl!.pause();
 
-  const stopQueueListen = pauseRl
-    ? listenStdinQueue(session.inputQueue)
-    : undefined;
+  let stopQueueListen: (() => void) | undefined;
+  if (pauseRl) {
+    stopQueueListen = listenStdinQueue(client);
+  }
+
+  const unsub = client.subscribe((event) => {
+    if (event.type === "assistant_delta") {
+      printer.onEvent({ type: "text_delta", text: event.text });
+      return;
+    }
+    if (event.type === "tool_start") {
+      printer.onEvent({
+        type: "tool_call",
+        toolCall: {
+          type: "tool_call",
+          id: event.toolCallId,
+          name: event.name,
+          arguments: event.args,
+        },
+      });
+      return;
+    }
+    if (event.type === "tool_end") {
+      printer.onEvent({
+        type: "tool_result",
+        toolCallId: event.toolCallId,
+        content: event.preview,
+        isError: !event.ok,
+      });
+      return;
+    }
+    if (event.type === "follow_up") {
+      const preview = event.texts.join(" | ");
+      const clipped =
+        preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
+      console.error(`⊕ follow-up ×${event.texts.length}: ${clipped}`);
+      return;
+    }
+    if (event.type === "queued") {
+      console.error(`(queued → ${event.queueSize})`);
+      return;
+    }
+    if (event.type === "error" && !event.aborted) {
+      console.error(`error: ${event.message}`);
+      return;
+    }
+    if (event.type === "permission") {
+      void (async () => {
+        try {
+          const answer = await resolvePermissionInteractive(
+            args,
+            rl,
+            event,
+            pauseRl,
+            stopQueueListen,
+          );
+          // applyRootGrant is false on CLI so we control grantRoot here.
+          if (answer !== "deny" && event.grantRoot) {
+            client.advanced.runtime.permissions?.grantRoot(event.grantRoot);
+          }
+          client.respondPermission(event.id, answer);
+        } catch {
+          client.respondPermission(event.id, "deny");
+        }
+      })();
+    }
+  });
 
   try {
     await withSigintAbort(async (signal) => {
-      const result = await session.run(prompt, {
-        signal,
-        onEvent: printer.onEvent,
-        onPermissionAsk: async (req) => {
-          if (signal.aborted) return "deny";
-
-          if (req.grantRoot) {
-            if (args.allowRootGrant && (args.yes || !process.stdin.isTTY)) {
-              permissions?.grantRoot(req.grantRoot);
-              return "allow";
-            }
-            if (args.yes && !args.allowRootGrant) {
-              return "deny";
-            }
-            if (!rl || !process.stdin.isTTY) {
-              return "deny";
-            }
-            stopQueueListen?.();
-            rl.resume();
-            try {
-              const answer = await promptRootGrant(
-                rl,
-                req.reason,
-                req.grantRoot,
-              );
-              if (answer === "deny") return "deny";
-              permissions?.grantRoot(req.grantRoot);
-              if (answer === "allow_session") {
-                permissions?.grantSession(req.toolCall);
-              }
-              return answer;
-            } finally {
-              if (pauseRl) rl.pause();
-            }
-          }
-
-          if (args.yes) return "allow";
-          if (!rl || !process.stdin.isTTY) return "deny";
-          stopQueueListen?.();
-          rl.resume();
-          try {
-            const answer = await promptPermission(rl, req.reason);
-            if (answer === "allow_session" && permissions) {
-              permissions.grantSession(req.toolCall);
-            }
-            return answer;
-          } finally {
-            if (pauseRl) rl.pause();
-          }
-        },
-      });
-
+      await client.send(prompt, { signal });
       printer.endTextLine();
-
-      if (!printer.didStreamText() && result.text) {
-        process.stdout.write(`\n${result.text}\n`);
+      if (!printer.didStreamText()) {
+        // assistant_done already streamed via deltas usually; nothing else
       }
     });
   } catch (err) {
     printer.endTextLine();
-    if (isAbortError(err)) {
-      return;
-    }
+    if (isAbortError(err)) return;
     throw err;
   } finally {
+    unsub();
     stopQueueListen?.();
     if (pauseRl) rl!.resume();
   }
 }
 
-function listenStdinQueue(
-  queue: Runtime["session"]["inputQueue"],
-): (() => void) | undefined {
-  if (!queue || !process.stdin.isTTY) return undefined;
+async function resolvePermissionInteractive(
+  args: CliArgs,
+  rl: ReadlineInterface | undefined,
+  event: {
+    reason: string;
+    grantRoot?: string;
+    toolCall: { name: string };
+  },
+  pauseRl: boolean,
+  stopQueueListen?: () => void,
+): Promise<PermissionAnswer> {
+  if (args.yes) {
+    if (event.grantRoot && !args.allowRootGrant) return "deny";
+    return "allow";
+  }
+  if (!rl || !process.stdin.isTTY) return "deny";
+
+  stopQueueListen?.();
+  rl.resume();
+  try {
+    if (event.grantRoot) {
+      return promptRootGrant(rl, event.reason, event.grantRoot);
+    }
+    return promptPermission(rl, event.reason);
+  } finally {
+    if (pauseRl) rl.pause();
+  }
+}
+
+function listenStdinQueue(client: MinClient): (() => void) | undefined {
+  if (!process.stdin.isTTY) return undefined;
   let buf = "";
   const onData = (chunk: string | Buffer) => {
     buf += chunk.toString();
@@ -151,8 +198,11 @@ function listenStdinQueue(
       const line = buf.slice(0, nl).replace(/\r$/, "").trim();
       buf = buf.slice(nl + 1);
       if (!line || line.startsWith("/")) continue;
-      queue.push(line);
-      console.error(`(queued → ${queue.size})`);
+      try {
+        client.queue.push(line);
+      } catch {
+        // queue disabled
+      }
     }
   };
   process.stdin.on("data", onData);
@@ -164,7 +214,7 @@ function listenStdinQueue(
 async function promptPermission(
   rl: ReadlineInterface,
   reason: string,
-): Promise<PermissionAskResult> {
+): Promise<PermissionAnswer> {
   console.log(`\n⚠ permission: ${reason}`);
   const line = (
     await rl.question("Allow? [y]es / [n]o / [a]lways this tool > ")
@@ -181,7 +231,7 @@ async function promptRootGrant(
   rl: ReadlineInterface,
   reason: string,
   grantRoot: string,
-): Promise<PermissionAskResult> {
+): Promise<PermissionAnswer> {
   console.log(`\n⚠ session root grant: ${reason}`);
   console.log(`   add root: ${grantRoot}`);
   const line = (

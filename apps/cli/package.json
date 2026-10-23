@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@min/client": "workspace:*",
     "@min/runtime": "workspace:*",
     "@min/core": "workspace:*",
     "@min/session": "workspace:*",

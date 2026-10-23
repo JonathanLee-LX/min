@@ -20,9 +20,9 @@ packages/
   runtime/   @min/runtime  shared composition layer for CLI / TUI
   client/    @min/client   UI facade: send / subscribe / queue / permission
 apps/
-  cli/       @min/cli      one-shot + REPL
-  tui/       @min/tui      Ink terminal UI
-  webui/                   placeholder
+  cli/       @min/cli      one-shot + REPL (via @min/client)
+  tui/       @min/tui      Ink terminal UI (via @min/client)
+  webui/     @min/webui    B/S Web UI — Node server + Vite/React/shadcn
 examples/
   basic/                   Offline mock example (+ optional live providers)
   input-queue-scenarios/   supplement / redirect queue demos
@@ -37,6 +37,8 @@ pnpm test
 pnpm example          # mock provider, no API key needed
 pnpm min -- "list files here"   # CLI with workspace tools (mock if no key)
 pnpm min -- -i                  # interactive REPL
+pnpm min-tui                    # terminal chat UI
+pnpm min-web                    # Web UI (API :43127 + Vite :43128)
 
 # Global `min` on PATH (requires `pnpm setup` once so PNPM_HOME is exported)
 pnpm link:cli
