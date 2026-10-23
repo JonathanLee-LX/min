@@ -9,7 +9,8 @@
     "test": "pnpm -r --filter=@min/* run test",
     "typecheck": "pnpm -r --filter=@min/* run typecheck",
     "example": "pnpm --filter=@min/example-basic start",
-    "min": "pnpm --filter=@min/cli exec tsx src/cli.ts"
+    "min": "pnpm --filter=@min/cli exec tsx src/cli.ts",
+    "link:cli": "pnpm --filter=@min/cli run build && pnpm --dir apps/cli link --global"
   },
   "engines": {
     "node": ">=20"

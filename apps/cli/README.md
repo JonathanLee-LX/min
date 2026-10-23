@@ -1,15 +1,21 @@
 # @min/cli
 
-Minimal CLI for the min agent harness.
+Minimal one-shot + REPL for the min agent harness.
+
+## Global install (pnpm link)
+
+From the monorepo root (after `pnpm install`):
 
 ```bash
-pnpm min -- "list files in this workspace"
-pnpm min -- -i
-pnpm min -- -y "…"
-pnpm min -- --session ses_demo -i
-pnpm min -- --max-context-tokens 16000 -i
-pnpm min -- --list-sessions
+pnpm setup            # once — puts PNPM_HOME on PATH (new shells)
+pnpm link:cli         # build @min/cli and `pnpm link --global`
+min --help
 ```
 
-Conversation state lives in `@min/session` (default store: `<cwd>/.min/sessions`).  
-Model calls use a **budgeted view** of history so context window / prompt cost stay bounded.
+`link:cli` symlinks this workspace package; rebuild + re-run it after CLI changes.
+
+```bash
+min -i
+DEEPSEEK_API_KEY=... min -- "summarize README.md"
+min --provider mock --no-tools -- "ping"
+```

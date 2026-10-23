@@ -33,6 +33,10 @@ pnpm test
 pnpm example          # mock provider, no API key needed
 pnpm min -- "list files here"   # CLI with workspace tools (mock if no key)
 pnpm min -- -i                  # interactive REPL
+
+# Global `min` on PATH (requires `pnpm setup` once so PNPM_HOME is exported)
+pnpm link:cli
+min --help
 ```
 
 Live providers (optional):
