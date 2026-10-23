@@ -1,5 +1,6 @@
 import { createAgent, mockProvider, textPart } from "@min/core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createInputQueue } from "./input-queue.js";
 import { createSession } from "./session.js";
 import { createMemoryStore } from "./store.js";
 
@@ -48,6 +49,29 @@ describe("createSession", () => {
     expect(resumed.messages.filter((m) => m.role === "user")).toHaveLength(2);
     await agent.dispose();
     await agent2.dispose();
+  });
+
+  it("drains inputQueue after agent.run without touching core", async () => {
+    const incoming = vi.fn();
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "first" }, { text: "second" }]),
+    });
+    const queue = createInputQueue({ mode: "enqueue" });
+    const session = await createSession({
+      agent,
+      inputQueue: queue,
+      hooks: { onIncoming: incoming },
+    });
+
+    // Simulate an interjection arriving while the first pass would be running.
+    queue.push("extra detail");
+
+    const result = await session.run("start");
+    expect(result.text).toBe("second");
+    expect(incoming).toHaveBeenCalledWith(["extra detail"]);
+    expect(session.messages.filter((m) => m.role === "user")).toHaveLength(2);
+    expect(queue.size).toBe(0);
+    await agent.dispose();
   });
 
   it("trims model view but keeps full history after overflow", async () => {

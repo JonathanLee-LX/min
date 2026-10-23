@@ -15,6 +15,14 @@ export {
   type SessionHooks,
 } from "./extension.js";
 export {
+  createInputQueue,
+  joinIncoming,
+  type InputQueue,
+  type InputQueueMode,
+  type InputQueueOptions,
+  type InputQueuePushOptions,
+} from "./input-queue.js";
+export {
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
   type CreateSessionOptions,

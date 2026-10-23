@@ -121,6 +121,11 @@ export async function runTurn(
   const pauseRl = Boolean(rl && process.stdin.isTTY);
   if (pauseRl) rl!.pause();
 
+  // While readline is paused, line-buffer stdin into the session input queue.
+  const stopQueueListen = pauseRl
+    ? listenStdinQueue(session.inputQueue)
+    : undefined;
+
   try {
     await withSigintAbort(async (signal) => {
       const result = await session.run(prompt, {
@@ -140,6 +145,7 @@ export async function runTurn(
             if (!rl || !process.stdin.isTTY) {
               return "deny";
             }
+            stopQueueListen?.();
             rl.resume();
             try {
               const answer = await promptRootGrant(
@@ -160,6 +166,7 @@ export async function runTurn(
 
           if (args.yes) return "allow";
           if (!rl || !process.stdin.isTTY) return "deny";
+          stopQueueListen?.();
           rl.resume();
           try {
             const answer = await promptPermission(rl, req.reason);
@@ -187,8 +194,32 @@ export async function runTurn(
     }
     throw err;
   } finally {
+    stopQueueListen?.();
     if (pauseRl) rl!.resume();
   }
+}
+
+/** Line-buffer stdin into the session queue (TTY interjections during a run). */
+function listenStdinQueue(
+  queue: Session["inputQueue"],
+): (() => void) | undefined {
+  if (!queue || !process.stdin.isTTY) return undefined;
+  let buf = "";
+  const onData = (chunk: string | Buffer) => {
+    buf += chunk.toString();
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).replace(/\r$/, "").trim();
+      buf = buf.slice(nl + 1);
+      if (!line || line.startsWith("/")) continue;
+      queue.push(line);
+      console.error(`(queued → ${queue.size})`);
+    }
+  };
+  process.stdin.on("data", onData);
+  return () => {
+    process.stdin.off("data", onData);
+  };
 }
 
 async function promptPermission(

@@ -15,6 +15,12 @@ import {
   type SessionHooks,
 } from "./extension.js";
 import {
+  createInputQueue,
+  joinIncoming,
+  type InputQueue,
+  type InputQueueOptions,
+} from "./input-queue.js";
+import {
   newSessionId,
   type SessionMeta,
   type SessionSnapshot,
@@ -45,6 +51,12 @@ export interface CreateSessionOptions {
   hooks?: SessionHooks | SessionHooks[];
   /** Composable packs of assembler/hooks. Later assembler wins; hooks run in order. */
   extensions?: SessionExtension[];
+  /**
+   * Follow-up queue for interjections during / after a run.
+   * Defaults to enqueue + 1.5s dense-latest window.
+   * Pass `false` to disable. Does not modify `@min/core`.
+   */
+  inputQueue?: InputQueue | InputQueueOptions | false;
 }
 
 export interface SessionRunOptions {
@@ -61,6 +73,8 @@ export interface Session {
   readonly messages: readonly Message[];
   /** Last assemble info from run(), if any. */
   readonly lastAssemble?: AssembleResult;
+  /** Follow-up queue (undefined when disabled). */
+  readonly inputQueue?: InputQueue;
   run(input: string, opts?: SessionRunOptions): Promise<RunResult>;
   reset(messages?: Message[]): void;
   export(): SessionSnapshot;
@@ -99,8 +113,9 @@ export async function createSession(
 
   const { assembler: extAssembler, hooks: extHooks } =
     resolveSessionExtensions(opts.extensions, createBudgetAssembler(budget));
-  // Explicit assembler option wins over extension-provided assemblers.
   const finalAssembler = opts.assembler ?? extAssembler;
+
+  const inputQueue = resolveInputQueue(opts.inputQueue);
 
   const hooks: SessionHooks[] = [
     ...extHooks,
@@ -131,6 +146,72 @@ export async function createSession(
     await opts.store.save(snapshot);
   };
 
+  /** One agent pass: assemble → agent.run → update canonical history. */
+  const runOnce = async (
+    userText: string,
+    runOpts: SessionRunOptions,
+  ): Promise<RunResult> => {
+    const tools = opts.agent.tools.definitions();
+    const system = resolveSystem();
+    const hookCtx: SessionHookContext = {
+      sessionId: meta.id,
+      meta,
+      messages,
+      input: userText,
+      system,
+      tools,
+    };
+
+    for (const h of hooks) {
+      await h.onBeforeRun?.(hookCtx);
+    }
+
+    const pending = [...messages, userMessage(userText)];
+    let assembled = await finalAssembler.assemble({
+      messages: pending,
+      system,
+      tools,
+      budget,
+    });
+
+    for (const h of hooks) {
+      if (!h.onAfterAssemble) continue;
+      const next = await h.onAfterAssemble({
+        ...hookCtx,
+        pending,
+        assemble: assembled,
+      });
+      if (next) assembled = next;
+    }
+
+    lastAssemble = assembled;
+
+    const result = await opts.agent.run({
+      input: assembled.view,
+      signal: runOpts.signal,
+      maxTurns: runOpts.maxTurns,
+      onEvent: runOpts.onEvent,
+      onPermissionAsk: runOpts.onPermissionAsk,
+    });
+
+    const nextMessages = [...assembled.dropped, ...result.messages];
+    messages = nextMessages;
+    if (!meta.title) {
+      meta = { ...meta, title: userText.slice(0, 80) };
+    }
+
+    for (const h of hooks) {
+      await h.onAfterRun?.({
+        ...hookCtx,
+        assemble: assembled,
+        result,
+        nextMessages,
+      });
+    }
+
+    return result;
+  };
+
   const session: Session = {
     get id() {
       return meta.id;
@@ -144,64 +225,29 @@ export async function createSession(
     get lastAssemble() {
       return lastAssemble;
     },
+    get inputQueue() {
+      return inputQueue;
+    },
 
     async run(input, runOpts = {}) {
-      const tools = opts.agent.tools.definitions();
-      const system = resolveSystem();
-      const hookCtx: SessionHookContext = {
-        sessionId: meta.id,
-        meta,
-        messages,
-        input,
-        system,
-        tools,
-      };
+      let result = await runOnce(input, runOpts);
 
-      for (const h of hooks) {
-        await h.onBeforeRun?.(hookCtx);
-      }
+      // Session-level follow-ups only — core Runner is unchanged.
+      // Interjections queued during the agent loop are applied after it returns.
+      while (
+        inputQueue &&
+        inputQueue.size > 0 &&
+        !runOpts.signal?.aborted
+      ) {
+        const parts = inputQueue.drain();
+        const follow = joinIncoming(parts);
+        if (!follow) break;
 
-      const pending = [...messages, userMessage(input)];
-      let assembled = await finalAssembler.assemble({
-        messages: pending,
-        system,
-        tools,
-        budget,
-      });
+        for (const h of hooks) {
+          await h.onIncoming?.(parts);
+        }
 
-      for (const h of hooks) {
-        if (!h.onAfterAssemble) continue;
-        const next = await h.onAfterAssemble({
-          ...hookCtx,
-          pending,
-          assemble: assembled,
-        });
-        if (next) assembled = next;
-      }
-
-      lastAssemble = assembled;
-
-      const result = await opts.agent.run({
-        input: assembled.view,
-        signal: runOpts.signal,
-        maxTurns: runOpts.maxTurns,
-        onEvent: runOpts.onEvent,
-        onPermissionAsk: runOpts.onPermissionAsk,
-      });
-
-      const nextMessages = [...assembled.dropped, ...result.messages];
-      messages = nextMessages;
-      if (!meta.title) {
-        meta = { ...meta, title: input.slice(0, 80) };
-      }
-
-      for (const h of hooks) {
-        await h.onAfterRun?.({
-          ...hookCtx,
-          assemble: assembled,
-          result,
-          nextMessages,
-        });
+        result = await runOnce(follow, runOpts);
       }
 
       await persist();
@@ -211,6 +257,7 @@ export async function createSession(
     reset(next) {
       messages = next ? [...next] : [];
       lastAssemble = undefined;
+      inputQueue?.clear();
     },
 
     export() {
@@ -223,4 +270,24 @@ export async function createSession(
   };
 
   return session;
+}
+
+function resolveInputQueue(
+  opt: CreateSessionOptions["inputQueue"],
+): InputQueue | undefined {
+  if (opt === false) return undefined;
+  if (
+    opt &&
+    typeof opt === "object" &&
+    "drain" in opt &&
+    typeof (opt as InputQueue).drain === "function"
+  ) {
+    return opt as InputQueue;
+  }
+  return createInputQueue({
+    mode: "enqueue",
+    denseWindowMs: 1500,
+    denseMode: "dense-latest",
+    ...(opt && typeof opt === "object" ? (opt as InputQueueOptions) : {}),
+  });
 }

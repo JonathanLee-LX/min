@@ -11,6 +11,12 @@ export function contextBudgetLog(): SessionExtension {
           `context: trimmed ${assemble.dropped.length} msgs · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})`,
         );
       },
+      onIncoming(texts) {
+        const preview = texts.join(" | ");
+        const clipped =
+          preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
+        console.error(`⊕ follow-up ×${texts.length}: ${clipped}`);
+      },
     },
   });
 }

@@ -87,6 +87,7 @@ Session stays a thin kernel; extend via composition:
 | `SessionExtension` | Package assembler + hooks (`defineSessionExtension`) |
 
 Kernel responsibilities only: identity, canonical history, `run`/`reset`/`export`, store I/O.
+Follow-up **input queue** (`createInputQueue`) lives in `@min/session` only: default `enqueue`, with a 1.5s `dense-latest` window for rapid supplements. Drained **after** each `agent.run` returns — `@min/core` is unchanged.
 Everything else plugs in:
 
 ```ts
