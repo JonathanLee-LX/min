@@ -17,6 +17,9 @@ importers:
       '@min/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@min/session':
+        specifier: workspace:*
+        version: link:../../packages/session
       '@min/skills':
         specifier: workspace:*
         version: link:../../packages/skills
@@ -108,6 +111,25 @@ importers:
       zod:
         specifier: ^3.24.2
         version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.5
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.7(@types/node@22.20.5)(tsx@4.23.15)
+
+  packages/session:
+    dependencies:
+      '@min/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^22.14.0

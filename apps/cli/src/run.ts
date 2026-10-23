@@ -1,11 +1,17 @@
 import {
   createAgent,
   type Agent,
-  type Message,
   type PermissionAskResult,
   type RunEvent,
 } from "@min/core";
 import { skills } from "@min/skills";
+import {
+  createFsStore,
+  createSession,
+  DEFAULT_MAX_CONTEXT_TOKENS,
+  type Session,
+  type SessionStore,
+} from "@min/session";
 import {
   workspaceTools,
   type WorkspacePermissionPolicy,
@@ -16,13 +22,24 @@ import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { resolveProvider } from "./provider.js";
 
+const BASE_SYSTEM = [
+  "You are min, a concise coding agent.",
+  "Use tools when they help. Keep answers short unless asked for detail.",
+].join(" ");
+
 export interface CliRuntime {
   agent: Agent;
+  session: Session;
+  store?: SessionStore;
   permissions?: WorkspacePermissionPolicy;
   args: CliArgs;
 }
 
-export async function createCliAgent(args: CliArgs): Promise<CliRuntime> {
+export function sessionDirFor(args: CliArgs): string {
+  return path.resolve(args.sessionDir ?? path.join(args.cwd, ".min/sessions"));
+}
+
+export async function createCliRuntime(args: CliArgs): Promise<CliRuntime> {
   const extensions = [];
   let permissions: WorkspacePermissionPolicy | undefined;
 
@@ -52,28 +69,52 @@ export async function createCliAgent(args: CliArgs): Promise<CliRuntime> {
       model: args.model,
     }),
     extensions,
-    system: [
-      "You are min, a concise coding agent.",
-      "Use tools when they help. Keep answers short unless asked for detail.",
-    ].join(" "),
+    system: BASE_SYSTEM,
     maxTurns: 20,
   });
 
-  return { agent, permissions, args };
+  const store = args.noSessionStore
+    ? undefined
+    : createFsStore(sessionDirFor(args));
+
+  const session = await createSession({
+    agent,
+    store,
+    id: args.sessionId,
+    systemForBudget: BASE_SYSTEM,
+    budget: {
+      maxContextTokens: args.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
+      maxUserTurns: args.maxUserTurns,
+      reservedOutputTokens: 1024,
+    },
+  });
+
+  return { agent, session, store, permissions, args };
+}
+
+export async function listSessions(args: CliArgs): Promise<void> {
+  const store = createFsStore(sessionDirFor(args));
+  const metas = await store.list();
+  if (!metas.length) {
+    console.log(`(no sessions in ${sessionDirFor(args)})`);
+    return;
+  }
+  for (const m of metas) {
+    const title = m.title ? `  ${m.title}` : "";
+    console.log(`${m.id}  ${m.updatedAt}${title}`);
+  }
 }
 
 export async function runTurn(
   runtime: CliRuntime,
-  turnInput: string | Message[],
+  prompt: string,
   rl?: ReadlineInterface,
-): Promise<{ text: string; messages: Message[] }> {
-  const { agent, permissions, args } = runtime;
+): Promise<void> {
+  const { session, permissions, args } = runtime;
 
-  const result = await agent.run({
-    input: turnInput,
+  const result = await session.run(prompt, {
     onEvent: printEvent,
     onPermissionAsk: async (req) => {
-      // Root expansion: -y alone never grants; need --allow-root-grant or interactive.
       if (req.grantRoot) {
         if (args.allowRootGrant && (args.yes || !process.stdin.isTTY)) {
           permissions?.grantRoot(req.grantRoot);
@@ -94,12 +135,8 @@ export async function runTurn(
         return answer;
       }
 
-      if (args.yes) {
-        return "allow";
-      }
-      if (!rl || !process.stdin.isTTY) {
-        return "deny";
-      }
+      if (args.yes) return "allow";
+      if (!rl || !process.stdin.isTTY) return "deny";
       const answer = await promptPermission(rl, req.reason);
       if (answer === "allow_session" && permissions) {
         permissions.grantSession(req.toolCall);
@@ -108,10 +145,16 @@ export async function runTurn(
     },
   });
 
+  const assembled = session.lastAssemble;
+  if (assembled?.trimmed) {
+    console.error(
+      `context: trimmed ${assembled.dropped.length} msgs · view~${assembled.estimatedTokens} tokens (budget messages=${assembled.messageBudget})`,
+    );
+  }
+
   if (result.text) {
     process.stdout.write(`\n${result.text}\n`);
   }
-  return { text: result.text, messages: result.messages };
 }
 
 async function promptPermission(

@@ -17,23 +17,25 @@ describe("parseArgs", () => {
     expect(args.repl).toBe(false);
   });
 
-  it("enables repl and permission flags", () => {
+  it("parses session and context budget flags", () => {
     expect(parseArgs(["-i"]).repl).toBe(true);
     expect(
       parseArgs([
         "-y",
-        "--allow-bash",
-        "--ask-write",
-        "--allow-root-grant",
-        "--add-root",
-        "/tmp/extra",
+        "--session",
+        "ses_1",
+        "--max-context-tokens",
+        "8000",
+        "--max-user-turns",
+        "6",
+        "--list-sessions",
       ]),
     ).toMatchObject({
       yes: true,
-      allowBash: true,
-      askWrite: true,
-      allowRootGrant: true,
-      addRoots: ["/tmp/extra"],
+      sessionId: "ses_1",
+      maxContextTokens: 8000,
+      maxUserTurns: 6,
+      listSessions: true,
     });
   });
 });

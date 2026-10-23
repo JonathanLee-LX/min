@@ -146,7 +146,13 @@ async function walk(
   const { readdir } = await import("node:fs/promises");
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name === ".git" || entry.name === "node_modules") continue;
+    if (
+      entry.name === ".git" ||
+      entry.name === "node_modules" ||
+      entry.name === ".min"
+    ) {
+      continue;
+    }
     const abs = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       visit(abs, entry.name, true);

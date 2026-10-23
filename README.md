@@ -16,6 +16,7 @@ packages/
   mcp/       @min/mcp      MCP client extension
   skills/    @min/skills   Agent Skills (SKILL.md) extension
   tools/     @min/tools    sandboxed read/write/glob/bash
+  session/   @min/session  conversation sessions + context budget
 apps/
   cli/       @min/cli      minimal one-shot + REPL
   tui/ webui/              placeholders
@@ -64,6 +65,13 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 - One-shot without TTY: `ask` → deny unless flags allow
 - Denied tools return `tool_result` with `isError` — the run continues
 - Core only enforces `allow \| deny \| ask` (+ optional `grantRoot`); policy lives in `@min/tools` / CLI
+
+### Sessions and context budget (`@min/session`)
+
+- Canonical history is kept in a `Session` (optionally under `<cwd>/.min/sessions`).
+- Each model call sends only a **budgeted view**: oldest user-turns are dropped when `system + tools + messages` exceed `--max-context-tokens` (default 32000, rough char/4 estimate).
+- Full history remains in the session store; trimming affects the model view only (controls window limits and prompt cost growth).
+- CLI: `--session <id>`, `--session-dir`, `--max-context-tokens`, `--max-user-turns`, `--list-sessions`.
 
 ## Usage
 

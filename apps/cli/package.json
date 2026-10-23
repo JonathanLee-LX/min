@@ -19,10 +19,12 @@
   },
   "dependencies": {
     "@min/core": "workspace:*",
+    "@min/session": "workspace:*",
     "@min/skills": "workspace:*",
     "@min/tools": "workspace:*",
     "zod": "^3.24.2"
   },
+
   "devDependencies": {
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
