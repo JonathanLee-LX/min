@@ -144,9 +144,16 @@ Options:
   -i, --repl          interactive mode
   -h, --help          show help
 
+During a run:
+  Ctrl+C              abort the current turn (REPL stays open)
+
+REPL commands:
+  /help  /session  /reset  /exit
+
 Context:
   Full history is stored in the session; only a budgeted suffix is sent to the model.
   Oldest user-turns are dropped from the model view when over budget (cost/window).
+  Assistant text streams as it arrives (OpenAI / DeepSeek); tool traces print on stderr-friendly lines.
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY

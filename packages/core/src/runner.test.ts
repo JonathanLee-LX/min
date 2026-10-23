@@ -112,4 +112,35 @@ describe("Runner / createAgent", () => {
     expect(result.turns).toBe(2);
     await agent.dispose();
   });
+
+  it("streams text_delta chunks from provider.stream", async () => {
+    const deltas: string[] = [];
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "abcdef" }]),
+    });
+
+    const result = await agent.run({
+      input: "hi",
+      onEvent(e) {
+        if (e.type === "text_delta") deltas.push(e.text);
+      },
+    });
+
+    expect(result.text).toBe("abcdef");
+    expect(deltas.length).toBeGreaterThan(1);
+    expect(deltas.join("")).toBe("abcdef");
+    await agent.dispose();
+  });
+
+  it("aborts when signal is already aborted", async () => {
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "nope" }]),
+    });
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      agent.run({ input: "hi", signal: ac.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    await agent.dispose();
+  });
 });

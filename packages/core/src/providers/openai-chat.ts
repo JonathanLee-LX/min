@@ -5,6 +5,7 @@ import type {
 } from "openai/resources/chat/completions";
 import type { ModelProvider } from "../provider.js";
 import type {
+  CompletionChunk,
   CompletionRequest,
   CompletionResult,
   ContentPart,
@@ -104,6 +105,89 @@ export function openaiChatProvider(
         usage: {
           inputTokens: response.usage?.prompt_tokens,
           outputTokens: response.usage?.completion_tokens,
+        },
+      };
+    },
+
+    async *stream(req: CompletionRequest): AsyncIterable<CompletionChunk> {
+      const messages = toChatMessages(req);
+
+      const stream = await client.chat.completions.create(
+        {
+          model: opts.model,
+          messages,
+          max_tokens: req.maxTokens ?? defaultMaxTokens,
+          stream: true,
+          ...(req.tools?.length
+            ? {
+                tools: toChatTools(req.tools),
+                tool_choice: "auto" as const,
+              }
+            : {}),
+        },
+        { signal: req.signal },
+      );
+
+      let text = "";
+      const toolAcc = new Map<
+        number,
+        { id: string; name: string; arguments: string }
+      >();
+      let finishReason: string | null | undefined;
+
+      for await (const chunk of stream) {
+        const choice = chunk.choices[0];
+        if (!choice) continue;
+        finishReason = choice.finish_reason ?? finishReason;
+
+        const delta = choice.delta;
+        if (delta?.content) {
+          text += delta.content;
+          yield { type: "text_delta", text: delta.content };
+        }
+
+        for (const tc of delta?.tool_calls ?? []) {
+          const prev = toolAcc.get(tc.index) ?? {
+            id: "",
+            name: "",
+            arguments: "",
+          };
+          if (tc.id) prev.id = tc.id;
+          if (tc.function?.name) prev.name += tc.function.name;
+          if (tc.function?.arguments) prev.arguments += tc.function.arguments;
+          toolAcc.set(tc.index, prev);
+        }
+      }
+
+      const content: ContentPart[] = [];
+      if (text) content.push({ type: "text", text });
+      for (const [, call] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(call.arguments || "{}") as Record<string, unknown>;
+        } catch {
+          args = { _raw: call.arguments };
+        }
+        content.push({
+          type: "tool_call",
+          id: call.id || `call_${call.name}`,
+          name: call.name,
+          arguments: args,
+        });
+      }
+
+      const stopReason =
+        finishReason === "tool_calls"
+          ? "tool_use"
+          : finishReason === "length"
+            ? "length"
+            : "end";
+
+      yield {
+        type: "done",
+        result: {
+          message: { role: "assistant", content },
+          stopReason,
         },
       };
     },

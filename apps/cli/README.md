@@ -17,7 +17,7 @@ min --help
 Copy `.env.example` → `.env` at the repo root (gitignored). The CLI loads it automatically.
 
 ```bash
-min -i
-min -- "summarize README.md"          # uses PROVIDER / DEEPSEEK_API_KEY from .env
+min -i                                # REPL: /session /reset /help /exit; Ctrl+C aborts a run
+min -- "summarize README.md"          # streams assistant text (DeepSeek / OpenAI)
 min --provider mock --no-tools -- "ping"
 ```

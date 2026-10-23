@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
+import { handleReplCommand } from "./repl.js";
 import { createCliRuntime, listSessions, runTurn } from "./run.js";
 
 loadEnvFiles();
@@ -58,15 +59,20 @@ async function main(): Promise<void> {
       await runTurn(runtime, args.prompt, rl);
     }
 
-    console.log("REPL — type a message, or /exit to quit.");
+    console.log("REPL — type a message, /help for commands, Ctrl+C to interrupt a run.");
 
     while (true) {
       const line = (await rl!.question("\nmin> ")).trim();
       if (!line) continue;
-      if (line === "/exit" || line === "/quit") break;
+
+      const cmd = handleReplCommand(runtime, line);
+      if (cmd?.type === "exit") break;
+      if (cmd?.type === "handled") continue;
+
+      const prompt = cmd?.type === "prompt" ? cmd.text : line;
 
       try {
-        await runTurn(runtime, line, rl);
+        await runTurn(runtime, prompt, rl);
       } catch (err) {
         console.error(err instanceof Error ? err.message : err);
       }

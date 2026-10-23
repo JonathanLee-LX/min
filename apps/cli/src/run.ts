@@ -2,7 +2,6 @@ import {
   createAgent,
   type Agent,
   type PermissionAskResult,
-  type RunEvent,
 } from "@min/core";
 import { skills } from "@min/skills";
 import {
@@ -20,6 +19,8 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
+import { createEventPrinter } from "./events.js";
+import { isAbortError, withSigintAbort } from "./interrupt.js";
 import { resolveProvider } from "./provider.js";
 import { contextBudgetLog } from "./session-extensions.js";
 
@@ -114,42 +115,78 @@ export async function runTurn(
   rl?: ReadlineInterface,
 ): Promise<void> {
   const { session, permissions, args } = runtime;
+  const printer = createEventPrinter();
 
-  const result = await session.run(prompt, {
-    onEvent: printEvent,
-    onPermissionAsk: async (req) => {
-      if (req.grantRoot) {
-        if (args.allowRootGrant && (args.yes || !process.stdin.isTTY)) {
-          permissions?.grantRoot(req.grantRoot);
-          return "allow";
-        }
-        if (args.yes && !args.allowRootGrant) {
-          return "deny";
-        }
-        if (!rl || !process.stdin.isTTY) {
-          return "deny";
-        }
-        const answer = await promptRootGrant(rl, req.reason, req.grantRoot);
-        if (answer === "deny") return "deny";
-        permissions?.grantRoot(req.grantRoot);
-        if (answer === "allow_session") {
-          permissions?.grantSession(req.toolCall);
-        }
-        return answer;
+  // Pause readline so SIGINT reaches our AbortController during the run.
+  rl?.pause();
+
+  try {
+    await withSigintAbort(async (signal) => {
+      const result = await session.run(prompt, {
+        signal,
+        onEvent: printer.onEvent,
+        onPermissionAsk: async (req) => {
+          if (signal.aborted) return "deny";
+
+          if (req.grantRoot) {
+            if (args.allowRootGrant && (args.yes || !process.stdin.isTTY)) {
+              permissions?.grantRoot(req.grantRoot);
+              return "allow";
+            }
+            if (args.yes && !args.allowRootGrant) {
+              return "deny";
+            }
+            if (!rl || !process.stdin.isTTY) {
+              return "deny";
+            }
+            rl.resume();
+            try {
+              const answer = await promptRootGrant(
+                rl,
+                req.reason,
+                req.grantRoot,
+              );
+              if (answer === "deny") return "deny";
+              permissions?.grantRoot(req.grantRoot);
+              if (answer === "allow_session") {
+                permissions?.grantSession(req.toolCall);
+              }
+              return answer;
+            } finally {
+              rl.pause();
+            }
+          }
+
+          if (args.yes) return "allow";
+          if (!rl || !process.stdin.isTTY) return "deny";
+          rl.resume();
+          try {
+            const answer = await promptPermission(rl, req.reason);
+            if (answer === "allow_session" && permissions) {
+              permissions.grantSession(req.toolCall);
+            }
+            return answer;
+          } finally {
+            rl.pause();
+          }
+        },
+      });
+
+      printer.endTextLine();
+
+      // Fallback when provider has no stream (e.g. Anthropic today).
+      if (!printer.didStreamText() && result.text) {
+        process.stdout.write(`\n${result.text}\n`);
       }
-
-      if (args.yes) return "allow";
-      if (!rl || !process.stdin.isTTY) return "deny";
-      const answer = await promptPermission(rl, req.reason);
-      if (answer === "allow_session" && permissions) {
-        permissions.grantSession(req.toolCall);
-      }
-      return answer;
-    },
-  });
-
-  if (result.text) {
-    process.stdout.write(`\n${result.text}\n`);
+    });
+  } catch (err) {
+    printer.endTextLine();
+    if (isAbortError(err)) {
+      return;
+    }
+    throw err;
+  } finally {
+    rl?.resume();
   }
 }
 
@@ -187,20 +224,6 @@ async function promptRootGrant(
   if (line === "y" || line === "yes") return "allow";
   if (line === "a" || line === "always") return "allow_session";
   return "deny";
-}
-
-function printEvent(event: RunEvent): void {
-  if (event.type === "tool_call") {
-    const args = JSON.stringify(event.toolCall.arguments);
-    const clipped = args.length > 120 ? `${args.slice(0, 117)}...` : args;
-    console.log(`\n→ ${event.toolCall.name}(${clipped})`);
-  } else if (event.type === "permission" && event.decision === "deny") {
-    console.log(`⛔ denied ${event.toolCall.name}: ${event.reason ?? ""}`);
-  } else if (event.type === "tool_result") {
-    const body = event.content.replace(/\s+/g, " ").trim();
-    const clipped = body.length > 160 ? `${body.slice(0, 157)}...` : body;
-    console.log(`← ${event.isError ? "ERR " : ""}${clipped}`);
-  }
 }
 
 async function exists(p: string): Promise<boolean> {

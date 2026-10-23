@@ -1,6 +1,6 @@
 # min
 
-A minimal, extensible TypeScript **agent harness**. Phase 1 ships the core runtime only — CLI / TUI / WebUI are placeholders.
+A minimal, extensible TypeScript **agent harness**. Core packages + a usable CLI (streaming, Ctrl+C interrupt, sessions); TUI / WebUI remain placeholders.
 
 ## Why min
 

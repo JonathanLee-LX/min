@@ -10,6 +10,7 @@ import type {
 } from "openai/resources/responses/responses";
 import type { ModelProvider } from "../provider.js";
 import type {
+  CompletionChunk,
   CompletionRequest,
   CompletionResult,
   ContentPart,
@@ -56,6 +57,40 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
       );
 
       return fromResponsesOutput(response);
+    },
+
+    async *stream(req: CompletionRequest): AsyncIterable<CompletionChunk> {
+      const { instructions, input } = toResponsesInput(req);
+
+      const stream = await client.responses.create(
+        {
+          model: opts.model,
+          input,
+          ...(instructions ? { instructions } : {}),
+          ...(req.tools?.length
+            ? { tools: toOpenAITools(req.tools) }
+            : {}),
+          max_output_tokens: req.maxTokens ?? defaultMaxTokens,
+          store: false,
+          stream: true,
+        },
+        { signal: req.signal },
+      );
+
+      for await (const event of stream) {
+        if (event.type === "response.output_text.delta" && event.delta) {
+          yield { type: "text_delta", text: event.delta };
+        } else if (event.type === "response.completed") {
+          yield {
+            type: "done",
+            result: fromResponsesOutput(event.response),
+          };
+        } else if (event.type === "response.failed") {
+          const msg =
+            event.response.error?.message ?? "Responses API request failed";
+          throw new Error(msg);
+        }
+      }
     },
   };
 }
