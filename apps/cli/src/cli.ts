@@ -1,7 +1,10 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs } from "./args.js";
+import { loadEnvFiles } from "./load-env.js";
 import { createCliRuntime, listSessions, runTurn } from "./run.js";
+
+loadEnvFiles();
 
 async function main(): Promise<void> {
   let args;

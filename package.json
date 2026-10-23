@@ -10,7 +10,7 @@
     "typecheck": "pnpm -r --filter=@min/* run typecheck",
     "example": "pnpm --filter=@min/example-basic start",
     "min": "pnpm --filter=@min/cli exec tsx src/cli.ts",
-    "link:cli": "pnpm --filter=@min/cli run build && pnpm --dir apps/cli link --global"
+    "link:cli": "pnpm --filter=@min/cli run build && pnpm --filter=@min/cli exec pnpm link --global"
   },
   "engines": {
     "node": ">=20"

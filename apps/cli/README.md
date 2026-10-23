@@ -14,8 +14,10 @@ min --help
 
 `link:cli` symlinks this workspace package; rebuild + re-run it after CLI changes.
 
+Copy `.env.example` → `.env` at the repo root (gitignored). The CLI loads it automatically.
+
 ```bash
 min -i
-DEEPSEEK_API_KEY=... min -- "summarize README.md"
+min -- "summarize README.md"          # uses PROVIDER / DEEPSEEK_API_KEY from .env
 min --provider mock --no-tools -- "ping"
 ```
