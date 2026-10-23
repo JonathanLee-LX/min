@@ -116,9 +116,10 @@ export async function runTurn(
 ): Promise<void> {
   const { session, permissions, args } = runtime;
   const printer = createEventPrinter();
-
-  // Pause readline so SIGINT reaches our AbortController during the run.
-  rl?.pause();
+  // Only pause a TTY readline so Ctrl+C hits our AbortController.
+  // Pausing a piped stdin drops buffered REPL lines (/session, /reset, …).
+  const pauseRl = Boolean(rl && process.stdin.isTTY);
+  if (pauseRl) rl!.pause();
 
   try {
     await withSigintAbort(async (signal) => {
@@ -153,7 +154,7 @@ export async function runTurn(
               }
               return answer;
             } finally {
-              rl.pause();
+              if (pauseRl) rl.pause();
             }
           }
 
@@ -167,7 +168,7 @@ export async function runTurn(
             }
             return answer;
           } finally {
-            rl.pause();
+            if (pauseRl) rl.pause();
           }
         },
       });
@@ -186,7 +187,7 @@ export async function runTurn(
     }
     throw err;
   } finally {
-    rl?.resume();
+    if (pauseRl) rl!.resume();
   }
 }
 

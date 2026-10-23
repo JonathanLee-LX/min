@@ -46,7 +46,12 @@ async function main(): Promise<void> {
 
   const needsRl = args.repl || (!args.yes && process.stdin.isTTY);
   const rl = needsRl
-    ? createInterface({ input, output, terminal: true })
+    ? createInterface({
+        input,
+        output,
+        // Auto-detect: forcing terminal:true on pipes breaks line-oriented REPL scripts.
+        terminal: Boolean(process.stdin.isTTY),
+      })
     : undefined;
 
   try {
@@ -62,7 +67,13 @@ async function main(): Promise<void> {
     console.log("REPL — type a message, /help for commands, Ctrl+C to interrupt a run.");
 
     while (true) {
-      const line = (await rl!.question("\nmin> ")).trim();
+      let line: string;
+      try {
+        line = (await rl!.question("\nmin> ")).trim();
+      } catch {
+        // stdin closed / readline closed
+        break;
+      }
       if (!line) continue;
 
       const cmd = handleReplCommand(runtime, line);
