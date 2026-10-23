@@ -82,14 +82,28 @@ Session stays a thin kernel; extend via composition:
 | `SessionHooks` | `onBeforeRun` / `onAfterAssemble` / `onAfterRun` / `onBeforeSave` |
 | `SessionExtension` | Package assembler + hooks (`defineSessionExtension`) |
 
+Kernel responsibilities only: identity, canonical history, `run`/`reset`/`export`, store I/O.
+Everything else plugs in:
+
 ```ts
 import { createSession, defineSessionExtension, createBudgetAssembler } from "@min/session";
 
 const compact = defineSessionExtension({
   name: "compact-log",
+  // Optional: replace the default budget assembler
+  // assembler: createBudgetAssembler({ maxContextTokens: 16_000 }),
   hooks: {
+    onBeforeRun() { /* audit / metrics */ },
+    onAfterAssemble(ctx) {
+      // Return a new AssembleResult to override the model view
+      return ctx.assemble;
+    },
     onAfterRun({ assemble }) {
       if (assemble.trimmed) console.info("context trimmed", assemble.dropped.length);
+    },
+    onBeforeSave(snapshot) {
+      // Transform or redact before persist
+      return snapshot;
     },
   },
 });
@@ -99,9 +113,11 @@ const session = await createSession({
   store,
   budget: { maxContextTokens: 16_000 },
   extensions: [compact],
-  // assembler: createBudgetAssembler({ maxContextTokens: 16_000 }),
+  // assembler: …  // explicit option wins over extension assemblers
 });
 ```
+
+The CLI ships one pack (`cli.context-budget-log`) the same way — observability stays outside the kernel.
 
 ## Usage
 

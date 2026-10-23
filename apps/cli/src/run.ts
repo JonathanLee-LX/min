@@ -21,6 +21,7 @@ import path from "node:path";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { resolveProvider } from "./provider.js";
+import { contextBudgetLog } from "./session-extensions.js";
 
 const BASE_SYSTEM = [
   "You are min, a concise coding agent.",
@@ -87,6 +88,8 @@ export async function createCliRuntime(args: CliArgs): Promise<CliRuntime> {
       maxUserTurns: args.maxUserTurns,
       reservedOutputTokens: 1024,
     },
+    // Session kernel stays thin; CLI packs observability as an extension.
+    extensions: [contextBudgetLog()],
   });
 
   return { agent, session, store, permissions, args };
@@ -144,13 +147,6 @@ export async function runTurn(
       return answer;
     },
   });
-
-  const assembled = session.lastAssemble;
-  if (assembled?.trimmed) {
-    console.error(
-      `context: trimmed ${assembled.dropped.length} msgs · view~${assembled.estimatedTokens} tokens (budget messages=${assembled.messageBudget})`,
-    );
-  }
 
   if (result.text) {
     process.stdout.write(`\n${result.text}\n`);
