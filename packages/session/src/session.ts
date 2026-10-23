@@ -4,13 +4,16 @@ import {
   type Message,
   type RunInput,
   type RunResult,
-  type ToolDefinition,
 } from "@min/core";
+import type { AssembleResult, ContextBudget } from "./assemble.js";
 import {
-  assembleContext,
-  type AssembleResult,
-  type ContextBudget,
-} from "./assemble.js";
+  createBudgetAssembler,
+  resolveSessionExtensions,
+  type ContextAssembler,
+  type SessionExtension,
+  type SessionHookContext,
+  type SessionHooks,
+} from "./extension.js";
 import {
   newSessionId,
   type SessionMeta,
@@ -26,13 +29,22 @@ export interface CreateSessionOptions {
   title?: string;
   store?: SessionStore;
   initialMessages?: Message[];
-  /** Context window / cost budget for model views. */
+  /**
+   * Default budget assembler knobs. Ignored when a custom `assembler`
+   * (or an extension that sets one) is provided — pass budget into that assembler instead.
+   */
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
   /**
    * Optional system snapshot for budgeting only (estimation).
    * Live system still comes from the Agent each turn.
    */
   systemForBudget?: string | (() => string | undefined);
+  /** Replace the default budget assembler entirely. */
+  assembler?: ContextAssembler;
+  /** Lifecycle hooks (also accept via `extensions`). */
+  hooks?: SessionHooks | SessionHooks[];
+  /** Composable packs of assembler/hooks. Later assembler wins; hooks run in order. */
+  extensions?: SessionExtension[];
 }
 
 export interface SessionRunOptions {
@@ -85,6 +97,20 @@ export async function createSession(
     maxUserTurns: opts.budget?.maxUserTurns,
   };
 
+  const { assembler: extAssembler, hooks: extHooks } =
+    resolveSessionExtensions(opts.extensions, createBudgetAssembler(budget));
+  // Explicit assembler option wins over extension-provided assemblers.
+  const finalAssembler = opts.assembler ?? extAssembler;
+
+  const hooks: SessionHooks[] = [
+    ...extHooks,
+    ...(opts.hooks
+      ? Array.isArray(opts.hooks)
+        ? opts.hooks
+        : [opts.hooks]
+      : []),
+  ];
+
   const resolveSystem = () =>
     typeof opts.systemForBudget === "function"
       ? opts.systemForBudget()
@@ -93,7 +119,16 @@ export async function createSession(
   const persist = async () => {
     if (!opts.store) return;
     meta = { ...meta, updatedAt: new Date().toISOString() };
-    await opts.store.save({ meta, messages: [...messages] });
+    let snapshot: SessionSnapshot = {
+      meta: { ...meta },
+      messages: [...messages],
+    };
+    for (const h of hooks) {
+      if (!h.onBeforeSave) continue;
+      const next = await h.onBeforeSave(snapshot);
+      if (next) snapshot = next;
+    }
+    await opts.store.save(snapshot);
   };
 
   const session: Session = {
@@ -111,14 +146,39 @@ export async function createSession(
     },
 
     async run(input, runOpts = {}) {
+      const tools = opts.agent.tools.definitions();
+      const system = resolveSystem();
+      const hookCtx: SessionHookContext = {
+        sessionId: meta.id,
+        meta,
+        messages,
+        input,
+        system,
+        tools,
+      };
+
+      for (const h of hooks) {
+        await h.onBeforeRun?.(hookCtx);
+      }
+
       const pending = [...messages, userMessage(input)];
-      const tools: ToolDefinition[] = opts.agent.tools.definitions();
-      const assembled = assembleContext({
+      let assembled = await finalAssembler.assemble({
         messages: pending,
-        system: resolveSystem(),
+        system,
         tools,
         budget,
       });
+
+      for (const h of hooks) {
+        if (!h.onAfterAssemble) continue;
+        const next = await h.onAfterAssemble({
+          ...hookCtx,
+          pending,
+          assemble: assembled,
+        });
+        if (next) assembled = next;
+      }
+
       lastAssemble = assembled;
 
       const result = await opts.agent.run({
@@ -129,11 +189,21 @@ export async function createSession(
         onPermissionAsk: runOpts.onPermissionAsk,
       });
 
-      // Rehydrate canonical history: dropped prefix + model view trajectory
-      messages = [...assembled.dropped, ...result.messages];
+      const nextMessages = [...assembled.dropped, ...result.messages];
+      messages = nextMessages;
       if (!meta.title) {
         meta = { ...meta, title: input.slice(0, 80) };
       }
+
+      for (const h of hooks) {
+        await h.onAfterRun?.({
+          ...hookCtx,
+          assemble: assembled,
+          result,
+          nextMessages,
+        });
+      }
+
       await persist();
       return result;
     },

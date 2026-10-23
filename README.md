@@ -73,6 +73,36 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 - Full history remains in the session store; trimming affects the model view only (controls window limits and prompt cost growth).
 - CLI: `--session <id>`, `--session-dir`, `--max-context-tokens`, `--max-user-turns`, `--list-sessions`.
 
+Session stays a thin kernel; extend via composition:
+
+| Extension point | Role |
+|-----------------|------|
+| `SessionStore` | Persist/load snapshots (`Memory` / `Fs` / custom) |
+| `ContextAssembler` | Build the model view (default: budget trim) |
+| `SessionHooks` | `onBeforeRun` / `onAfterAssemble` / `onAfterRun` / `onBeforeSave` |
+| `SessionExtension` | Package assembler + hooks (`defineSessionExtension`) |
+
+```ts
+import { createSession, defineSessionExtension, createBudgetAssembler } from "@min/session";
+
+const compact = defineSessionExtension({
+  name: "compact-log",
+  hooks: {
+    onAfterRun({ assemble }) {
+      if (assemble.trimmed) console.info("context trimmed", assemble.dropped.length);
+    },
+  },
+});
+
+const session = await createSession({
+  agent,
+  store,
+  budget: { maxContextTokens: 16_000 },
+  extensions: [compact],
+  // assembler: createBudgetAssembler({ maxContextTokens: 16_000 }),
+});
+```
+
 ## Usage
 
 ```ts

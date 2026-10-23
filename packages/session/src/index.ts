@@ -6,6 +6,15 @@ export {
   type ContextBudget,
 } from "./assemble.js";
 export {
+  createBudgetAssembler,
+  defineSessionExtension,
+  resolveSessionExtensions,
+  type ContextAssembler,
+  type SessionExtension,
+  type SessionHookContext,
+  type SessionHooks,
+} from "./extension.js";
+export {
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
   type CreateSessionOptions,
