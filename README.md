@@ -18,6 +18,7 @@ packages/
   tools/     @min/tools    sandboxed read/write/glob/bash
   session/   @min/session  conversation sessions + context budget + input queue
   runtime/   @min/runtime  shared composition layer for CLI / TUI
+  client/    @min/client   UI facade: send / subscribe / queue / permission
 apps/
   cli/       @min/cli      one-shot + REPL
   tui/       @min/tui      Ink terminal UI
