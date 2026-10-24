@@ -2,7 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
-import { handleReplCommand } from "./repl.js";
+import { handleReplCommand, listSessionsViaClient } from "./repl.js";
 import { createCliClient, listSessions, runTurn } from "./run.js";
 
 loadEnvFiles();
@@ -79,6 +79,35 @@ async function main(): Promise<void> {
 
       const cmd = handleReplCommand(cli, line);
       if (cmd?.type === "exit") break;
+      if (cmd?.type === "sessions") {
+        try {
+          await listSessionsViaClient(cli);
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
+      if (cmd?.type === "open") {
+        try {
+          await cli.client.openSession(cmd.id);
+          const s = cli.client.getSession();
+          console.log(
+            `opened ${s.id}  messages=${s.messageCount}  title=${s.title ?? "(untitled)"}`,
+          );
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
+      if (cmd?.type === "new") {
+        try {
+          await cli.client.newSession();
+          console.log(`new session ${cli.client.getSession().id}`);
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
       if (cmd?.type === "handled") continue;
 
       const prompt = cmd?.type === "prompt" ? cmd.text : line;

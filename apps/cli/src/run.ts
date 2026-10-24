@@ -4,7 +4,6 @@ import {
   type PermissionAnswer,
 } from "@min/client";
 import { resolveProvider, sessionDirFor as appSessionDir } from "@min/runtime";
-import { createFsStore } from "@min/session";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { createEventPrinter } from "./events.js";
@@ -49,16 +48,22 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   return { client, args };
 }
 
+/** List sessions through @min/client (same store Runtime would use). */
 export async function listSessions(args: CliArgs): Promise<void> {
-  const store = createFsStore(sessionDirFor(args));
-  const metas = await store.list();
-  if (!metas.length) {
-    console.log(`(no sessions in ${sessionDirFor(args)})`);
-    return;
-  }
-  for (const m of metas) {
-    const title = m.title ? `  ${m.title}` : "";
-    console.log(`${m.id}  ${m.updatedAt}${title}`);
+  const cli = await createCliClient({ ...args, noTools: true });
+  try {
+    const metas = await cli.client.listSessions();
+    const dir = sessionDirFor(args);
+    if (!metas.length) {
+      console.log(`(no sessions in ${dir})`);
+      return;
+    }
+    for (const m of metas) {
+      const title = m.title ? `  ${m.title}` : "";
+      console.log(`${m.id}  ${m.updatedAt}${title}`);
+    }
+  } finally {
+    await cli.client.dispose();
   }
 }
 

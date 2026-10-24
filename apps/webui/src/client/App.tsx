@@ -22,7 +22,14 @@ type ClientEvent =
   | { type: "queued"; queueSize: number }
   | { type: "follow_up"; texts: readonly string[] }
   | { type: "error"; message: string; aborted?: boolean }
-  | { type: "session"; id: string; title?: string; messageCount: number };
+  | {
+      type: "session";
+      id: string;
+      title?: string;
+      messageCount: number;
+      reason?: string;
+      messages?: unknown[];
+    };
 
 let seq = 0;
 const nid = () => `m_${++seq}`;

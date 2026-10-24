@@ -48,4 +48,14 @@ describe("handleReplCommand", () => {
   it("ignores non-commands", () => {
     expect(handleReplCommand(fakeCli(), "hello")).toBeNull();
   });
+
+  it("routes session switch commands", () => {
+    const cli = fakeCli();
+    expect(handleReplCommand(cli, "/sessions")).toEqual({ type: "sessions" });
+    expect(handleReplCommand(cli, "/new")).toEqual({ type: "new" });
+    expect(handleReplCommand(cli, "/open ses_abc")).toEqual({
+      type: "open",
+      id: "ses_abc",
+    });
+  });
 });

@@ -17,4 +17,5 @@ export type {
   OnBusySend,
   PermissionAnswer,
   SendOptions,
+  SessionEventReason,
 } from "./types.js";

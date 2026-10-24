@@ -17,6 +17,7 @@ import type {
   MinClient,
   PermissionAnswer,
   SendOptions,
+  SessionEventReason,
 } from "./types.js";
 
 interface PermissionRequest {
@@ -38,6 +39,9 @@ export async function createClient(
   options: ClientOptions = {},
 ): Promise<MinClient> {
   const factory = resolveFactory(options);
+  /** Shared with send() so follow-up drains can flush the prior assistant turn. */
+  const turnBuf = { text: "" };
+
   const incomingBridge = {
     emit: (_texts: string[]) => {
       /* assigned after emit exists */
@@ -84,6 +88,12 @@ export async function createClient(
   };
 
   incomingBridge.emit = (texts) => {
+    // Session drains the queue between agent passes — finalize the previous
+    // assistant turn before announcing follow-up texts.
+    if (turnBuf.text) {
+      emit({ type: "assistant_done", text: turnBuf.text });
+      turnBuf.text = "";
+    }
     emit({ type: "follow_up", texts: [...texts] });
   };
 
@@ -93,13 +103,40 @@ export async function createClient(
     emit({ type: "status", status: next });
   };
 
-  const emitSession = () => {
+  const emitSession = (
+    reason: SessionEventReason,
+    opts?: { includeMessages?: boolean },
+  ) => {
     const s = runtime.session;
     emit({
       type: "session",
       id: s.id,
       title: s.meta.title,
       messageCount: s.messages.length,
+      reason,
+      ...(opts?.includeMessages ? { messages: s.messages } : {}),
+    });
+  };
+
+  const assertOwnedRuntime = (action: string) => {
+    if (options.runtime) {
+      throw new Error(
+        `${action} requires createClient to own the Runtime (do not inject runtime)`,
+      );
+    }
+  };
+
+  const rebuildRuntime = async (sessionId: string | undefined) => {
+    await runtime.session.dispose();
+    await runtime.agent.dispose();
+    factory.runtimeOpts = {
+      ...factory.runtimeOpts,
+      sessionId,
+    };
+    runtime = await createRuntime({
+      ...factory.runtimeOpts,
+      sessionId,
+      sessionExtensions: withBridge(factory.runtimeOpts.sessionExtensions),
     });
   };
 
@@ -202,14 +239,14 @@ export async function createClient(
     if (external?.aborted) abortController.abort();
 
     setStatus("running");
-    let assistantBuf = "";
+    turnBuf.text = "";
 
     try {
       const result = await runtime.session.run(prompt, {
         signal: abortController.signal,
         onEvent: (event: RunEvent) => {
           if (event.type === "text_delta") {
-            assistantBuf += event.text;
+            turnBuf.text += event.text;
           }
           for (const ce of translator.push(event)) {
             emit(ce);
@@ -221,11 +258,12 @@ export async function createClient(
         },
       });
 
-      const finalText = result.text || assistantBuf;
+      const finalText = turnBuf.text || result.text;
       if (finalText) {
         emit({ type: "assistant_done", text: finalText });
+        turnBuf.text = "";
       }
-      emitSession();
+      emitSession("update");
     } catch (err) {
       if (isAbortError(err)) {
         emit({ type: "error", message: "aborted", aborted: true });
@@ -274,7 +312,7 @@ export async function createClient(
 
     reset() {
       runtime.session.reset();
-      emitSession();
+      emitSession("reset", { includeMessages: true });
     },
 
     getSession,
@@ -289,19 +327,20 @@ export async function createClient(
       if (runLock) {
         throw new Error("cannot switch session while busy");
       }
-      if (options.runtime) {
-        throw new Error(
-          "openSession requires createClient to own the Runtime (do not inject runtime)",
-        );
+      assertOwnedRuntime("openSession");
+      const trimmed = id.trim();
+      if (!trimmed) throw new Error("session id required");
+      await rebuildRuntime(trimmed);
+      emitSession("open", { includeMessages: true });
+    },
+
+    async newSession() {
+      if (runLock) {
+        throw new Error("cannot start a new session while busy");
       }
-      await runtime.session.dispose();
-      await runtime.agent.dispose();
-      runtime = await createRuntime({
-        ...factory.runtimeOpts,
-        sessionId: id,
-        sessionExtensions: withBridge(factory.runtimeOpts.sessionExtensions),
-      });
-      emitSession();
+      assertOwnedRuntime("newSession");
+      await rebuildRuntime(undefined);
+      emitSession("new", { includeMessages: true });
     },
 
     advanced: {

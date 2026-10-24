@@ -4,7 +4,8 @@
 
 对外只暴露：
 
-`send` · `abort` · `subscribe(ClientEvent)` · `queue` · `respondPermission` · session helpers.
+`send` · `abort` · `subscribe(ClientEvent)` · `queue` · `respondPermission` ·
+`listSessions` / `openSession` / `newSession` / `reset`.
 
 ## 实现目标
 
@@ -72,7 +73,7 @@ Busy `send` defaults to **queue** (session input queue). Pass `onBusySend: "reje
 | `permission` | ask UI; answer via `respondPermission` |
 | `queued` | busy-send enqueued |
 | `error` | failures / abort |
-| `session` | id / title / counts |
+| `session` | id / title / counts; `reason` = update\|open\|reset\|new; `messages` on open/reset/new for UI rebuild |
 
 ## Escape hatch
 

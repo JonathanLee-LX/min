@@ -3,7 +3,10 @@ import type { CliClient } from "./run.js";
 export type ReplAction =
   | { type: "exit" }
   | { type: "prompt"; text: string }
-  | { type: "handled" };
+  | { type: "handled" }
+  | { type: "sessions" }
+  | { type: "open"; id: string }
+  | { type: "new" };
 
 /** Handle slash commands. Returns null if `line` is not a command. */
 export function handleReplCommand(
@@ -24,6 +27,9 @@ export function handleReplCommand(
     console.log(`REPL commands:
   /help              show this help
   /session           show current session id / title / message count
+  /sessions          list saved sessions (via Client)
+  /open <id>         switch to a saved session
+  /new               start a fresh session
   /reset             clear in-memory conversation history
   /queue             show follow-up queue size
   /dense             push next line as dense-latest (or: /dense <text>)
@@ -72,6 +78,23 @@ to dense-latest. Anything else is sent as a user message.`);
     return { type: "handled" };
   }
 
+  if (name === "sessions") {
+    return { type: "sessions" };
+  }
+
+  if (name === "open") {
+    const id = rest.join(" ").trim();
+    if (!id) {
+      console.log("usage: /open <session-id>");
+      return { type: "handled" };
+    }
+    return { type: "open", id };
+  }
+
+  if (name === "new") {
+    return { type: "new" };
+  }
+
   if (name === "reset") {
     client.reset();
     console.log("session history cleared");
@@ -79,4 +102,19 @@ to dense-latest. Anything else is sent as a user message.`);
   }
 
   return { type: "prompt", text: line };
+}
+
+/** Async bits for /sessions (keeps handleReplCommand sync for tests). */
+export async function listSessionsViaClient(cli: CliClient): Promise<void> {
+  const metas = await cli.client.listSessions();
+  if (!metas.length) {
+    console.log("(no saved sessions)");
+    return;
+  }
+  const current = cli.client.getSession().id;
+  for (const m of metas) {
+    const mark = m.id === current ? "*" : " ";
+    const title = m.title ? `  ${m.title}` : "";
+    console.log(`${mark} ${m.id}  ${m.updatedAt}${title}`);
+  }
 }

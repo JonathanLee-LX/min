@@ -18,6 +18,9 @@ export interface ClientSessionInfo {
   messages: readonly Message[];
 }
 
+/** Why a `session` ClientEvent was emitted. */
+export type SessionEventReason = "update" | "open" | "reset" | "new";
+
 export interface ClientStatusSnapshot {
   status: ClientStatus;
   busy: boolean;
@@ -70,6 +73,12 @@ export type ClientEvent =
       id: string;
       title?: string;
       messageCount: number;
+      reason: SessionEventReason;
+      /**
+       * Full transcript when switching/clearing sessions so UIs can rebuild
+       * without calling getSession(). Omitted on per-turn `update`.
+       */
+      messages?: readonly Message[];
     };
 
 export type ClientEventHandler = (event: ClientEvent) => void;
@@ -154,8 +163,14 @@ export interface MinClient {
   /**
    * Switch to another stored session id.
    * Disposes the current session handle and rebuilds via Runtime options.
+   * Emits `session` with `reason: "open"` and full `messages`.
    */
   openSession(id: string): Promise<void>;
+  /**
+   * Start a fresh session (new id). Requires Client-owned Runtime.
+   * Emits `session` with `reason: "new"`.
+   */
+  newSession(): Promise<void>;
 
   /**
    * Escape hatch for advanced hosts. Prefer not to use from ordinary UI code.
