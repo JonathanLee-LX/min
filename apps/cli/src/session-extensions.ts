@@ -7,8 +7,12 @@ export function contextBudgetLog(): SessionExtension {
     hooks: {
       onAfterRun({ assemble }) {
         if (!assemble.trimmed) return;
+        const folded =
+          assemble.foldedParts && assemble.foldedParts > 0
+            ? ` · foldedParts=${assemble.foldedParts}`
+            : "";
         console.error(
-          `context: trimmed ${assemble.dropped.length} msgs · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})`,
+          `context: trimmed ${assemble.dropped.length} msgs · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})${folded}`,
         );
       },
       onIncoming(texts) {

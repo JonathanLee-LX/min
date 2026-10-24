@@ -4,6 +4,7 @@ export {
   type AssembleInput,
   type AssembleResult,
   type ContextBudget,
+  type ContextFoldOptions,
 } from "./assemble.js";
 export {
   createBudgetAssembler,
@@ -14,6 +15,13 @@ export {
   type SessionHookContext,
   type SessionHooks,
 } from "./extension.js";
+export {
+  DEFAULT_FOLD_OPTIONS,
+  foldMessagesForView,
+  foldText,
+  resolveFoldOptions,
+  shrinkToolResultsToFit,
+} from "./fold.js";
 export {
   createInputQueue,
   joinIncoming,
@@ -38,9 +46,11 @@ export {
   type SessionStore,
 } from "./store.js";
 export {
+  defaultTokenEstimator,
   estimateMessageTokens,
   estimateMessagesTokens,
   estimateSystemTokens,
   estimateTextTokens,
   estimateToolsTokens,
+  type TokenEstimator,
 } from "./tokens.js";

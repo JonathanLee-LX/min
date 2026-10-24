@@ -1,6 +1,18 @@
 import type { Message, ToolDefinition } from "@min/core";
 
 /**
+ * Pluggable token estimator for context budgeting.
+ * Default is a rough chars/4 heuristic — not billing-accurate.
+ */
+export interface TokenEstimator {
+  text(text: string): number;
+  message(message: Message): number;
+  messages(messages: Message[]): number;
+  tools(tools: ToolDefinition[]): number;
+  system(system?: string): number;
+}
+
+/**
  * Rough token estimate for budgeting (not a billing-accurate tokenizer).
  * ~4 chars/token for mixed EN/code; JSON punctuation counted too.
  */
@@ -38,3 +50,11 @@ export function estimateToolsTokens(tools: ToolDefinition[]): number {
 export function estimateSystemTokens(system?: string): number {
   return system ? estimateTextTokens(system) + 4 : 0;
 }
+
+export const defaultTokenEstimator: TokenEstimator = {
+  text: estimateTextTokens,
+  message: estimateMessageTokens,
+  messages: estimateMessagesTokens,
+  tools: estimateToolsTokens,
+  system: estimateSystemTokens,
+};

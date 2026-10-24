@@ -194,8 +194,11 @@ export async function createSession(
       onPermissionAsk: runOpts.onPermissionAsk,
     });
 
-    const nextMessages = [...assembled.dropped, ...result.messages];
-    messages = nextMessages;
+    // Prefer unfolded `kept` so tool-result folding never rewrites canonical history.
+    const kept = assembled.kept ?? assembled.view;
+    const generated = result.messages.slice(assembled.view.length);
+    messages = [...assembled.dropped, ...kept, ...generated];
+    const nextMessages = messages;
     if (!meta.title) {
       meta = { ...meta, title: userText.slice(0, 80) };
     }

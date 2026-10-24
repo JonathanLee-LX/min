@@ -79,8 +79,12 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 ### Sessions and context budget (`@min/session`)
 
 - Canonical history is kept in a `Session` (optionally under `<cwd>/.min/sessions`).
-- Each model call sends only a **budgeted view**: oldest user-turns are dropped when `system + tools + messages` exceed `--max-context-tokens` (default 32000, rough char/4 estimate).
-- Full history remains in the session store; trimming affects the model view only (controls window limits and prompt cost growth).
+- Each model call sends only a **budgeted view**:
+  1. Drop oldest **user-turns** until under budget (`maxUserTurns` optional hard cap).
+  2. **Fold** long `tool_result` bodies in the view (head+tail + marker; default max 8000 chars). Canonical store keeps full tool payloads.
+  3. If a single turn still overflows, **shrink** the largest tool results until they fit.
+- Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
+- Disable folding with `budget.fold: false`.
 - CLI: `--session <id>`, `--session-dir`, `--max-context-tokens`, `--max-user-turns`, `--list-sessions`.
 
 Session stays a thin kernel; extend via composition:

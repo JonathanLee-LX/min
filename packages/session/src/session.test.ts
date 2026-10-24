@@ -1,4 +1,13 @@
-import { createAgent, mockProvider, textPart } from "@min/core";
+import {
+  assistantMessage,
+  createAgent,
+  mockProvider,
+  textPart,
+  toolCallPart,
+  toolMessage,
+  toolResultPart,
+  userMessage,
+} from "@min/core";
 import { describe, expect, it, vi } from "vitest";
 import { createInputQueue } from "./input-queue.js";
 import { createSession } from "./session.js";
@@ -88,6 +97,7 @@ describe("createSession", () => {
       budget: {
         maxContextTokens: 200,
         reservedOutputTokens: 80,
+        fold: false,
       },
     });
 
@@ -97,6 +107,44 @@ describe("createSession", () => {
 
     expect(session.messages.filter((m) => m.role === "user").length).toBe(3);
     expect(session.lastAssemble?.trimmed).toBe(true);
+    await agent.dispose();
+  });
+
+  it("folds tool results in the model view without rewriting store", async () => {
+    const blob = "B".repeat(12_000);
+    const toolMsg = toolMessage([toolResultPart("c1", blob)]);
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "done" }]),
+    });
+
+    const session = await createSession({
+      agent,
+      initialMessages: [
+        userMessage("earlier"),
+        assistantMessage([toolCallPart("c1", "read_file", { path: "x" })]),
+        toolMsg,
+      ],
+      budget: {
+        maxContextTokens: 100_000,
+        fold: {
+          maxToolResultChars: 800,
+          toolResultHeadChars: 80,
+          toolResultTailChars: 80,
+        },
+      },
+    });
+
+    await session.run("continue");
+    const stored = session.messages.find((m) => m.role === "tool");
+    expect(stored?.content[0]?.type).toBe("tool_result");
+    if (stored?.content[0]?.type === "tool_result") {
+      expect(stored.content[0].content).toBe(blob);
+    }
+    expect(session.lastAssemble?.foldedParts).toBeGreaterThan(0);
+    const viewTool = session.lastAssemble?.view.find((m) => m.role === "tool");
+    if (viewTool?.content[0]?.type === "tool_result") {
+      expect(viewTool.content[0].content.length).toBeLessThan(blob.length);
+    }
     await agent.dispose();
   });
 });

@@ -1,8 +1,12 @@
 import type { Message, ToolDefinition } from "@min/core";
 import {
-  estimateMessagesTokens,
-  estimateSystemTokens,
-  estimateToolsTokens,
+  foldMessagesForView,
+  shrinkToolResultsToFit,
+  type ContextFoldOptions,
+} from "./fold.js";
+import {
+  defaultTokenEstimator,
+  type TokenEstimator,
 } from "./tokens.js";
 
 export interface ContextBudget {
@@ -15,6 +19,13 @@ export interface ContextBudget {
   reservedOutputTokens?: number;
   /** Hard cap on how many trailing user-turns to keep (after budget trim). */
   maxUserTurns?: number;
+  /**
+   * Fold long tool_result bodies in the model view only.
+   * Pass `false` to disable. Default: enabled with {@link ContextFoldOptions} defaults.
+   */
+  fold?: ContextFoldOptions | false;
+  /** Override token estimation (tests / model-specific counters). */
+  estimate?: TokenEstimator;
 }
 
 export interface AssembleInput {
@@ -25,15 +36,24 @@ export interface AssembleInput {
 }
 
 export interface AssembleResult {
-  /** Suffix of messages sent to the model (always a suffix of input). */
+  /** Suffix of messages sent to the model (may be folded clones). */
   view: Message[];
+  /**
+   * Unfolded suffix of the canonical history matching `view` 1:1.
+   * Session merges `dropped + kept + generated` so folding never rewrites store.
+   * Custom assemblers may omit this; Session falls back to `view`.
+   */
+  kept?: Message[];
   /** Leading messages dropped from the view (still kept in Session store). */
   dropped: Message[];
   /** Estimated tokens for system + tools + view. */
   estimatedTokens: number;
   /** Tokens available for messages after reserves. */
   messageBudget: number;
+  /** True when turns were dropped and/or content was folded/shrunk. */
   trimmed: boolean;
+  /** Number of tool_result parts folded or shrunk in the view. */
+  foldedParts?: number;
 }
 
 /**
@@ -59,14 +79,15 @@ export function splitUserTurns(messages: Message[]): Message[][] {
 }
 
 /**
- * Build a model view under a context budget by dropping oldest user-turns.
- * Canonical session history is NOT mutated here.
+ * Build a model view under a context budget by dropping oldest user-turns,
+ * folding long tool results, and shrinking further if a single turn still
+ * overflows. Canonical session history is NOT mutated here.
  */
 export function assembleContext(input: AssembleInput): AssembleResult {
+  const estimate = input.budget.estimate ?? defaultTokenEstimator;
   const reserved = input.budget.reservedOutputTokens ?? 1024;
   const overhead =
-    estimateSystemTokens(input.system) +
-    estimateToolsTokens(input.tools ?? []);
+    estimate.system(input.system) + estimate.tools(input.tools ?? []);
   const messageBudget = Math.max(
     256,
     input.budget.maxContextTokens - reserved - overhead,
@@ -82,20 +103,39 @@ export function assembleContext(input: AssembleInput): AssembleResult {
 
   while (turns.length > 1) {
     const flat = turns.flat();
-    if (estimateMessagesTokens(flat) <= messageBudget) break;
+    if (estimate.messages(flat) <= messageBudget) break;
     turns = turns.slice(1);
   }
 
-  const view = turns.flat();
-  const dropped = prefixBeforeSuffix(input.messages, view);
-  const viewTokens = estimateMessagesTokens(view);
+  const kept = turns.flat();
+  const dropped = prefixBeforeSuffix(input.messages, kept);
+
+  // Fold on clones for the model view; `kept` retains canonical objects.
+  const folded = foldMessagesForView(kept, input.budget.fold);
+  let view = folded.messages;
+  let foldedParts = folded.foldedParts;
+
+  if (estimate.messages(view) > messageBudget) {
+    const shrunk = shrinkToolResultsToFit(
+      view,
+      messageBudget,
+      (msgs) => estimate.messages(msgs),
+      input.budget.fold === false ? {} : input.budget.fold,
+    );
+    foldedParts += shrunk.foldedParts;
+  }
+
+  const viewTokens = estimate.messages(view);
+  const turnTrimmed = dropped.length > 0;
 
   return {
     view,
+    kept,
     dropped,
     estimatedTokens: overhead + viewTokens,
     messageBudget,
-    trimmed: dropped.length > 0,
+    trimmed: turnTrimmed || foldedParts > 0,
+    foldedParts,
   };
 }
 
@@ -111,3 +151,5 @@ function prefixBeforeSuffix(full: Message[], suffix: Message[]): Message[] {
   }
   return full.slice(0, start);
 }
+
+export type { ContextFoldOptions };
