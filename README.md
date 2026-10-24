@@ -1,6 +1,6 @@
 # min
 
-A minimal, extensible TypeScript **agent harness**. Core packages, CLI (streaming / interrupt / sessions / input queue), and an Ink TUI; WebUI remains a placeholder.
+A minimal, extensible TypeScript **agent harness**. Core packages, `@min/client` facade, CLI / Ink TUI / Web (shadcn B/S) — MVP slice is runnable end-to-end.
 
 ## Why min
 
