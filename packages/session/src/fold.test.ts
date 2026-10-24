@@ -12,6 +12,7 @@ import {
   foldText,
   shrinkToolResultsToFit,
 } from "./fold.js";
+import { createContextStash, parseHiddenIds } from "./stash.js";
 import { estimateMessagesTokens } from "./tokens.js";
 
 describe("foldText", () => {
@@ -44,9 +45,11 @@ describe("foldMessagesForView", () => {
     ];
 
     const { messages: view, foldedParts } = foldMessagesForView(messages, {
-      maxToolResultChars: 1000,
-      toolResultHeadChars: 100,
-      toolResultTailChars: 100,
+      fold: {
+        maxToolResultChars: 1000,
+        toolResultHeadChars: 100,
+        toolResultTailChars: 100,
+      },
     });
 
     expect(foldedParts).toBe(1);
@@ -56,6 +59,32 @@ describe("foldMessagesForView", () => {
     if (folded?.type === "tool_result") {
       expect(folded.content.length).toBeLessThan(20_000);
       expect(folded.content).toContain("truncated");
+    }
+  });
+
+  it("registers stash ids in the omission marker", () => {
+    const stash = createContextStash();
+    const big = "z".repeat(10_000);
+    const messages = [
+      userMessage("go"),
+      assistantMessage([toolCallPart("c9", "bash", { command: "x" })]),
+      toolMessage([toolResultPart("c9", big)]),
+    ];
+    const { messages: view, stashedIds } = foldMessagesForView(messages, {
+      fold: {
+        maxToolResultChars: 500,
+        toolResultHeadChars: 50,
+        toolResultTailChars: 50,
+      },
+      stash,
+      toolNameByCallId: new Map([["c9", "bash"]]),
+    });
+    expect(stashedIds).toEqual(["tool_c9"]);
+    const part = view[2]!.content[0];
+    expect(part?.type).toBe("tool_result");
+    if (part?.type === "tool_result") {
+      expect(parseHiddenIds(part.content)).toEqual(["tool_c9"]);
+      expect(stash.get("tool_c9")?.toolName).toBe("bash");
     }
   });
 

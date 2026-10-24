@@ -1,4 +1,8 @@
 import type { ContentPart, Message, ToolResultPart } from "@min/core";
+import {
+  hiddenMarker,
+  type ContextStash,
+} from "./stash.js";
 
 export interface ContextFoldOptions {
   /**
@@ -10,7 +14,10 @@ export interface ContextFoldOptions {
   toolResultHeadChars?: number;
   /** Characters kept from the end when folding. Default: `2400`. */
   toolResultTailChars?: number;
-  /** Marker inserted between head and tail. */
+  /**
+   * Marker between head and tail when no stash is attached.
+   * With a stash, markers always use {@link hiddenMarker}.
+   */
   toolResultOmissionMarker?: string;
 }
 
@@ -51,7 +58,6 @@ export function foldText(
   const head = Math.max(0, headChars);
   const tail = Math.max(0, tailChars);
   if (head + tail + marker.length >= text.length) {
-    // Degenerate knobs — hard slice.
     return { text: text.slice(0, maxChars) + marker.trimEnd(), folded: true };
   }
   return {
@@ -60,47 +66,87 @@ export function foldText(
   };
 }
 
+export interface FoldViewOptions {
+  fold?: ContextFoldOptions | false;
+  /** When set, folded bodies are stashed and markers carry recall ids. */
+  stash?: ContextStash;
+  /**
+   * Only fold messages with index in [start, end).
+   * Default: entire array.
+   */
+  range?: { start: number; end: number };
+  /** Resolve tool name for a tool_call id (for stash metadata). */
+  toolNameByCallId?: ReadonlyMap<string, string>;
+}
+
 /**
- * Deep-clone messages and fold oversized tool_result parts.
+ * Deep-clone messages and fold oversized tool_result parts in range.
  * Does not mutate the input (canonical history stays intact).
  */
 export function foldMessagesForView(
   messages: Message[],
-  fold: ContextFoldOptions | false | undefined,
-): { messages: Message[]; foldedParts: number } {
-  const opts = resolveFoldOptions(fold);
-  if (!opts) {
-    return { messages: messages.map(cloneMessage), foldedParts: 0 };
+  foldOrOpts: ContextFoldOptions | false | undefined | FoldViewOptions,
+): { messages: Message[]; foldedParts: number; stashedIds: string[] } {
+  const opts: FoldViewOptions =
+    foldOrOpts &&
+    typeof foldOrOpts === "object" &&
+    ("fold" in foldOrOpts ||
+      "stash" in foldOrOpts ||
+      "range" in foldOrOpts ||
+      "toolNameByCallId" in foldOrOpts)
+      ? foldOrOpts
+      : { fold: foldOrOpts as ContextFoldOptions | false | undefined };
+
+  const foldOpts = resolveFoldOptions(opts.fold);
+  const start = opts.range?.start ?? 0;
+  const end = opts.range?.end ?? messages.length;
+  const stashedIds: string[] = [];
+
+  if (!foldOpts) {
+    return {
+      messages: messages.map(cloneMessage),
+      foldedParts: 0,
+      stashedIds,
+    };
   }
 
   let foldedParts = 0;
-  const out = messages.map((msg) => {
+  const out = messages.map((msg, mi) => {
+    const inRange = mi >= start && mi < end;
     const content = msg.content.map((part) => {
-      if (part.type !== "tool_result") return clonePart(part);
-      const next = foldToolResultPart(part, opts);
-      if (next.folded) foldedParts += 1;
+      if (!inRange || part.type !== "tool_result") return clonePart(part);
+      const next = foldToolResultPart(part, foldOpts, {
+        stash: opts.stash,
+        toolName: opts.toolNameByCallId?.get(part.toolCallId),
+      });
+      if (next.folded) {
+        foldedParts += 1;
+        if (next.stashId) stashedIds.push(next.stashId);
+      }
       return next.part;
     });
     return { role: msg.role, content } as Message;
   });
-  return { messages: out, foldedParts };
+  return { messages: out, foldedParts, stashedIds };
 }
 
 /**
- * Shrink the largest tool_result parts until estimated tokens fit, or no
- * further shrink is possible. Mutates the cloned `messages` in place.
+ * @deprecated Prefer H-M-T middle fold. Kept for tests / escape hatches.
+ * Shrink the largest tool_result parts until estimated tokens fit.
  */
 export function shrinkToolResultsToFit(
   messages: Message[],
   maxTokens: number,
   estimateMessages: (msgs: Message[]) => number,
   fold: ContextFoldOptions | false | undefined = {},
-): { foldedParts: number } {
+  stash?: ContextStash,
+): { foldedParts: number; stashedIds: string[] } {
   const opts = resolveFoldOptions(fold) ?? {
     ...DEFAULT_FOLD_OPTIONS,
     maxToolResultChars: 8000,
   };
   let foldedParts = 0;
+  const stashedIds: string[] = [];
   let guard = 0;
 
   while (estimateMessages(messages) > maxTokens && guard++ < 32) {
@@ -109,25 +155,39 @@ export function shrinkToolResultsToFit(
 
     const { messageIndex, partIndex, content } = target;
     const part = messages[messageIndex]!.content[partIndex] as ToolResultPart;
-    // Halve toward a small floor so a single giant result can fit.
     const nextMax = Math.max(256, Math.floor(content.length / 2));
     if (nextMax >= content.length) break;
+
+    let marker = opts.toolResultOmissionMarker ?? DEFAULT_FOLD_OPTIONS.toolResultOmissionMarker;
+    let stashId: string | undefined;
+    if (stash) {
+      const entry = stash.put({
+        kind: "tool_result",
+        content,
+        toolCallId: part.toolCallId,
+        id: `tool_${part.toolCallId}`,
+      });
+      stashId = entry.id;
+      stashedIds.push(entry.id);
+      marker = hiddenMarker(entry.id);
+    }
 
     const folded = foldText(
       content,
       nextMax,
       Math.min(opts.toolResultHeadChars ?? 2400, Math.floor(nextMax * 0.45)),
       Math.min(opts.toolResultTailChars ?? 2400, Math.floor(nextMax * 0.45)),
-      opts.toolResultOmissionMarker ?? DEFAULT_FOLD_OPTIONS.toolResultOmissionMarker,
+      marker,
     );
     messages[messageIndex]!.content[partIndex] = {
       ...part,
       content: folded.text,
     };
     if (folded.folded) foldedParts += 1;
+    void stashId;
   }
 
-  return { foldedParts };
+  return { foldedParts, stashedIds };
 }
 
 function findLargestToolResult(
@@ -154,19 +214,39 @@ function findLargestToolResult(
 function foldToolResultPart(
   part: ToolResultPart,
   opts: NonNullable<ReturnType<typeof resolveFoldOptions>>,
-): { part: ToolResultPart; folded: boolean } {
+  extra: { stash?: ContextStash; toolName?: string },
+): { part: ToolResultPart; folded: boolean; stashId?: string } {
+  if (part.content.length <= opts.maxToolResultChars) {
+    return { part: { ...part }, folded: false };
+  }
+
+  let marker =
+    opts.toolResultOmissionMarker ?? DEFAULT_FOLD_OPTIONS.toolResultOmissionMarker;
+  let stashId: string | undefined;
+  if (extra.stash) {
+    const entry = extra.stash.put({
+      kind: "tool_result",
+      content: part.content,
+      toolCallId: part.toolCallId,
+      toolName: extra.toolName,
+      id: `tool_${part.toolCallId}`,
+    });
+    stashId = entry.id;
+    marker = hiddenMarker(entry.id);
+  }
+
   const folded = foldText(
     part.content,
     opts.maxToolResultChars,
     opts.toolResultHeadChars ?? DEFAULT_FOLD_OPTIONS.toolResultHeadChars,
     opts.toolResultTailChars ?? DEFAULT_FOLD_OPTIONS.toolResultTailChars,
-    opts.toolResultOmissionMarker ??
-      DEFAULT_FOLD_OPTIONS.toolResultOmissionMarker,
+    marker,
   );
   if (!folded.folded) return { part: { ...part }, folded: false };
   return {
     part: { ...part, content: folded.text },
     folded: true,
+    stashId,
   };
 }
 
@@ -195,4 +275,17 @@ function clonePart(part: ContentPart): ContentPart {
     };
   }
   return { type: "text", text: part.text };
+}
+
+/** Build toolCallId → tool name map from a message list. */
+export function indexToolNames(
+  messages: Message[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const msg of messages) {
+    for (const part of msg.content) {
+      if (part.type === "tool_call") map.set(part.id, part.name);
+    }
+  }
+  return map;
 }

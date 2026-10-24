@@ -11,8 +11,15 @@ export function contextBudgetLog(): SessionExtension {
           assemble.foldedParts && assemble.foldedParts > 0
             ? ` · foldedParts=${assemble.foldedParts}`
             : "";
+        const stashed =
+          assemble.stashedIds && assemble.stashedIds.length
+            ? ` · stash=${assemble.stashedIds.length}`
+            : "";
+        const regions = assemble.regions
+          ? ` · H/M/T=${assemble.regions.headTurns}/${assemble.regions.middleTurns}/${assemble.regions.tailTurns}`
+          : "";
         console.error(
-          `context: trimmed ${assemble.dropped.length} msgs · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})${folded}`,
+          `context: view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})${regions}${folded}${stashed}`,
         );
       },
       onIncoming(texts) {

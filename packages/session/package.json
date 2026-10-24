@@ -20,7 +20,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/core": "workspace:*"
+    "@min/core": "workspace:*",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -6,9 +6,11 @@ import {
   type RunEvent,
 } from "@min/core";
 import {
+  createContextStash,
   createFsStore,
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
+  recallContextExtension,
   type Session,
   type SessionStore,
 } from "@min/session";
@@ -60,6 +62,7 @@ export async function createRuntime(
   const extensions = [];
   let permissions: WorkspacePermissionPolicy | undefined;
   const allowedToolsGate = createAllowedToolsGate();
+  const stash = createContextStash();
 
   if (!opts.noTools) {
     const ext = workspaceTools({
@@ -74,6 +77,9 @@ export async function createRuntime(
     extensions.push(ext);
     permissions = ext.permissions;
   }
+
+  // Always register recall so folded middle context is recoverable.
+  extensions.push(recallContextExtension(stash));
 
   const skillsDir = opts.skillsDir
     ? path.resolve(opts.skillsDir)
@@ -102,11 +108,13 @@ export async function createRuntime(
     agent,
     store,
     id: opts.sessionId,
+    stash,
     systemForBudget: BASE_SYSTEM,
     budget: {
       maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
       maxUserTurns: opts.maxUserTurns,
       reservedOutputTokens: 1024,
+      stash,
     },
     extensions: opts.sessionExtensions,
   });

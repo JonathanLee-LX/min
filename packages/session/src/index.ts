@@ -19,6 +19,7 @@ export {
   DEFAULT_FOLD_OPTIONS,
   foldMessagesForView,
   foldText,
+  indexToolNames,
   resolveFoldOptions,
   shrinkToolResultsToFit,
 } from "./fold.js";
@@ -31,12 +32,26 @@ export {
   type InputQueuePushOptions,
 } from "./input-queue.js";
 export {
+  createRecallTool,
+  recallContextExtension,
+  type CreateRecallToolOptions,
+} from "./recall.js";
+export {
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
   type CreateSessionOptions,
   type Session,
   type SessionRunOptions,
 } from "./session.js";
+export {
+  createContextStash,
+  hiddenMarker,
+  parseHiddenIds,
+  type ContextStash,
+  type ContextStashEntry,
+  type ContextStashKind,
+  type ContextStashPutInput,
+} from "./stash.js";
 export {
   createFsStore,
   createMemoryStore,

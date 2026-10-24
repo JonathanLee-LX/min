@@ -83,34 +83,44 @@ describe("createSession", () => {
     await agent.dispose();
   });
 
-  it("trims model view but keeps full history after overflow", async () => {
+  it("keeps full canonical history when the middle is projected away", async () => {
     const agent = await createAgent({
       provider: mockProvider([
         { text: "r1" },
         { text: "r2" },
         { text: "r3" },
+        { text: "r4" },
+        { text: "r5" },
       ]),
     });
 
     const session = await createSession({
       agent,
       budget: {
-        maxContextTokens: 200,
+        maxContextTokens: 400,
         reservedOutputTokens: 80,
+        headTurns: 1,
+        tailTurns: 1,
         fold: false,
       },
     });
 
-    await session.run("A".repeat(800));
-    await session.run("B".repeat(800));
-    await session.run("C".repeat(800));
+    await session.run("A".repeat(400));
+    await session.run("B".repeat(400));
+    await session.run("C".repeat(400));
+    await session.run("D".repeat(400));
+    await session.run("E".repeat(400));
 
-    expect(session.messages.filter((m) => m.role === "user").length).toBe(3);
-    expect(session.lastAssemble?.trimmed).toBe(true);
+    expect(session.messages.filter((m) => m.role === "user").length).toBe(5);
+    // kept is the full pending history at assemble time (before this turn's reply).
+    expect(session.lastAssemble?.kept?.length).toBe(
+      session.messages.length - 1,
+    );
+    expect(session.lastAssemble?.dropped).toEqual([]);
     await agent.dispose();
   });
 
-  it("folds tool results in the model view without rewriting store", async () => {
+  it("folds middle tool results without rewriting store", async () => {
     const blob = "B".repeat(12_000);
     const toolMsg = toolMessage([toolResultPart("c1", blob)]);
     const agent = await createAgent({
@@ -121,11 +131,17 @@ describe("createSession", () => {
       agent,
       initialMessages: [
         userMessage("earlier"),
+        assistantMessage([textPart("ack")]),
+        userMessage("run"),
         assistantMessage([toolCallPart("c1", "read_file", { path: "x" })]),
         toolMsg,
+        userMessage("later"),
+        assistantMessage([textPart("tail")]),
       ],
       budget: {
         maxContextTokens: 100_000,
+        headTurns: 1,
+        tailTurns: 1,
         fold: {
           maxToolResultChars: 800,
           toolResultHeadChars: 80,
@@ -141,6 +157,7 @@ describe("createSession", () => {
       expect(stored.content[0].content).toBe(blob);
     }
     expect(session.lastAssemble?.foldedParts).toBeGreaterThan(0);
+    expect(session.stash.has("tool_c1")).toBe(true);
     const viewTool = session.lastAssemble?.view.find((m) => m.role === "tool");
     if (viewTool?.content[0]?.type === "tool_result") {
       expect(viewTool.content[0].content.length).toBeLessThan(blob.length);

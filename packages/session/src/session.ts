@@ -21,6 +21,10 @@ import {
   type InputQueueOptions,
 } from "./input-queue.js";
 import {
+  createContextStash,
+  type ContextStash,
+} from "./stash.js";
+import {
   newSessionId,
   type SessionMeta,
   type SessionSnapshot,
@@ -40,6 +44,11 @@ export interface CreateSessionOptions {
    * (or an extension that sets one) is provided — pass budget into that assembler instead.
    */
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
+  /**
+   * Shared stash for folded/hidden originals (recall_context).
+   * Created automatically when omitted.
+   */
+  stash?: ContextStash;
   /**
    * Optional system snapshot for budgeting only (estimation).
    * Live system still comes from the Agent each turn.
@@ -73,6 +82,8 @@ export interface Session {
   readonly messages: readonly Message[];
   /** Last assemble info from run(), if any. */
   readonly lastAssemble?: AssembleResult;
+  /** Folded/hidden originals for recall_context. */
+  readonly stash: ContextStash;
   /** Follow-up queue (undefined when disabled). */
   readonly inputQueue?: InputQueue;
   run(input: string, opts?: SessionRunOptions): Promise<RunResult>;
@@ -95,6 +106,7 @@ export async function createSession(
     ? [...opts.initialMessages]
     : [];
   let lastAssemble: AssembleResult | undefined;
+  const stash = opts.stash ?? createContextStash();
 
   if (opts.store && opts.id) {
     const loaded = await opts.store.load(opts.id);
@@ -109,6 +121,11 @@ export async function createSession(
       opts.budget?.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     reservedOutputTokens: opts.budget?.reservedOutputTokens ?? 1024,
     maxUserTurns: opts.budget?.maxUserTurns,
+    headTurns: opts.budget?.headTurns,
+    tailTurns: opts.budget?.tailTurns,
+    fold: opts.budget?.fold,
+    estimate: opts.budget?.estimate,
+    stash: opts.budget?.stash ?? stash,
   };
 
   const { assembler: extAssembler, hooks: extHooks } =
@@ -228,6 +245,9 @@ export async function createSession(
     get lastAssemble() {
       return lastAssemble;
     },
+    get stash() {
+      return stash;
+    },
     get inputQueue() {
       return inputQueue;
     },
@@ -260,6 +280,7 @@ export async function createSession(
     reset(next) {
       messages = next ? [...next] : [];
       lastAssemble = undefined;
+      stash.clear();
       inputQueue?.clear();
     },
 

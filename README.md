@@ -79,10 +79,12 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 ### Sessions and context budget (`@min/session`)
 
 - Canonical history is kept in a `Session` (optionally under `<cwd>/.min/sessions`).
-- Each model call sends only a **budgeted view**:
-  1. Drop oldest **user-turns** until under budget (`maxUserTurns` optional hard cap).
-  2. **Fold** long `tool_result` bodies in the view (head+tail + marker; default max 8000 chars). Canonical store keeps full tool payloads.
-  3. If a single turn still overflows, **shrink** the largest tool results until they fit.
+- Each model call sends an **H-M-T budgeted view** (cache-aware):
+  1. **Head** — first `headTurns` (default 1) kept verbatim for a stable prefix.
+  2. **Tail** — last `tailTurns` (default 2) kept verbatim for current-task success.
+  3. **Middle** — long `tool_result` bodies are folded (head+tail + marker; default max 8000 chars). If still over budget, whole middle turns collapse into a stub.
+- Folded bodies land in a session **stash**. Markers look like `…[hidden:tool_<id> · recall_context]…`.
+- Runtime registers **`recall_context`**: pass an id to fetch the original (supports `offset`/`limit` paging), or omit id to list hidden entries.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
 - Disable folding with `budget.fold: false`.
 - CLI: `--session <id>`, `--session-dir`, `--max-context-tokens`, `--max-user-turns`, `--list-sessions`.
