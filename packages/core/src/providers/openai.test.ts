@@ -2,6 +2,68 @@ import { describe, expect, it, vi } from "vitest";
 import { openaiProvider } from "./openai.js";
 
 describe("openaiProvider", () => {
+  it("yields done on response.incomplete (DeepSeek / truncated streams)", async () => {
+    async function* events() {
+      yield {
+        type: "response.output_text.delta",
+        delta: "partial",
+      };
+      yield {
+        type: "response.incomplete",
+        response: {
+          status: "incomplete",
+          incomplete_details: { reason: "max_output_tokens" },
+          output: [
+            {
+              type: "message",
+              content: [{ type: "output_text", text: "partial" }],
+            },
+          ],
+          usage: { input_tokens: 3, output_tokens: 1 },
+        },
+      };
+    }
+
+    const create = vi.fn().mockResolvedValue(events());
+    const provider = openaiProvider({
+      model: "gpt-test",
+      client: { responses: { create } } as never,
+    });
+
+    const chunks = [];
+    for await (const chunk of provider.stream!({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.map((c) => c.type)).toEqual(["text_delta", "done"]);
+    expect(chunks[1]?.result?.stopReason).toBe("length");
+    expect(chunks[1]?.result?.message.content).toEqual([
+      { type: "text", text: "partial" },
+    ]);
+  });
+
+  it("throws a descriptive error when the stream has no terminal event", async () => {
+    async function* events() {
+      yield { type: "response.created", response: { status: "in_progress" } };
+      yield { type: "response.in_progress", response: { status: "in_progress" } };
+    }
+    const create = vi.fn().mockResolvedValue(events());
+    const provider = openaiProvider({
+      model: "gpt-test",
+      client: { responses: { create } } as never,
+    });
+
+    await expect(async () => {
+      for await (const _ of provider.stream!({
+        messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+      })) {
+        /* drain */
+      }
+    }).rejects.toThrow(/without a terminal event/);
+  });
+
   it("maps internal messages to OpenAI Responses and back", async () => {
     const create = vi.fn().mockResolvedValue({
       output: [

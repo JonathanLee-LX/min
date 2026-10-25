@@ -77,19 +77,78 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
         { signal: req.signal },
       );
 
+      // DeepSeek (and OpenAI) may end with completed | incomplete | failed.
+      // Only yielding on `completed` left incomplete streams with no `done`,
+      // which surfaces as "Provider stream ended without a result".
+      let yieldedDone = false;
+      let lastResponse: Response | undefined;
+      const seenTypes: string[] = [];
+
       for await (const event of stream) {
+        seenTypes.push(event.type);
+
         if (event.type === "response.output_text.delta" && event.delta) {
           yield { type: "text_delta", text: event.delta };
-        } else if (event.type === "response.completed") {
+          continue;
+        }
+
+        if (
+          event.type === "response.completed" ||
+          event.type === "response.incomplete"
+        ) {
+          lastResponse = event.response;
           yield {
             type: "done",
             result: fromResponsesOutput(event.response),
           };
-        } else if (event.type === "response.failed") {
+          yieldedDone = true;
+          continue;
+        }
+
+        if (event.type === "response.failed") {
           const msg =
             event.response.error?.message ?? "Responses API request failed";
           throw new Error(msg);
         }
+
+        // Fallback snapshot: keep latest completed output items in case the
+        // stream closes without a terminal event the SDK recognized.
+        if (
+          event.type === "response.output_item.done" &&
+          "item" in event &&
+          event.item
+        ) {
+          if (!lastResponse) {
+            lastResponse = {
+              output: [],
+              status: "completed",
+            } as unknown as Response;
+          }
+          const output = [
+            ...((lastResponse.output as ResponseOutputItem[]) ?? []),
+          ];
+          output.push(event.item as ResponseOutputItem);
+          lastResponse = {
+            ...lastResponse,
+            output,
+            status: lastResponse.status ?? "completed",
+          } as Response;
+        }
+      }
+
+      if (!yieldedDone && lastResponse) {
+        yield {
+          type: "done",
+          result: fromResponsesOutput(lastResponse),
+        };
+        yieldedDone = true;
+      }
+
+      if (!yieldedDone) {
+        const uniq = [...new Set(seenTypes)].join(", ") || "(none)";
+        throw new Error(
+          `Responses stream ended without a terminal event (saw: ${uniq})`,
+        );
       }
     },
   };
@@ -179,9 +238,9 @@ function fromResponsesOutput(response: Response): CompletionResult {
   const content: ContentPart[] = [];
   let hasToolCall = false;
 
-  for (const item of response.output as ResponseOutputItem[]) {
+  for (const item of (response.output ?? []) as ResponseOutputItem[]) {
     if (item.type === "message") {
-      for (const part of item.content) {
+      for (const part of item.content ?? []) {
         if (part.type === "output_text") {
           content.push({ type: "text", text: part.text });
         }
@@ -195,13 +254,18 @@ function fromResponsesOutput(response: Response): CompletionResult {
       } catch {
         args = { _raw: call.arguments };
       }
+      // Prefer call_id (pairs with function_call_output); fall back to id.
+      const callId = call.call_id || ("id" in call ? String(call.id) : "");
       content.push({
         type: "tool_call",
-        id: call.call_id,
+        id: callId || `call_${call.name}`,
         name: call.name,
         arguments: args,
       });
     }
+    // reasoning / web_search_call / custom_tool_call: ignored for now —
+    // not represented in ContentPart. Incomplete streams that only contain
+    // reasoning therefore yield empty content with stopReason "length".
   }
 
   // Fallback to convenience helper when output is empty but output_text exists
