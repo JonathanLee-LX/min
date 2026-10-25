@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx run.mts",
     "live": "tsx run-live.mts",
+    "measure": "tsx measure.mts",
     "build": "echo \"example — no build\"",
     "typecheck": "echo \"skip\"",
     "test": "echo \"skip\""
