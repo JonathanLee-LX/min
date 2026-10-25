@@ -27,7 +27,7 @@
         <input id="density" type="range" min="15" max="120" step="1" value="38" />
       </label>
 
-      <label class="slider">
+      <label class="slider" id="delay-row">
         <span>Reaction delay <b id="delay-val"></b></span>
         <input id="delay" type="range" min="0" max="1.6" step="0.05" value="0.7" />
       </label>
@@ -38,9 +38,15 @@
       </label>
 
       <div class="row small">
+        <label title="Adaptive Cruise Control on every follower: near-zero lag, calmer gaps">
+          <input id="chk-acc" type="checkbox" /> ACC (all cars)
+        </label>
         <label><input id="chk-trails" type="checkbox" checked /> Brake trails</label>
         <label><input id="chk-vectors" type="checkbox" checked /> Speed arrows</label>
       </div>
+      <p class="hint" id="acc-hint" hidden>
+        ACC on: followers sense with ~50&nbsp;ms lag (human delay ignored). Pace car still brakes to inject a wave.
+      </p>
 
       <div id="stats">
         <div><span>Avg speed</span><b id="stat-speed">—</b></div>
@@ -55,7 +61,7 @@
         <span class="sw" style="background:#ff3b30"></span> hard brake
       </div>
 
-      <p class="keys">Keys: <kbd>Space</kbd> brake · <kbd>P</kbd> pause · <kbd>R</kbd> reset · drag to orbit · scroll to zoom</p>
+      <p class="keys">Keys: <kbd>Space</kbd> brake · <kbd>A</kbd> ACC · <kbd>P</kbd> pause · <kbd>R</kbd> reset · drag to orbit · scroll to zoom</p>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

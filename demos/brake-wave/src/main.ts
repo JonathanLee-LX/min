@@ -17,8 +17,11 @@ const timeScale = $<HTMLInputElement>('time-scale');
 const densityVal = $('density-val');
 const delayVal = $('delay-val');
 const timeVal = $('time-val');
+const chkAcc = $<HTMLInputElement>('chk-acc');
 const chkTrails = $<HTMLInputElement>('chk-trails');
 const chkVectors = $<HTMLInputElement>('chk-vectors');
+const delayRow = $('delay-row');
+const accHint = $('acc-hint');
 
 const statSpeed = $('stat-speed');
 const statBraking = $('stat-braking');
@@ -33,6 +36,17 @@ function syncPauseLabel(): void {
   view.paused = paused;
 }
 
+function syncAccUi(): void {
+  const on = chkAcc.checked;
+  sim.params.accEnabled = on;
+  delay.disabled = on;
+  delayRow.classList.toggle('disabled', on);
+  accHint.hidden = !on;
+  delayVal.textContent = on
+    ? `ACC ~${(sim.accSensorLag * 1000).toFixed(0)} ms`
+    : `${Number(delay.value).toFixed(2)} s`;
+}
+
 function triggerBrake(): void {
   sim.triggerBrake(2.4);
   if (paused) {
@@ -44,8 +58,10 @@ function triggerBrake(): void {
 function reset(): void {
   sim.params.carCount = Number(density.value);
   sim.params.reactionDelay = Number(delay.value);
+  sim.params.accEnabled = chkAcc.checked;
   sim.reset();
   needsRebuild = true;
+  syncAccUi();
 }
 
 btnBrake.addEventListener('click', triggerBrake);
@@ -61,6 +77,7 @@ density.addEventListener('input', () => {
 });
 
 delay.addEventListener('input', () => {
+  if (chkAcc.checked) return;
   sim.params.reactionDelay = Number(delay.value);
   delayVal.textContent = `${Number(delay.value).toFixed(2)} s`;
 });
@@ -70,6 +87,7 @@ timeScale.addEventListener('input', () => {
   timeVal.textContent = `${Number(timeScale.value).toFixed(1)}×`;
 });
 
+chkAcc.addEventListener('change', syncAccUi);
 chkTrails.addEventListener('change', () => (view.showTrails = chkTrails.checked));
 chkVectors.addEventListener('change', () => (view.showVectors = chkVectors.checked));
 
@@ -79,6 +97,9 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' || key === 'b') {
     e.preventDefault();
     triggerBrake();
+  } else if (key === 'a') {
+    chkAcc.checked = !chkAcc.checked;
+    syncAccUi();
   } else if (key === 'p') {
     paused = !paused;
     syncPauseLabel();
@@ -99,7 +120,6 @@ view.onStats = (s) => {
 
 // Initialise labels + first rebuild, then start the loop.
 densityVal.textContent = `${density.value} cars`;
-delayVal.textContent = `${Number(delay.value).toFixed(2)} s`;
 timeVal.textContent = `${Number(timeScale.value).toFixed(1)}×`;
 view.timeScale = Number(timeScale.value);
 view.showTrails = chkTrails.checked;

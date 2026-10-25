@@ -109,6 +109,18 @@ button:active {
   margin-bottom: 10px;
 }
 
+.slider.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.hint {
+  margin: -4px 0 12px;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .slider span {
   display: flex;
   justify-content: space-between;
