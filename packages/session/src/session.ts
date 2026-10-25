@@ -7,7 +7,6 @@ import {
 } from "@min/core";
 import type { AssembleResult, ContextBudget } from "./assemble.js";
 import {
-  createBudgetAssembler,
   resolveSessionExtensions,
   type ContextAssembler,
   type SessionExtension,
@@ -20,10 +19,8 @@ import {
   type InputQueue,
   type InputQueueOptions,
 } from "./input-queue.js";
-import {
-  createContextStash,
-  type ContextStash,
-} from "./stash.js";
+import type { ContextStash } from "./stash.js";
+import { createTrimAssembler } from "./strategies.js";
 import {
   newSessionId,
   type SessionMeta,
@@ -45,8 +42,9 @@ export interface CreateSessionOptions {
    */
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
   /**
-   * Shared stash for folded/hidden originals (recall_context).
-   * Created automatically when omitted.
+   * Optional stash for folded/hidden originals (used by H-M-T + recall).
+   * Not created by default — install `hmtContextExtension` (or pass a stash)
+   * when evaluating / enabling that strategy.
    */
   stash?: ContextStash;
   /**
@@ -82,8 +80,8 @@ export interface Session {
   readonly messages: readonly Message[];
   /** Last assemble info from run(), if any. */
   readonly lastAssemble?: AssembleResult;
-  /** Folded/hidden originals for recall_context. */
-  readonly stash: ContextStash;
+  /** Folded/hidden originals when an H-M-T (or custom) stash is attached. */
+  readonly stash?: ContextStash;
   /** Follow-up queue (undefined when disabled). */
   readonly inputQueue?: InputQueue;
   run(input: string, opts?: SessionRunOptions): Promise<RunResult>;
@@ -106,7 +104,7 @@ export async function createSession(
     ? [...opts.initialMessages]
     : [];
   let lastAssemble: AssembleResult | undefined;
-  const stash = opts.stash ?? createContextStash();
+  const stash = opts.stash ?? opts.budget?.stash;
 
   if (opts.store && opts.id) {
     const loaded = await opts.store.load(opts.id);
@@ -125,11 +123,12 @@ export async function createSession(
     tailTurns: opts.budget?.tailTurns,
     fold: opts.budget?.fold,
     estimate: opts.budget?.estimate,
-    stash: opts.budget?.stash ?? stash,
+    stash,
   };
 
+  // Default strategy = trim (eval baseline). H-M-T plugs in via extensions.
   const { assembler: extAssembler, hooks: extHooks } =
-    resolveSessionExtensions(opts.extensions, createBudgetAssembler(budget));
+    resolveSessionExtensions(opts.extensions, createTrimAssembler(budget));
   const finalAssembler = opts.assembler ?? extAssembler;
 
   const inputQueue = resolveInputQueue(opts.inputQueue);
@@ -252,6 +251,7 @@ export async function createSession(
       return inputQueue;
     },
 
+
     async run(input, runOpts = {}) {
       let result = await runOnce(input, runOpts);
 
@@ -280,7 +280,7 @@ export async function createSession(
     reset(next) {
       messages = next ? [...next] : [];
       lastAssemble = undefined;
-      stash.clear();
+      stash?.clear();
       inputQueue?.clear();
     },
 

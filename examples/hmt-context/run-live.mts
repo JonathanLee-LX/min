@@ -21,10 +21,9 @@ import {
 } from "@min/core";
 import { resolveProvider } from "@min/runtime";
 import {
-  assembleContext,
-  createContextStash,
   createSession,
   estimateMessagesTokens,
+  hmtContextExtension,
   parseHiddenIds,
   recallContextExtension,
 } from "@min/session";
@@ -109,9 +108,22 @@ async function main() {
   console.log(`provider=${provider.id}\n`);
 
   const history = buildHistory();
-  const stash = createContextStash();
+  const hmt = hmtContextExtension({
+    budget: {
+      maxContextTokens: 12_000,
+      reservedOutputTokens: 1024,
+      headTurns: 1,
+      tailTurns: 1,
+      fold: {
+        maxToolResultChars: 1200,
+        toolResultHeadChars: 200,
+        toolResultTailChars: 200,
+      },
+    },
+  });
+  const stash = hmt.stash;
 
-  const pre = assembleContext({
+  const pre = await hmt.assembler!.assemble({
     messages: history,
     budget: {
       maxContextTokens: 12_000,
@@ -165,18 +177,11 @@ async function main() {
   const session = await createSession({
     agent,
     stash,
+    extensions: [hmt],
     initialMessages: history,
     budget: {
       maxContextTokens: 12_000,
       reservedOutputTokens: 1024,
-      headTurns: 1,
-      tailTurns: 1,
-      fold: {
-        maxToolResultChars: 1200,
-        toolResultHeadChars: 200,
-        toolResultTailChars: 200,
-      },
-      stash,
     },
   });
 

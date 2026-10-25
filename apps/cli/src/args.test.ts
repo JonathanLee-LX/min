@@ -19,6 +19,7 @@ describe("parseArgs", () => {
 
   it("parses session and context budget flags", () => {
     expect(parseArgs(["-i"]).repl).toBe(true);
+    expect(parseArgs(["-i"]).contextStrategy).toBe("trim");
     expect(
       parseArgs([
         "-y",
@@ -28,6 +29,8 @@ describe("parseArgs", () => {
         "8000",
         "--max-user-turns",
         "6",
+        "--context-strategy",
+        "hmt",
         "--list-sessions",
       ]),
     ).toMatchObject({
@@ -35,6 +38,7 @@ describe("parseArgs", () => {
       sessionId: "ses_1",
       maxContextTokens: 8000,
       maxUserTurns: 6,
+      contextStrategy: "hmt",
       listSessions: true,
     });
   });

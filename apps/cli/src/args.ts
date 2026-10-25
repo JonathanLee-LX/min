@@ -28,6 +28,11 @@ export interface CliArgs {
   maxContextTokens: number;
   /** Max trailing user-turns kept in the model view. */
   maxUserTurns?: number;
+  /**
+   * Context projection strategy.
+   * `trim` = baseline (default); `hmt` = experimental head/middle/tail + recall.
+   */
+  contextStrategy: "trim" | "hmt";
   prompt?: string;
 }
 
@@ -45,6 +50,8 @@ export function parseArgs(argv: string[]): CliArgs {
     noSessionStore: false,
     listSessions: false,
     maxContextTokens: Number(process.env.MIN_MAX_CONTEXT_TOKENS ?? 32_000),
+    contextStrategy:
+      process.env.MIN_CONTEXT_STRATEGY === "hmt" ? "hmt" : "trim",
   };
 
   const positional: string[] = [];
@@ -94,6 +101,12 @@ export function parseArgs(argv: string[]): CliArgs {
         throw new Error("--max-user-turns must be a positive integer");
       }
       args.maxUserTurns = n;
+    } else if (a === "--context-strategy") {
+      const raw = argv[++i];
+      if (raw !== "trim" && raw !== "hmt") {
+        throw new Error("--context-strategy must be trim | hmt");
+      }
+      args.contextStrategy = raw;
     } else if (a === "--cwd") {
       args.cwd = argv[++i] ?? args.cwd;
     } else if (a === "--provider") {
@@ -141,6 +154,7 @@ Options:
   --list-sessions     list sessions in --session-dir and exit
   --max-context-tokens <n>  model view budget (default: 32000)
   --max-user-turns <n>      keep at most N trailing user turns in the view
+  --context-strategy <id>   trim (default, baseline) | hmt (experimental fold+recall)
   -i, --repl          interactive mode
   -h, --help          show help
 
@@ -152,12 +166,15 @@ REPL commands:
   (lines typed during a run are queued; drained after the agent pass)
 
 Context:
-  Full history is stored in the session; only a budgeted suffix is sent to the model.
-  Oldest user-turns are dropped from the model view when over budget (cost/window).
+  Full history is stored in the session; the model sees a projected view.
+  Default strategy \`trim\` drops oldest turns under budget (eval baseline).
+  Opt-in \`hmt\` keeps head+tail verbatim, folds middle tool output into a stash,
+  and registers recall_context so the model can fetch originals.
   Assistant text streams as it arrives (OpenAI / DeepSeek); tool traces print on stderr-friendly lines.
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
   MIN_MAX_CONTEXT_TOKENS
+  MIN_CONTEXT_STRATEGY=trim|hmt
 `;
 }

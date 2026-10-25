@@ -1,30 +1,19 @@
 import type { Message, RunResult, ToolDefinition } from "@min/core";
-import {
-  assembleContext,
-  type AssembleInput,
-  type AssembleResult,
-  type ContextBudget,
+import type {
+  AssembleInput,
+  AssembleResult,
 } from "./assemble.js";
 import type { SessionMeta, SessionSnapshot } from "./store.js";
 
 /**
  * Pluggable strategy for building the model view.
- * Default: token/turn budget trim via {@link createBudgetAssembler}.
+ * Defaults / factories live in `strategies.ts`
+ * (`createTrimAssembler`, `createHmtAssembler`, `hmtContextExtension`).
  */
 export interface ContextAssembler {
   assemble(
     input: AssembleInput,
   ): AssembleResult | Promise<AssembleResult>;
-}
-
-export function createBudgetAssembler(
-  budget: ContextBudget,
-): ContextAssembler {
-  return {
-    assemble(input) {
-      return assembleContext({ ...input, budget });
-    },
-  };
 }
 
 export interface SessionHookContext {

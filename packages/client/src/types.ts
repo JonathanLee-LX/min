@@ -101,6 +101,8 @@ export interface ClientOptions {
   allowBash?: boolean;
   maxContextTokens?: number;
   maxUserTurns?: number;
+  /** `trim` (default) or experimental `hmt`. */
+  contextStrategy?: RuntimeOptions["contextStrategy"];
   sessionExtensions?: RuntimeOptions["sessionExtensions"];
 
   /** Inject an already-composed Runtime (tests / custom hosts). */

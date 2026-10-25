@@ -1,6 +1,6 @@
 /**
- * Measure H-M-T compression vs full canonical context across scenarios.
- * Writes JSON to stdout (and optionally a file) for the canvas / report.
+ * Measure context strategies vs full canonical history.
+ * Compares baseline `trim` and experimental `hmt` on the same histories.
  */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -16,27 +16,23 @@ import {
 } from "@min/core";
 import {
   assembleContext,
+  assembleTrimContext,
   createContextStash,
   estimateMessagesTokens,
-  type AssembleResult,
 } from "@min/session";
 
-export interface ScenarioRow {
+interface ScenarioRow {
   id: string;
   label: string;
+  strategy: "trim" | "hmt";
   middleTurns: number;
   blobChars: number;
-  canonicalMsgs: number;
   canonicalTokens: number;
   viewTokens: number;
-  messageBudget: number;
+  ratio: number;
+  savedPct: number;
   foldedParts: number;
   stashedIds: number;
-  regions: { headTurns: number; middleTurns: number; tailTurns: number };
-  /** view / canonical (lower = more compression) */
-  ratio: number;
-  /** 1 - ratio */
-  saved: number;
   trimmed: boolean;
 }
 
@@ -59,7 +55,8 @@ function buildHistory(middleTurns: number, blobChars: number): Message[] {
   return msgs;
 }
 
-function measureOne(
+function measure(
+  strategy: "trim" | "hmt",
   id: string,
   label: string,
   middleTurns: number,
@@ -68,105 +65,92 @@ function measureOne(
 ): ScenarioRow {
   const history = buildHistory(middleTurns, blobChars);
   const stash = createContextStash();
-  const assembled: AssembleResult = assembleContext({
-    messages: history,
-    budget: {
-      maxContextTokens,
-      reservedOutputTokens: 1024,
-      headTurns: 1,
-      tailTurns: 1,
-      fold: {
-        maxToolResultChars: 1200,
-        toolResultHeadChars: 200,
-        toolResultTailChars: 200,
-      },
-      stash,
+  const budget = {
+    maxContextTokens,
+    reservedOutputTokens: 1024,
+    headTurns: 1,
+    tailTurns: 1,
+    fold: {
+      maxToolResultChars: 1200,
+      toolResultHeadChars: 200,
+      toolResultTailChars: 200,
     },
-  });
+    stash,
+  } as const;
+
+  const assembled =
+    strategy === "hmt"
+      ? assembleContext({ messages: history, budget })
+      : assembleTrimContext({ messages: history, budget });
 
   const canonicalTokens = estimateMessagesTokens(history);
   const viewTokens = estimateMessagesTokens(assembled.view);
   const ratio = canonicalTokens > 0 ? viewTokens / canonicalTokens : 1;
 
   return {
-    id,
+    id: `${strategy}_${id}`,
     label,
+    strategy,
     middleTurns,
     blobChars,
-    canonicalMsgs: history.length,
     canonicalTokens,
     viewTokens,
-    messageBudget: assembled.messageBudget,
+    ratio,
+    savedPct: (1 - ratio) * 100,
     foldedParts: assembled.foldedParts ?? 0,
     stashedIds: assembled.stashedIds?.length ?? 0,
-    regions: assembled.regions ?? {
-      headTurns: 0,
-      middleTurns: 0,
-      tailTurns: 0,
-    },
-    ratio,
-    saved: 1 - ratio,
     trimmed: assembled.trimmed,
   };
 }
 
 function main() {
   const rows: ScenarioRow[] = [];
-
-  // Sweep A: fixed blob size, grow middle turns
-  for (const n of [0, 1, 2, 4, 6, 8, 12]) {
-    rows.push(
-      measureOne(
-        `turns_${n}`,
-        `${n} middle turns × 18k`,
-        n,
-        18_000,
-      ),
-    );
+  for (const n of [0, 1, 2, 4, 8, 12]) {
+    for (const strategy of ["trim", "hmt"] as const) {
+      rows.push(
+        measure(strategy, `turns_${n}`, `${n} middle × 18k`, n, 18_000),
+      );
+    }
+  }
+  for (const chars of [1_000, 4_000, 8_000, 18_000, 40_000, 80_000]) {
+    for (const strategy of ["trim", "hmt"] as const) {
+      rows.push(
+        measure(
+          strategy,
+          `blob_${chars}`,
+          `4 turns × ${chars / 1000}k`,
+          4,
+          chars,
+        ),
+      );
+    }
   }
 
-  // Sweep B: fixed 4 middle turns, grow blob size
-  for (const chars of [1_000, 4_000, 8_000, 12_000, 18_000, 40_000, 80_000]) {
-    rows.push(
-      measureOne(
-        `blob_${chars}`,
-        `4 turns × ${chars >= 1000 ? `${chars / 1000}k` : chars} chars`,
-        4,
-        chars,
-      ),
-    );
+  const paired = [];
+  for (const n of [0, 1, 2, 4, 8, 12]) {
+    const trim = rows.find((r) => r.id === `trim_turns_${n}`)!;
+    const hmt = rows.find((r) => r.id === `hmt_turns_${n}`)!;
+    paired.push({
+      middleTurns: n,
+      full: trim.canonicalTokens,
+      trimView: trim.viewTokens,
+      hmtView: hmt.viewTokens,
+      trimSavedPct: +trim.savedPct.toFixed(1),
+      hmtSavedPct: +hmt.savedPct.toFixed(1),
+    });
   }
-
-  // Sweep C: tighter window
-  rows.push(
-    measureOne("tight_4x18k", "4×18k @ 4k ctx", 4, 18_000, 4_000),
-  );
-  rows.push(
-    measureOne("wide_4x18k", "4×18k @ 32k ctx", 4, 18_000, 32_000),
-  );
-
-  const byTurns = rows.filter((r) => r.id.startsWith("turns_"));
-  const byBlob = rows.filter((r) => r.id.startsWith("blob_"));
-  const budget = rows.filter(
-    (r) => r.id.startsWith("tight_") || r.id.startsWith("wide_"),
-  );
 
   const summary = {
     generatedAt: new Date().toISOString(),
-    estimator: "~4 chars/token (defaultTokenEstimator)",
-    fold: { maxToolResultChars: 1200, head: 200, tail: 200 },
-    hmt: { headTurns: 1, tailTurns: 1 },
-    byTurns,
-    byBlob,
-    budget,
+    note: "trim = Session default baseline; hmt = experimental plug-in strategy",
+    estimator: "~4 chars/token",
+    pairedByTurns: paired,
     all: rows,
   };
 
   const outDir = path.dirname(fileURLToPath(import.meta.url));
-  const outFile = path.join(outDir, "measure-results.json");
-  writeFileSync(outFile, JSON.stringify(summary, null, 2));
+  writeFileSync(path.join(outDir, "measure-results.json"), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
-  console.error(`wrote ${outFile}`);
 }
 
 main();

@@ -79,15 +79,20 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 ### Sessions and context budget (`@min/session`)
 
 - Canonical history is kept in a `Session` (optionally under `<cwd>/.min/sessions`).
-- Each model call sends an **H-M-T budgeted view** (cache-aware):
-  1. **Head** — first `headTurns` (default 1) kept verbatim for a stable prefix.
-  2. **Tail** — last `tailTurns` (default 2) kept verbatim for current-task success.
-  3. **Middle** — long `tool_result` bodies are folded (head+tail + marker; default max 8000 chars). If still over budget, whole middle turns collapse into a stub.
-- Folded bodies land in a session **stash**. Markers look like `…[hidden:tool_<id> · recall_context]…`.
-- Runtime registers **`recall_context`**: pass an id to fetch the original (supports `offset`/`limit` paging), or omit id to list hidden entries.
+- Model view is built by a **pluggable `ContextAssembler`** (SessionExtension). Strategies are swappable for eval:
+
+| Strategy | How to enable | Behavior |
+|----------|---------------|----------|
+| **`trim`** (default) | Runtime / CLI default | Drop oldest user-turns under token/`maxUserTurns` budget. No fold, no stash. |
+| **`hmt`** (experimental) | `contextStrategy: "hmt"` or `hmtContextExtension()` | Head verbatim + middle fold/stash + tail verbatim; Runtime also registers `recall_context`. |
+
+- H-M-T details when enabled:
+  1. **Head** — first `headTurns` (default 1) kept verbatim (prefix-cache friendly).
+  2. **Tail** — last `tailTurns` (default 2) kept verbatim (current-task success).
+  3. **Middle** — long `tool_result` bodies folded; markers `…[hidden:tool_<id> · recall_context]…`; originals in a **stash**.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
-- Disable folding with `budget.fold: false`.
-- CLI: `--session <id>`, `--session-dir`, `--max-context-tokens`, `--max-user-turns`, `--list-sessions`.
+- CLI: `--context-strategy trim|hmt`, `--session`, `--max-context-tokens`, `--max-user-turns`, …
+- Env: `MIN_CONTEXT_STRATEGY=trim|hmt`.
 
 Session stays a thin kernel; extend via composition:
 

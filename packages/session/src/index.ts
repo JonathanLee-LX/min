@@ -7,7 +7,10 @@ export {
   type ContextFoldOptions,
 } from "./assemble.js";
 export {
-  createBudgetAssembler,
+  assembleTrimContext,
+  type TrimBudget,
+} from "./assemble-trim.js";
+export {
   defineSessionExtension,
   resolveSessionExtensions,
   type ContextAssembler,
@@ -52,6 +55,17 @@ export {
   type ContextStashKind,
   type ContextStashPutInput,
 } from "./stash.js";
+export {
+  createBudgetAssembler,
+  createHmtAssembler,
+  createTrimAssembler,
+  hmtContextExtension,
+  trimContextExtension,
+  type ContextStrategyId,
+  type CreateHmtAssemblerOptions,
+  type CreateTrimAssemblerOptions,
+  type HmtContextExtensionOptions,
+} from "./strategies.js";
 export {
   createFsStore,
   createMemoryStore,

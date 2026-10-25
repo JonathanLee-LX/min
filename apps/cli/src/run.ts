@@ -36,6 +36,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     allowBash: args.allowBash || args.yes,
     maxContextTokens: args.maxContextTokens,
     maxUserTurns: args.maxUserTurns,
+    contextStrategy: args.contextStrategy,
     sessionExtensions: [contextBudgetLog()],
     applyRootGrant: false, // CLI applies grantRoot after interactive confirm
     autoApprovePermission: args.yes

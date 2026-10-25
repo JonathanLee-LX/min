@@ -6,11 +6,12 @@ import {
   type RunEvent,
 } from "@min/core";
 import {
-  createContextStash,
   createFsStore,
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
+  hmtContextExtension,
   recallContextExtension,
+  type ContextStrategyId,
   type Session,
   type SessionStore,
 } from "@min/session";
@@ -40,7 +41,15 @@ export interface RuntimeOptions {
   allowBash?: boolean;
   maxContextTokens?: number;
   maxUserTurns?: number;
-  /** Session extensions (e.g. CLI logging). */
+  /**
+   * Context projection strategy.
+   * - `trim` (default): drop oldest turns under budget — eval baseline
+   * - `hmt`: head/middle/tail + fold + stash; also registers `recall_context`
+   *
+   * H-M-T is opt-in while its effectiveness is still being measured.
+   */
+  contextStrategy?: ContextStrategyId;
+  /** Session extensions (e.g. CLI logging). Later assemblers win. */
   sessionExtensions?: Parameters<typeof createSession>[0]["extensions"];
 }
 
@@ -50,6 +59,8 @@ export interface Runtime {
   store?: SessionStore;
   permissions?: WorkspacePermissionPolicy;
   cwd: string;
+  /** Active context strategy id. */
+  contextStrategy: ContextStrategyId;
 }
 
 export function sessionDirFor(cwd: string, sessionDir?: string): string {
@@ -62,7 +73,7 @@ export async function createRuntime(
   const extensions = [];
   let permissions: WorkspacePermissionPolicy | undefined;
   const allowedToolsGate = createAllowedToolsGate();
-  const stash = createContextStash();
+  const contextStrategy: ContextStrategyId = opts.contextStrategy ?? "trim";
 
   if (!opts.noTools) {
     const ext = workspaceTools({
@@ -78,8 +89,21 @@ export async function createRuntime(
     permissions = ext.permissions;
   }
 
-  // Always register recall so folded middle context is recoverable.
-  extensions.push(recallContextExtension(stash));
+  const hmt =
+    contextStrategy === "hmt"
+      ? hmtContextExtension({
+          budget: {
+            maxContextTokens:
+              opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
+            maxUserTurns: opts.maxUserTurns,
+            reservedOutputTokens: 1024,
+          },
+        })
+      : undefined;
+
+  if (hmt) {
+    extensions.push(recallContextExtension(hmt.stash));
+  }
 
   const skillsDir = opts.skillsDir
     ? path.resolve(opts.skillsDir)
@@ -104,22 +128,34 @@ export async function createRuntime(
     ? undefined
     : createFsStore(sessionDirFor(opts.cwd, opts.sessionDir));
 
+  const sessionExtensions = [
+    ...(hmt ? [hmt] : []),
+    ...(opts.sessionExtensions ?? []),
+  ];
+
   const session = await createSession({
     agent,
     store,
     id: opts.sessionId,
-    stash,
+    stash: hmt?.stash,
     systemForBudget: BASE_SYSTEM,
     budget: {
       maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
       maxUserTurns: opts.maxUserTurns,
       reservedOutputTokens: 1024,
-      stash,
+      stash: hmt?.stash,
     },
-    extensions: opts.sessionExtensions,
+    extensions: sessionExtensions,
   });
 
-  return { agent, session, store, permissions, cwd: opts.cwd };
+  return {
+    agent,
+    session,
+    store,
+    permissions,
+    cwd: opts.cwd,
+    contextStrategy,
+  };
 }
 
 export type { PermissionAskResult, RunEvent };

@@ -18,8 +18,9 @@ export function contextBudgetLog(): SessionExtension {
         const regions = assemble.regions
           ? ` · H/M/T=${assemble.regions.headTurns}/${assemble.regions.middleTurns}/${assemble.regions.tailTurns}`
           : "";
+        const strategy = assemble.strategy ? `strategy=${assemble.strategy}` : "strategy=?";
         console.error(
-          `context: view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})${regions}${folded}${stashed}`,
+          `context: ${strategy} · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})${regions}${folded}${stashed}`,
         );
       },
       onIncoming(texts) {

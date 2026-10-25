@@ -84,6 +84,11 @@ export interface AssembleResult {
     middleTurns: number;
     tailTurns: number;
   };
+  /**
+   * Which context strategy produced this view.
+   * Useful for A/B eval (`trim` baseline vs `hmt`, or custom ids).
+   */
+  strategy?: string;
 }
 
 const DEFAULT_HEAD_TURNS = 1;
@@ -232,6 +237,7 @@ export function assembleContext(input: AssembleInput): AssembleResult {
     trimmed,
     foldedParts,
     stashedIds: unique(stashedIds),
+    strategy: "hmt",
     regions: {
       headTurns: head.length,
       middleTurns: middleTurns.length,
