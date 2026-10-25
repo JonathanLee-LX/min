@@ -14,8 +14,6 @@
  *  - Phantom jam  : gridlock. The line's own instabilities plus delayed reaction
  *                   keep the jam alive with no external cause; speed drops to
  *                   crawl and stop-and-go waves persist.
- *  - ACC on       : every follower uses Adaptive Cruise Control (near-zero sensor
- *                   lag + calmer headway). Brake waves damp instead of amplifying.
  */
 
 export const ROAD_LENGTH = 1200; // metres
@@ -24,16 +22,10 @@ export const CAR_LENGTH = 4.4; // metres
 export interface SimParams {
   /** number of follower cars (excluding the pace car at index 0) */
   carCount: number;
-  /** human reaction delay in seconds (ignored for followers when ACC is on) */
+  /** extra reaction delay in seconds */
   reactionDelay: number;
   /** global driver aggressiveness / anticipation (1 = calm, <1 = twitchy) */
   caution: number;
-  /**
-   * When true, every follower runs Adaptive Cruise Control:
-   * near-instant sensing (~50 ms) and a slightly longer time-headway.
-   * The pace car still injects manual hard brakes as the disturbance source.
-   */
-  accEnabled: boolean;
 }
 
 interface Sample {
@@ -107,22 +99,13 @@ export class TrafficSim {
   private waveFitted = 0;
   private waveArmed = false;
 
-  /** Sensor lag used by ACC (seconds) — far smaller than human reaction delay. */
-  readonly accSensorLag = 0.05;
-
   constructor(params?: Partial<SimParams>) {
     this.params = {
       carCount: clampInt(params?.carCount ?? 30, 4, 140),
       reactionDelay: params?.reactionDelay ?? 0.55,
       caution: params?.caution ?? 1,
-      accEnabled: params?.accEnabled ?? false,
     };
     this.reset();
-  }
-
-  /** Effective perception delay for a follower (ACC overrides human delay). */
-  effectiveDelay(): number {
-    return this.params.accEnabled ? this.accSensorLag : this.params.reactionDelay;
   }
 
   // ---------------------------------------------------------------- setup
@@ -216,22 +199,20 @@ export class TrafficSim {
   private substep(dt: number): void {
     this.time += dt;
     const cars = this.cars;
-    const delay = this.effectiveDelay();
+    const delay = this.params.reactionDelay;
     const acc = new Float64Array(cars.length);
 
     for (let i = 0; i < cars.length; i++) {
       const car = cars[i];
 
       if (car.isPace) {
-        // Pace car: hard brake when triggered; otherwise cruise (ACC does not
-        // take over the disturbance injector so the wave source stays clear).
         acc[i] =
           this.time < car.brakeUntil ? -this.bHard : clamp((this.v0base - car.v) * 0.8, -this.bHard, 1.5);
         continue;
       }
 
       const leader = cars[i - 1];
-      // Record the *true* current state; the driver / ACC uses it after `delay`.
+      // Record the *true* current state; the driver will use it `delay` later.
       car.history.push({ t: this.time, gap: this.gapTo(leader, car), dv: car.v - leader.v });
       while (car.history.length > 2 && this.time - car.history[0].t > delay + 1.5) {
         car.history.shift();
@@ -302,14 +283,12 @@ export class TrafficSim {
     return h[0];
   }
 
-  /** Intelligent Driver Model (human or ACC-tuned). */
+  /** Intelligent Driver Model */
   private idm(i: number, v: number, gap: number, dv: number): number {
     const v0 = this.v0s[i];
-    // ACC keeps a bit more time-headway and softer accel — damps stop-and-go.
-    const T =
-      this.Tn[i] * this.params.caution * (this.params.accEnabled ? 1.25 : 1);
-    const a = this.params.accEnabled ? this.aMaxBase * 0.75 : this.aMaxBase;
-    const b = this.params.accEnabled ? this.bComfBase * 1.15 : this.bComfBase;
+    const T = this.Tn[i] * this.params.caution;
+    const a = this.aMaxBase;
+    const b = this.bComfBase;
     const free = 1 - Math.pow(Math.max(0, v) / v0, 4);
     const sStar = this.s0 + Math.max(0, v * T + (v * dv) / (2 * Math.sqrt(a * b)));
     const g = Math.max(0.2, gap);

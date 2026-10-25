@@ -13,7 +13,6 @@ Classic regimes you can produce here:
 | Free flow | All cars cruise at ~30 m/s (108 km/h) at a comfortable headway. |
 | Brake wave | One hard brake is amplified downstream and travels backwards; cars briefly slow/stop, then recover. |
 | Phantom jam | Low headway + high reaction delay: the jam never fully clears, stop-and-go waves persist with no external cause. |
-| ACC (all cars) | Every follower uses Adaptive Cruise Control (~50 ms sensor lag, longer headway, softer accel). The same pace-car brake is damped instead of amplified. |
 
 ## How the demo shows it
 
@@ -24,9 +23,6 @@ Classic regimes you can produce here:
 - **Reaction delay** — every car keeps a short history of what it saw (gap and closing speed to
   its leader) and acts on the sample from `delay` seconds ago, so information propagates at a
   *finite* speed instead of instantly.
-- **ACC (all cars)** — checkbox / `A`: followers switch to Adaptive Cruise Control. Human
-  reaction delay is replaced by ~50 ms sensor lag; time-headway and accel are tuned calmer.
-  The pace car still injects manual hard brakes so you can compare wave damping with ACC on vs off.
 - **Pace car brake** — car 0 (grey) is the "pace car". *Trigger brake* makes it brake hard for
   ~3 s. The car behind reacts first, then the next, and so on: the wave front travels down the
   queue at a measurable speed.
@@ -49,8 +45,7 @@ In the HUD (keys in brackets):
 - **Reset** — `R`: new randomised traffic at the current density.
 - **Pause** — `P`: freeze/continue the simulation (camera still usable).
 - **Density** slider — 15–120: number of follower cars (more = closer headways, more jams).
-- **Reaction delay** slider — 0–1.6 s: human response lag (disabled while ACC is on).
-- **ACC (all cars)** — `A`: enable Adaptive Cruise Control on every follower.
+- **Reaction delay** slider — 0–1.6 s: response lag; higher delay → slower, longer-lasting wave.
 - **Time scale** slider — 0.1–3×: slow motion to watch the wave front propagate.
 - **Brake trails** / **Speed arrows** checkboxes — toggle the visual aids.
 - Mouse: drag to orbit, scroll to zoom.
