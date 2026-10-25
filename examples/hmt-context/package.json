@@ -9,6 +9,7 @@
     "measure": "tsx measure.mts",
     "eval:live": "tsx eval-live.mts",
     "eval:hard": "tsx eval-hard.mts",
+    "verify:multiturn": "tsx verify-multiturn.mts",
     "build": "echo \"example — no build\"",
     "typecheck": "echo \"skip\"",
     "test": "echo \"skip\""
