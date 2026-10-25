@@ -30,9 +30,9 @@ export interface CliArgs {
   maxUserTurns?: number;
   /**
    * Context projection strategy.
-   * `trim` = baseline (default); `hmt` = experimental head/middle/tail + recall.
+   * `trim` (default) | `hmt` | `tool-offload` | `sticky-trim` | `compact`
    */
-  contextStrategy: "trim" | "hmt";
+  contextStrategy: "trim" | "hmt" | "tool-offload" | "sticky-trim" | "compact";
   prompt?: string;
 }
 
@@ -50,8 +50,7 @@ export function parseArgs(argv: string[]): CliArgs {
     noSessionStore: false,
     listSessions: false,
     maxContextTokens: Number(process.env.MIN_MAX_CONTEXT_TOKENS ?? 32_000),
-    contextStrategy:
-      process.env.MIN_CONTEXT_STRATEGY === "hmt" ? "hmt" : "trim",
+    contextStrategy: parseStrategy(process.env.MIN_CONTEXT_STRATEGY) ?? "trim",
   };
 
   const positional: string[] = [];
@@ -103,10 +102,13 @@ export function parseArgs(argv: string[]): CliArgs {
       args.maxUserTurns = n;
     } else if (a === "--context-strategy") {
       const raw = argv[++i];
-      if (raw !== "trim" && raw !== "hmt") {
-        throw new Error("--context-strategy must be trim | hmt");
+      const parsed = parseStrategy(raw);
+      if (!parsed) {
+        throw new Error(
+          "--context-strategy must be trim | hmt | tool-offload | sticky-trim | compact",
+        );
       }
-      args.contextStrategy = raw;
+      args.contextStrategy = parsed;
     } else if (a === "--cwd") {
       args.cwd = argv[++i] ?? args.cwd;
     } else if (a === "--provider") {
@@ -154,7 +156,7 @@ Options:
   --list-sessions     list sessions in --session-dir and exit
   --max-context-tokens <n>  model view budget (default: 32000)
   --max-user-turns <n>      keep at most N trailing user turns in the view
-  --context-strategy <id>   trim (default, baseline) | hmt (experimental fold+recall)
+  --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|compact (default: trim)
   -i, --repl          interactive mode
   -h, --help          show help
 
@@ -166,15 +168,33 @@ REPL commands:
   (lines typed during a run are queued; drained after the agent pass)
 
 Context:
-  Full history is stored in the session; the model sees a projected view.
-  Default strategy \`trim\` drops oldest turns under budget (eval baseline).
-  Opt-in \`hmt\` keeps head+tail verbatim, folds middle tool output into a stash,
-  and registers recall_context so the model can fetch originals.
-  Assistant text streams as it arrives (OpenAI / DeepSeek); tool traces print on stderr-friendly lines.
+  Full history is stored; the model sees a projected view (pluggable strategy).
+  trim         drop oldest turns (default baseline)
+  sticky-trim  freeze leading turns, trim after them (cache-friendlier)
+  tool-offload fold large tool_results into stash + recall_context
+  hmt          head/middle/tail fold + stash + recall_context
+  compact      trim then LLM-summarize dropped turns when large enough
+  Assistant text streams as it arrives; tool traces print on stderr-friendly lines.
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
   MIN_MAX_CONTEXT_TOKENS
-  MIN_CONTEXT_STRATEGY=trim|hmt
+  MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|compact
 `;
+}
+
+function parseStrategy(
+  raw: string | undefined,
+): CliArgs["contextStrategy"] | undefined {
+  if (!raw) return undefined;
+  if (
+    raw === "trim" ||
+    raw === "hmt" ||
+    raw === "tool-offload" ||
+    raw === "sticky-trim" ||
+    raw === "compact"
+  ) {
+    return raw;
+  }
+  return undefined;
 }

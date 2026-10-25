@@ -9,8 +9,8 @@ import {
   createFsStore,
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
-  hmtContextExtension,
   recallContextExtension,
+  resolveContextStrategy,
   type ContextStrategyId,
   type Session,
   type SessionStore,
@@ -42,11 +42,8 @@ export interface RuntimeOptions {
   maxContextTokens?: number;
   maxUserTurns?: number;
   /**
-   * Context projection strategy.
-   * - `trim` (default): drop oldest turns under budget — eval baseline
-   * - `hmt`: head/middle/tail + fold + stash; also registers `recall_context`
-   *
-   * H-M-T is opt-in while its effectiveness is still being measured.
+   * Context projection strategy (pluggable).
+   * Default `trim`. Experimental: `hmt` | `tool-offload` | `sticky-trim` | `compact`.
    */
   contextStrategy?: ContextStrategyId;
   /** Session extensions (e.g. CLI logging). Later assemblers win. */
@@ -59,7 +56,6 @@ export interface Runtime {
   store?: SessionStore;
   permissions?: WorkspacePermissionPolicy;
   cwd: string;
-  /** Active context strategy id. */
   contextStrategy: ContextStrategyId;
 }
 
@@ -75,6 +71,18 @@ export async function createRuntime(
   const allowedToolsGate = createAllowedToolsGate();
   const contextStrategy: ContextStrategyId = opts.contextStrategy ?? "trim";
 
+  const budget = {
+    maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
+    maxUserTurns: opts.maxUserTurns,
+    reservedOutputTokens: 1024,
+  };
+
+  const resolved = resolveContextStrategy({
+    strategy: contextStrategy,
+    budget,
+    provider: opts.provider,
+  });
+
   if (!opts.noTools) {
     const ext = workspaceTools({
       root: opts.cwd,
@@ -89,20 +97,8 @@ export async function createRuntime(
     permissions = ext.permissions;
   }
 
-  const hmt =
-    contextStrategy === "hmt"
-      ? hmtContextExtension({
-          budget: {
-            maxContextTokens:
-              opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
-            maxUserTurns: opts.maxUserTurns,
-            reservedOutputTokens: 1024,
-          },
-        })
-      : undefined;
-
-  if (hmt) {
-    extensions.push(recallContextExtension(hmt.stash));
+  if (resolved.needsRecall && resolved.stash) {
+    extensions.push(recallContextExtension(resolved.stash));
   }
 
   const skillsDir = opts.skillsDir
@@ -129,7 +125,7 @@ export async function createRuntime(
     : createFsStore(sessionDirFor(opts.cwd, opts.sessionDir));
 
   const sessionExtensions = [
-    ...(hmt ? [hmt] : []),
+    ...(resolved.extension ? [resolved.extension] : []),
     ...(opts.sessionExtensions ?? []),
   ];
 
@@ -137,13 +133,11 @@ export async function createRuntime(
     agent,
     store,
     id: opts.sessionId,
-    stash: hmt?.stash,
+    stash: resolved.stash,
     systemForBudget: BASE_SYSTEM,
     budget: {
-      maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
-      maxUserTurns: opts.maxUserTurns,
-      reservedOutputTokens: 1024,
-      stash: hmt?.stash,
+      ...budget,
+      stash: resolved.stash,
     },
     extensions: sessionExtensions,
   });

@@ -30,7 +30,7 @@ describe("parseArgs", () => {
         "--max-user-turns",
         "6",
         "--context-strategy",
-        "hmt",
+        "tool-offload",
         "--list-sessions",
       ]),
     ).toMatchObject({
@@ -38,7 +38,7 @@ describe("parseArgs", () => {
       sessionId: "ses_1",
       maxContextTokens: 8000,
       maxUserTurns: 6,
-      contextStrategy: "hmt",
+      contextStrategy: "tool-offload",
       listSessions: true,
     });
   });

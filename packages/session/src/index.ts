@@ -7,9 +7,22 @@ export {
   type ContextFoldOptions,
 } from "./assemble.js";
 export {
+  assembleCompactContext,
+  type CompactAssembleOptions,
+} from "./assemble-compact.js";
+export {
+  assembleStickyTrimContext,
+  type StickyTrimOptions,
+} from "./assemble-sticky-trim.js";
+export {
+  assembleToolOffloadContext,
+  type ToolOffloadOptions,
+} from "./assemble-tool-offload.js";
+export {
   assembleTrimContext,
   type TrimBudget,
 } from "./assemble-trim.js";
+export { messageTextApprox } from "./compact-prompt.js";
 export {
   defineSessionExtension,
   resolveSessionExtensions,
@@ -56,15 +69,26 @@ export {
   type ContextStashPutInput,
 } from "./stash.js";
 export {
+  CONTEXT_STRATEGY_IDS,
+  compactContextExtension,
   createBudgetAssembler,
+  createCompactAssembler,
   createHmtAssembler,
+  createStickyTrimAssembler,
+  createToolOffloadAssembler,
   createTrimAssembler,
   hmtContextExtension,
+  mergeBudget,
+  resolveContextStrategy,
+  stickyTrimContextExtension,
+  toolOffloadContextExtension,
   trimContextExtension,
+  type CompactContextExtensionOptions,
   type ContextStrategyId,
-  type CreateHmtAssemblerOptions,
-  type CreateTrimAssemblerOptions,
   type HmtContextExtensionOptions,
+  type ResolveContextStrategyOptions,
+  type StickyTrimExtensionOptions,
+  type ToolOffloadExtensionOptions,
 } from "./strategies.js";
 export {
   createFsStore,

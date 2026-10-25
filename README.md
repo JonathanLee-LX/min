@@ -83,16 +83,16 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 | Strategy | How to enable | Behavior |
 |----------|---------------|----------|
-| **`trim`** (default) | Runtime / CLI default | Drop oldest user-turns under token/`maxUserTurns` budget. No fold, no stash. |
-| **`hmt`** (experimental) | `contextStrategy: "hmt"` or `hmtContextExtension()` | Head verbatim + middle fold/stash + tail verbatim; Runtime also registers `recall_context`. |
+| **`trim`** (default) | default | Drop oldest user-turns under budget. Eval baseline. |
+| **`sticky-trim`** | `contextStrategy: "sticky-trim"` | Freeze leading turns; only trim after them (cache-friendlier). |
+| **`tool-offload`** | `contextStrategy: "tool-offload"` | Fold large `tool_result`s into stash (protect last turn); + `recall_context`. |
+| **`hmt`** | `contextStrategy: "hmt"` | Head/middle/tail: fold middle only; + stash/`recall_context`. |
+| **`compact`** | `contextStrategy: "compact"` | Trim, then LLM-summarize dropped turns when large enough. |
 
-- H-M-T details when enabled:
-  1. **Head** — first `headTurns` (default 1) kept verbatim (prefix-cache friendly).
-  2. **Tail** — last `tailTurns` (default 2) kept verbatim (current-task success).
-  3. **Middle** — long `tool_result` bodies folded; markers `…[hidden:tool_<id> · recall_context]…`; originals in a **stash**.
+- Stash markers look like `…[hidden:tool_<id> · recall_context]…` when a stash strategy is on.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
-- CLI: `--context-strategy trim|hmt`, `--session`, `--max-context-tokens`, `--max-user-turns`, …
-- Env: `MIN_CONTEXT_STRATEGY=trim|hmt`.
+- CLI: `--context-strategy <id>`, `--session`, `--max-context-tokens`, …
+- Env: `MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|compact`.
 
 Session stays a thin kernel; extend via composition:
 
