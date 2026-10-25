@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "start": "tsx run.mts",
+    "live": "tsx run-live.mts",
     "build": "echo \"example — no build\"",
     "typecheck": "echo \"skip\"",
     "test": "echo \"skip\""
   },
   "dependencies": {
     "@min/core": "workspace:*",
+    "@min/runtime": "workspace:*",
     "@min/session": "workspace:*"
   },
   "devDependencies": {

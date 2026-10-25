@@ -178,6 +178,25 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  examples/hmt-context:
+    dependencies:
+      '@min/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@min/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@min/session':
+        specifier: workspace:*
+        version: link:../../packages/session
+    devDependencies:
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+
   examples/input-queue-scenarios:
     dependencies:
       '@min/core':
