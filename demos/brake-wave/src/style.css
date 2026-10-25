@@ -210,6 +210,33 @@ input[type='checkbox'] {
   margin-left: 4px;
 }
 
+.hint {
+  margin: -2px 0 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(77, 163, 255, 0.12);
+  border: 1px solid rgba(77, 163, 255, 0.28);
+  color: #b8d4ff;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.hint[hidden] {
+  display: none;
+}
+
+.slider.disabled {
+  opacity: 0.4;
+}
+
+.slider.disabled input[type='range'] {
+  cursor: not-allowed;
+}
+
+#chk-acc {
+  accent-color: var(--accent);
+}
+
 .keys {
   margin: 0;
   color: var(--muted);

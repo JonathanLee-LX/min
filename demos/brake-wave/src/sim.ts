@@ -14,6 +14,11 @@
  *  - Phantom jam  : gridlock. The line's own instabilities plus delayed reaction
  *                   keep the jam alive with no external cause; speed drops to
  *                   crawl and stop-and-go waves persist.
+ *  - ACC          : every follower runs adaptive cruise control (params.acc):
+ *                   ~50 ms sensing lag instead of the human reaction delay, a
+ *                   longer time headway and softer accel/braking. The pace car
+ *                   still hard-brakes on trigger, but the followers absorb and
+ *                   damp it, so the wave dies out quickly instead of amplifying.
  */
 
 export const ROAD_LENGTH = 1200; // metres
@@ -26,7 +31,30 @@ export interface SimParams {
   reactionDelay: number;
   /** global driver aggressiveness / anticipation (1 = calm, <1 = twitchy) */
   caution: number;
+  /** every follower uses ACC (short sensing lag, longer headway, softer accel) */
+  acc: boolean;
 }
+
+/**
+ * Adaptive Cruise Control parameters, applied to every follower while
+ * `params.acc` is on.
+ *
+ * - sensing lag is ~50 ms instead of the human `reactionDelay`, so information
+ *   propagates almost instantly and the wave barely forms;
+ * - time headway is longer (bigger gaps, less instability);
+ * - acceleration is softer and braking is graded, so any perturbation that does
+ *   start is damped instead of amplified.
+ */
+export const ACC = {
+  /** sensor + actuation lag, seconds */
+  sensingLag: 0.05,
+  /** multiplier on the driver's desired time headway */
+  headwayFactor: 1.5,
+  /** max acceleration, m/s^2 */
+  aMax: 1.5,
+  /** comfortable deceleration, m/s^2 */
+  bComf: 2.0,
+} as const;
 
 interface Sample {
   t: number;
@@ -44,6 +72,8 @@ export class Car {
   /** 0..1, smoothed hard-deceleration indicator for visuals */
   brakeLight = 0;
   isPace = false;
+  /** this follower is running Adaptive Cruise Control (see ACC) */
+  acc = false;
   brakeUntil = 0;
   /** exponential-moving average of |dv|, used for metrics */
   perceivedDv = 0;
@@ -86,6 +116,8 @@ export class TrafficSim {
 
   private v0s: number[] = [];
   private Tn: number[] = [];
+  /** per-car ACC flag (driven by params.acc, toggled live) */
+  private accOn: boolean[] = [];
 
   jamLength = 0;
   /** measured brake-wave speed in m/s: negative = travelling backwards down the queue */
@@ -104,6 +136,7 @@ export class TrafficSim {
       carCount: clampInt(params?.carCount ?? 30, 4, 140),
       reactionDelay: params?.reactionDelay ?? 0.55,
       caution: params?.caution ?? 1,
+      acc: params?.acc ?? false,
     };
     this.reset();
   }
@@ -126,6 +159,7 @@ export class TrafficSim {
     this.cars = [pace];
     this.v0s = [this.v0base];
     this.Tn = [this.Tbase];
+    this.accOn = [false];
 
     for (let i = 1; i <= n; i++) {
       const delay = this.params.reactionDelay;
@@ -133,7 +167,29 @@ export class TrafficSim {
       this.cars.push(car);
       this.v0s.push(this.v0base * (0.9 + Math.random() * 0.2));
       this.Tn.push(this.Tbase * (0.8 + Math.random() * 0.5));
+      this.accOn.push(this.params.acc);
     }
+    this.syncAcc();
+  }
+
+  /** Turn ACC on/off for every follower at once (pace car is never ACC). */
+  setAcc(on: boolean): void {
+    this.params.acc = on;
+    this.syncAcc();
+  }
+
+  /** Copy params.acc into the per-car flags (pace car is never ACC). */
+  private syncAcc(): void {
+    for (let i = 0; i < this.cars.length; i++) {
+      const on = i > 0 && this.params.acc;
+      this.accOn[i] = on;
+      this.cars[i].acc = on;
+    }
+  }
+
+  /** Look-back time used by follower car i: ACC lag while ACC is on, else the slider. */
+  private lagFor(i: number): number {
+    return this.accOn[i] ? ACC.sensingLag : this.params.reactionDelay;
   }
 
   /** Duration of the pace car's hard brake */
@@ -178,7 +234,9 @@ export class TrafficSim {
       this.cars.push(car);
       this.v0s.push(src ? this.v0base : this.v0base);
       this.Tn.push(this.Tbase * (0.8 + Math.random() * 0.5));
+      this.accOn.push(this.params.acc);
     }
+    this.syncAcc();
   }
 
   // ---------------------------------------------------------------- stepping
@@ -199,7 +257,7 @@ export class TrafficSim {
   private substep(dt: number): void {
     this.time += dt;
     const cars = this.cars;
-    const delay = this.params.reactionDelay;
+    const maxDelay = Math.max(this.params.reactionDelay, ACC.sensingLag);
     const acc = new Float64Array(cars.length);
 
     for (let i = 0; i < cars.length; i++) {
@@ -212,15 +270,16 @@ export class TrafficSim {
       }
 
       const leader = cars[i - 1];
-      // Record the *true* current state; the driver will use it `delay` later.
+      // Record the *true* current state; the car will use it `lag` later.
       car.history.push({ t: this.time, gap: this.gapTo(leader, car), dv: car.v - leader.v });
-      while (car.history.length > 2 && this.time - car.history[0].t > delay + 1.5) {
+      while (car.history.length > 2 && this.time - car.history[0].t > maxDelay + 1.5) {
         car.history.shift();
       }
 
-      const obs = this.lookup(car, this.time - delay);
+      const lag = this.lagFor(i);
+      const obs = this.lookup(car, this.time - lag);
       car.perceivedDv = car.perceivedDv * Math.exp(-dt * 1.5) + Math.abs(obs.dv) * (1 - Math.exp(-dt * 1.5));
-      acc[i] = this.idm(i, car.v, obs.gap, obs.dv);
+      acc[i] = this.accOn[i] ? this.accControl(i, car.v, obs.gap, obs.dv) : this.idm(i, car.v, obs.gap, obs.dv);
 
       // Wave diagnostic: a car "joins" the wave once it decelerates hard, i.e.
       // once the brake information has actually reached it.
@@ -295,6 +354,26 @@ export class TrafficSim {
     const interaction = sStar / g;
     const out = a * (free - interaction * interaction);
     return clamp(out, -this.bHard, a);
+  }
+
+  /**
+   * ACC controller: same IDM shape, but a longer time headway, a softer
+   * acceleration limit and gentler, bounded braking. Together with the
+   * ~50 ms sensing lag this makes the follower string stable, so the pace
+   * car's brake is absorbed rather than amplified.
+   */
+  private accControl(i: number, v: number, gap: number, dv: number): number {
+    const v0 = this.v0s[i];
+    // longer desired time headway -> bigger gaps, less string instability
+    const T = this.Tn[i] * this.params.caution * ACC.headwayFactor;
+    const a = ACC.aMax;
+    const b = ACC.bComf;
+    const free = 1 - Math.pow(Math.max(0, v) / v0, 4);
+    const sStar = this.s0 + Math.max(0, v * T + (v * dv) / (2 * Math.sqrt(a * b)));
+    const g = Math.max(0.2, gap);
+    const interaction = sStar / g;
+    const out = a * (free - interaction * interaction);
+    return clamp(out, -ACC.bComf * 1.6, a);
   }
 
   private updateMetrics(dt: number): void {

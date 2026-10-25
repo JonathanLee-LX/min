@@ -13,6 +13,7 @@ Classic regimes you can produce here:
 | Free flow | All cars cruise at ~30 m/s (108 km/h) at a comfortable headway. |
 | Brake wave | One hard brake is amplified downstream and travels backwards; cars briefly slow/stop, then recover. |
 | Phantom jam | Low headway + high reaction delay: the jam never fully clears, stop-and-go waves persist with no external cause. |
+| ACC | Every follower runs adaptive cruise control: the same pace-car brake is absorbed instead of amplified, so the wave dies out after a few cars. |
 
 ## How the demo shows it
 
@@ -30,6 +31,14 @@ Classic regimes you can produce here:
   <span>🟩 cruising</span> → <span>🟨 easing</span> → <span>🟥 hard brake</span>; tail lights
   glow red, optional red **brake trails** and blue **speed arrows** show deceleration and flow.
   The pace car flashes red while braking.
+- **ACC regime** — tick **ACC (all cars)** (`A`). Every *follower* then switches from human
+  IDM to an ACC controller (`ACC` in `src/sim.ts`): ~50 ms sensing/actuation lag instead of the
+  reaction-delay slider, a 1.5× longer time headway, softer acceleration (1.5 m/s²) and gentler,
+  bounded braking. Near-instant sensing plus longer headways make the queue string-stable, so a
+  pace-car brake is damped out within a few cars (typically 11 → 3 cars dragged into hard braking,
+  minimum follower speed 0 → ~2 m/s at the default density). The pace car at index 0 is never
+  under ACC — it still hard-brakes on *Trigger brake*, so the disturbance source stays human. While
+  ACC is on the reaction-delay slider is disabled and a hint says so.
 - **Measured output** — the HUD shows avg speed, number of braking cars, jam length and the fitted
   **wave speed** (negative = moving backwards through the queue), plus the same sign convention
   as the smoke test.
@@ -46,6 +55,9 @@ In the HUD (keys in brackets):
 - **Pause** — `P`: freeze/continue the simulation (camera still usable).
 - **Density** slider — 15–120: number of follower cars (more = closer headways, more jams).
 - **Reaction delay** slider — 0–1.6 s: response lag; higher delay → slower, longer-lasting wave.
+  Disabled (and overridden by the ~50 ms ACC lag) while ACC is on.
+- **ACC (all cars)** checkbox — `A`: all followers run adaptive cruise control instead of human
+  IDM; damps the brake wave into a brief local slow-down.
 - **Time scale** slider — 0.1–3×: slow motion to watch the wave front propagate.
 - **Brake trails** / **Speed arrows** checkboxes — toggle the visual aids.
 - Mouse: drag to orbit, scroll to zoom.
@@ -75,6 +87,17 @@ negative, that several cars are hit, that the wave front moves backwards, that a
 a slower wave than 0.2 s, and that no cars overlap. Prints `PASS`/`FAIL` per check and
 `WAVE_OK=yes|no` (exit code 1 on failure).
 
+## ACC probe (optional)
+
+Same idea, comparing ACC off vs on for one pace-car brake:
+
+```sh
+node --experimental-strip-types scripts/acc-probe.ts
+```
+
+Checks that ACC puts fewer cars into the wave, raises the minimum follower speed, leaves the pace
+car's hard brake intact, and never overlaps cars. Prints `ACC_OK=yes|no`.
+
 ## Layout
 
 ```
@@ -83,4 +106,5 @@ src/sim.ts        IDM ring-road simulation, reaction delay, wave-speed fit
 src/scene.ts      three.js rendering, colours, trails, arrows, stats
 src/main.ts       wiring between HUD and sim/scene
 scripts/smoke.ts  headless wave check
+scripts/acc-probe.ts  headless ACC on/off comparison
 ```

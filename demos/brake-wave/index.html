@@ -27,10 +27,14 @@
         <input id="density" type="range" min="15" max="120" step="1" value="38" />
       </label>
 
-      <label class="slider">
+      <label class="slider" id="delay-slider">
         <span>Reaction delay <b id="delay-val"></b></span>
         <input id="delay" type="range" min="0" max="1.6" step="0.05" value="0.7" />
       </label>
+      <p class="hint" id="acc-hint" hidden>
+        ACC on: every follower senses ~50 ms ahead and keeps a longer headway — it
+        overrides the human reaction delay. The pace car still hard-brakes.
+      </p>
 
       <label class="slider">
         <span>Time scale <b id="time-val"></b></span>
@@ -40,6 +44,10 @@
       <div class="row small">
         <label><input id="chk-trails" type="checkbox" checked /> Brake trails</label>
         <label><input id="chk-vectors" type="checkbox" checked /> Speed arrows</label>
+      </div>
+
+      <div class="row small">
+        <label title="A"><input id="chk-acc" type="checkbox" /> ACC (all cars)</label>
       </div>
 
       <div id="stats">
@@ -55,7 +63,7 @@
         <span class="sw" style="background:#ff3b30"></span> hard brake
       </div>
 
-      <p class="keys">Keys: <kbd>Space</kbd> brake · <kbd>P</kbd> pause · <kbd>R</kbd> reset · drag to orbit · scroll to zoom</p>
+      <p class="keys">Keys: <kbd>Space</kbd> brake · <kbd>P</kbd> pause · <kbd>R</kbd> reset · <kbd>A</kbd> ACC · drag to orbit · scroll to zoom</p>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
