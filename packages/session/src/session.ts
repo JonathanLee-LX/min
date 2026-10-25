@@ -7,6 +7,10 @@ import {
 } from "@min/core";
 import type { AssembleResult, ContextBudget } from "./assemble.js";
 import {
+  compactHistoryMessages,
+  type CompactHistoryResult,
+} from "./assemble-compact.js";
+import {
   resolveSessionExtensions,
   type ContextAssembler,
   type SessionExtension,
@@ -85,6 +89,15 @@ export interface Session {
   /** Follow-up queue (undefined when disabled). */
   readonly inputQueue?: InputQueue;
   run(input: string, opts?: SessionRunOptions): Promise<RunResult>;
+  /**
+   * Explicit on-demand compact: summarize older turns via the agent provider
+   * and rewrite canonical history to `[summary] + recent turns`.
+   * Not part of the continuous assemble strategy path.
+   */
+  compact(opts?: {
+    keepRecentTurns?: number;
+    signal?: AbortSignal;
+  }): Promise<CompactHistoryResult>;
   reset(messages?: Message[]): void;
   export(): SessionSnapshot;
   dispose(): Promise<void>;
@@ -273,6 +286,19 @@ export async function createSession(
         result = await runOnce(follow, runOpts);
       }
 
+      await persist();
+      return result;
+    },
+
+    async compact(compactOpts = {}) {
+      const result = await compactHistoryMessages(messages, {
+        provider: opts.agent.provider,
+        keepRecentTurns: compactOpts.keepRecentTurns,
+        signal: compactOpts.signal,
+      });
+      messages = result.messages;
+      lastAssemble = undefined;
+      stash?.clear();
       await persist();
       return result;
     },

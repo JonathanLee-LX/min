@@ -181,4 +181,33 @@ describe("createSession", () => {
     expect(session.stash).toBeUndefined();
     await agent.dispose();
   });
+
+  it("compact rewrites canonical history on demand", async () => {
+    const provider = mockProvider([
+      { text: "a1" },
+      { text: "a2" },
+      { text: "a3" },
+      {
+        text: "Objective: chat\nDecisions: none\nConstraints: none\nFacts: prior turns\nOpen threads: none\nRejected: none",
+      },
+    ]);
+    const agent = await createAgent({ provider });
+    const session = await createSession({ agent });
+    await session.run("one");
+    await session.run("two");
+    await session.run("three");
+    const before = session.messages.length;
+    expect(before).toBeGreaterThan(4);
+
+    const result = await session.compact({ keepRecentTurns: 1 });
+    expect(result.droppedMessageCount).toBeGreaterThan(0);
+    expect(result.keptTurns).toBe(1);
+    expect(session.messages.length).toBeLessThan(before);
+    expect(session.messages[0]?.role).toBe("assistant");
+    expect(
+      session.messages[0]?.content[0]?.type === "text" &&
+        session.messages[0].content[0].text.includes("[context compact]"),
+    ).toBe(true);
+    await agent.dispose();
+  });
 });

@@ -43,7 +43,9 @@ export interface RuntimeOptions {
   maxUserTurns?: number;
   /**
    * Context projection strategy (pluggable).
-   * Default `trim`. Experimental: `hmt` | `tool-offload` | `sticky-trim` | `compact`.
+   * Default: `hybrid` when tools are enabled, otherwise `trim`.
+   * Eval / override: `hmt` | `tool-offload` | `sticky-trim`.
+   * On-demand LLM rewrite is `session.compact()` / Client `/compact` — not a strategy.
    */
   contextStrategy?: ContextStrategyId;
   /** Session extensions (e.g. CLI logging). Later assemblers win. */
@@ -69,7 +71,9 @@ export async function createRuntime(
   const extensions = [];
   let permissions: WorkspacePermissionPolicy | undefined;
   const allowedToolsGate = createAllowedToolsGate();
-  const contextStrategy: ContextStrategyId = opts.contextStrategy ?? "trim";
+  // Product default: hybrid when tools are on (stash + recall); trim otherwise.
+  const contextStrategy: ContextStrategyId =
+    opts.contextStrategy ?? (opts.noTools ? "trim" : "hybrid");
 
   const budget = {
     maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,

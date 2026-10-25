@@ -3,7 +3,6 @@ import {
   assembleContext,
   type ContextBudget,
 } from "./assemble.js";
-import { assembleCompactContext } from "./assemble-compact.js";
 import { assembleHybridContext } from "./assemble-hybrid.js";
 import { assembleStickyTrimContext } from "./assemble-sticky-trim.js";
 import { assembleToolOffloadContext } from "./assemble-tool-offload.js";
@@ -23,7 +22,6 @@ export type ContextStrategyId =
   | "hmt"
   | "tool-offload"
   | "sticky-trim"
-  | "compact"
   | "hybrid";
 
 export const CONTEXT_STRATEGY_IDS: ContextStrategyId[] = [
@@ -31,7 +29,6 @@ export const CONTEXT_STRATEGY_IDS: ContextStrategyId[] = [
   "hmt",
   "tool-offload",
   "sticky-trim",
-  "compact",
   "hybrid",
 ];
 
@@ -139,32 +136,6 @@ export function createHybridAssembler(
   };
 }
 
-/** Trim + LLM summary of dropped history when volume warrants it. */
-export function createCompactAssembler(
-  budget: ContextBudget,
-  opts: {
-    provider: ModelProvider;
-    minDroppedTokens?: number;
-    maxSourceChars?: number;
-  },
-): ContextAssembler {
-  return {
-    assemble(input) {
-      return assembleCompactContext(
-        {
-          ...input,
-          budget: mergeBudget(budget, input.budget),
-        },
-        {
-          provider: opts.provider,
-          minDroppedTokens: opts.minDroppedTokens,
-          maxSourceChars: opts.maxSourceChars,
-        },
-      );
-    },
-  };
-}
-
 /**
  * @deprecated Prefer named create*Assembler helpers.
  * Aliases the trim baseline so existing call sites keep working.
@@ -241,32 +212,6 @@ export function stickyTrimContextExtension(
   return Object.assign(ext, { strategy: "sticky-trim" as const });
 }
 
-export interface CompactContextExtensionOptions {
-  provider: ModelProvider;
-  budget?: Partial<ContextBudget> & { maxContextTokens?: number };
-  minDroppedTokens?: number;
-  maxSourceChars?: number;
-}
-
-/**
- * Explicit LLM compact: trim, then summarize dropped turns when large enough.
- * Pair with a cheap/fast provider when possible.
- */
-export function compactContextExtension(
-  opts: CompactContextExtensionOptions,
-): SessionExtension & { strategy: "compact" } {
-  const budget = budgetFromPartial(opts.budget);
-  const ext = defineSessionExtension({
-    name: "context.compact",
-    assembler: createCompactAssembler(budget, {
-      provider: opts.provider,
-      minDroppedTokens: opts.minDroppedTokens,
-      maxSourceChars: opts.maxSourceChars,
-    }),
-  });
-  return Object.assign(ext, { strategy: "compact" as const });
-}
-
 export interface HybridContextExtensionOptions {
   stash?: ContextStash;
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
@@ -292,7 +237,7 @@ export function hybridContextExtension(
 export interface ResolveContextStrategyOptions {
   strategy: ContextStrategyId;
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
-  /** Required for `compact`. Usually the same runtime provider. */
+  /** Unused by current strategies; kept for call-site compatibility. */
   provider?: ModelProvider;
   stash?: ContextStash;
   protectTailTurns?: number;
@@ -303,6 +248,9 @@ export interface ResolveContextStrategyOptions {
 /**
  * Build the SessionExtension (+ optional stash) for a strategy id.
  * Strategies that hide tool bodies expose `stash` for recall_context.
+ *
+ * LLM history rewrite is not a continuous strategy — use
+ * `session.compact()` / `compactHistoryMessages` on demand.
  */
 export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
   extension?: SessionExtension;
@@ -351,20 +299,6 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
           stickyTurns: opts.stickyTurns,
         }),
       };
-    case "compact": {
-      if (!opts.provider) {
-        throw new Error('contextStrategy "compact" requires a provider');
-      }
-      return {
-        strategy: "compact",
-        needsRecall: false,
-        extension: compactContextExtension({
-          provider: opts.provider,
-          budget: opts.budget,
-          minDroppedTokens: opts.minDroppedTokens,
-        }),
-      };
-    }
     case "hybrid": {
       const ext = hybridContextExtension({
         budget: opts.budget,

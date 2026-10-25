@@ -25,7 +25,7 @@ const STRATEGIES: ContextStrategyId[] = [
   "sticky-trim",
   "tool-offload",
   "hmt",
-  "compact",
+  "hybrid",
 ];
 
 interface StrategyResult {
@@ -146,7 +146,7 @@ async function runStrategy(
     noSessionStore: true,
     allowBash: true,
     askWrite: false,
-    // Tight enough that fold/trim/compact diverge on fat logs.
+    // Tight enough that fold/trim strategies diverge on fat logs.
     maxContextTokens: 8_000,
     maxUserTurns: strategy === "trim" || strategy === "sticky-trim" ? 6 : undefined,
   });

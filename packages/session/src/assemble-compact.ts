@@ -4,69 +4,70 @@ import {
   type Message,
   type ModelProvider,
 } from "@min/core";
-import type { AssembleInput, AssembleResult } from "./assemble.js";
-import { assembleTrimContext } from "./assemble-trim.js";
+import { splitUserTurns } from "./assemble.js";
 import { messageTextApprox } from "./compact-prompt.js";
 
-export interface CompactAssembleOptions {
+export interface CompactHistoryOptions {
   /** Provider used only for summarization (no tools). */
   provider: ModelProvider;
-  /**
-   * Run compact when dropped messages estimate exceeds this many tokens.
-   * Default: 800.
-   */
-  minDroppedTokens?: number;
+  /** Keep this many trailing user-turns verbatim. Default: 2. */
+  keepRecentTurns?: number;
   /** Max characters of dropped history fed into the summarizer. Default: 24_000. */
   maxSourceChars?: number;
   signal?: AbortSignal;
 }
 
+export interface CompactHistoryResult {
+  /** Rewritten canonical history: summary message + recent turns. */
+  messages: Message[];
+  summary: string;
+  droppedMessageCount: number;
+  keptTurns: number;
+}
+
 /**
- * Trim first; if enough history was dropped, ask `provider` for a structured
- * summary and prepend it to the model view. Failures fall back to trim.
- *
- * Explicit / threshold-gated — not intended to run heavy LLM work every turn
- * unless dropped volume warrants it.
+ * Explicit history compact: summarize older turns and rewrite the store to
+ * `[summary] + recent turns`. Not a continuous assemble strategy — call on
+ * demand (e.g. CLI `/compact`).
  */
-export async function assembleCompactContext(
-  input: AssembleInput,
-  opts: CompactAssembleOptions,
-): Promise<AssembleResult> {
-  const trimmed = assembleTrimContext(input);
-  const minDropped = opts.minDroppedTokens ?? 800;
-  const estimate = input.budget.estimate;
-  const droppedTokens = estimate
-    ? estimate.messages(trimmed.dropped)
-    : Math.ceil(JSON.stringify(trimmed.dropped).length / 4);
-
-  if (!trimmed.dropped.length || droppedTokens < minDropped) {
-    return { ...trimmed, strategy: "compact" };
-  }
-
-  try {
-    const summary = await summarizeDropped(trimmed.dropped, opts);
-    const summaryMsg = assistantMessage([
-      textPart(
-        `[context compact] Prior turns were summarized for budget:\n${summary}`,
-      ),
-    ]);
-    const view = [summaryMsg, ...trimmed.view];
+export async function compactHistoryMessages(
+  messages: Message[],
+  opts: CompactHistoryOptions,
+): Promise<CompactHistoryResult> {
+  const keepRecent = Math.max(1, opts.keepRecentTurns ?? 2);
+  const turns = splitUserTurns(messages);
+  if (turns.length <= keepRecent) {
     return {
-      ...trimmed,
-      view,
-      // Keep store merge on the trimmed suffix (summary is view-only).
-      kept: trimmed.kept,
-      trimmed: true,
-      strategy: "compact",
+      messages: [...messages],
+      summary: "",
+      droppedMessageCount: 0,
+      keptTurns: turns.length,
     };
-  } catch {
-    return { ...trimmed, strategy: "compact" };
   }
+
+  const droppedTurns = turns.slice(0, turns.length - keepRecent);
+  const keptTurns = turns.slice(turns.length - keepRecent);
+  const dropped = droppedTurns.flat();
+  const kept = keptTurns.flat();
+
+  const summary = await summarizeDropped(dropped, opts);
+  const summaryMsg = assistantMessage([
+    textPart(
+      `[context compact] Earlier turns were summarized on demand:\n${summary}`,
+    ),
+  ]);
+
+  return {
+    messages: [summaryMsg, ...kept],
+    summary,
+    droppedMessageCount: dropped.length,
+    keptTurns: keptTurns.length,
+  };
 }
 
 async function summarizeDropped(
   dropped: Message[],
-  opts: CompactAssembleOptions,
+  opts: CompactHistoryOptions,
 ): Promise<string> {
   const maxChars = opts.maxSourceChars ?? 24_000;
   let source = messageTextApprox(dropped);

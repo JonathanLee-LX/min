@@ -8,7 +8,7 @@ import {
   userMessage,
 } from "@min/core";
 import { describe, expect, it } from "vitest";
-import { assembleCompactContext } from "./assemble-compact.js";
+import { compactHistoryMessages } from "./assemble-compact.js";
 import { assembleHybridContext } from "./assemble-hybrid.js";
 import { assembleStickyTrimContext } from "./assemble-sticky-trim.js";
 import { assembleToolOffloadContext } from "./assemble-tool-offload.js";
@@ -104,12 +104,12 @@ describe("assembleStickyTrimContext", () => {
   });
 });
 
-describe("assembleCompactContext", () => {
-  it("summarizes dropped turns when volume is high", async () => {
+describe("compactHistoryMessages", () => {
+  it("rewrites store to summary + recent turns", async () => {
     const messages = [];
-    for (let i = 0; i < 10; i++) {
-      messages.push(userMessage(`turn-${i} detail ${"z".repeat(400)}`));
-      messages.push(assistantMessage([textPart(`reply-${i} ${"w".repeat(400)}`)]));
+    for (let i = 0; i < 6; i++) {
+      messages.push(userMessage(`turn-${i} detail ${"z".repeat(200)}`));
+      messages.push(assistantMessage([textPart(`reply-${i} ${"w".repeat(200)}`)]));
     }
 
     const provider = mockProvider([
@@ -118,39 +118,31 @@ describe("assembleCompactContext", () => {
       },
     ]);
 
-    const result = await assembleCompactContext(
-      {
-        messages,
-        budget: {
-          maxContextTokens: 1_200,
-          reservedOutputTokens: 100,
-        },
-      },
-      { provider, minDroppedTokens: 100 },
-    );
+    const result = await compactHistoryMessages(messages, {
+      provider,
+      keepRecentTurns: 2,
+    });
 
-    expect(result.strategy).toBe("compact");
-    expect(result.trimmed).toBe(true);
-    expect(provider.calls.length).toBeGreaterThan(0);
-    expect(result.view[0]?.role).toBe("assistant");
+    expect(provider.calls.length).toBe(1);
+    expect(result.droppedMessageCount).toBeGreaterThan(0);
+    expect(result.keptTurns).toBe(2);
+    expect(result.messages[0]?.role).toBe("assistant");
     expect(
-      result.view[0]?.content[0]?.type === "text" &&
-        result.view[0].content[0].text.includes("[context compact]"),
+      result.messages[0]?.content[0]?.type === "text" &&
+        result.messages[0].content[0].text.includes("[context compact]"),
     ).toBe(true);
   });
 
-  it("skips LLM when little was dropped", async () => {
+  it("no-ops when history fits keepRecentTurns", async () => {
     const provider = mockProvider([{ text: "should not run" }]);
-    const result = await assembleCompactContext(
-      {
-        messages: [userMessage("hi"), assistantMessage([textPart("yo")])],
-        budget: { maxContextTokens: 100_000 },
-      },
-      { provider, minDroppedTokens: 800 },
-    );
-    expect(result.strategy).toBe("compact");
+    const messages = [userMessage("hi"), assistantMessage([textPart("yo")])];
+    const result = await compactHistoryMessages(messages, {
+      provider,
+      keepRecentTurns: 2,
+    });
     expect(provider.calls.length).toBe(0);
-    expect(result.view).toHaveLength(2);
+    expect(result.droppedMessageCount).toBe(0);
+    expect(result.messages).toHaveLength(2);
   });
 });
 

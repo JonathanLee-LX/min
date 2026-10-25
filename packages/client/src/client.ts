@@ -343,6 +343,20 @@ export async function createClient(
       emitSession("new", { includeMessages: true });
     },
 
+    async compact(opts = {}) {
+      if (runLock) {
+        throw new Error("cannot compact while busy");
+      }
+      const result = await runtime.session.compact(opts);
+      emitSession("compact", { includeMessages: true });
+      return {
+        summary: result.summary,
+        droppedMessageCount: result.droppedMessageCount,
+        keptTurns: result.keptTurns,
+        messageCount: runtime.session.messages.length,
+      };
+    },
+
     advanced: {
       get runtime() {
         return runtime;

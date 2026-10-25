@@ -34,7 +34,6 @@ const STRATEGIES: ContextStrategyId[] = [
   "tool-offload",
   "hmt",
   "hybrid",
-  "compact",
 ];
 
 interface HardResult {

@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   const st = cli.client.getStatus();
   console.error(`provider=${st.provider}  cwd=${args.cwd}`);
   console.error(
-    `session=${st.sessionId}  maxContextTokens=${args.maxContextTokens}`,
+    `session=${st.sessionId}  strategy=${cli.client.advanced.runtime.contextStrategy}  maxContextTokens=${args.maxContextTokens}`,
   );
   if (!args.noTools) {
     const bashMode = args.allowBash || args.yes ? "allow" : "ask";
@@ -103,6 +103,30 @@ async function main(): Promise<void> {
         try {
           await cli.client.newSession();
           console.log(`new session ${cli.client.getSession().id}`);
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
+      if (cmd?.type === "compact") {
+        try {
+          const result = await cli.client.compact();
+          if (!result.droppedMessageCount) {
+            console.log(
+              `compact: nothing to summarize (messages=${result.messageCount})`,
+            );
+          } else {
+            console.log(
+              `compact: dropped ${result.droppedMessageCount} msgs, kept ${result.keptTurns} turn(s), now ${result.messageCount} msgs`,
+            );
+            if (result.summary) {
+              const preview =
+                result.summary.length > 240
+                  ? `${result.summary.slice(0, 237)}...`
+                  : result.summary;
+              console.log(preview);
+            }
+          }
         } catch (err) {
           console.error(err instanceof Error ? err.message : err);
         }

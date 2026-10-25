@@ -83,28 +83,29 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 | Strategy | How to enable | Behavior |
 |----------|---------------|----------|
-| **`trim`** (default) | default | Drop oldest user-turns under budget. Eval baseline. |
+| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + aggressive middle tool-offload + middle collapse; + `recall_context`. |
+| **`trim`** (default w/o tools) | `--no-tools` / `contextStrategy: "trim"` | Drop oldest user-turns under budget. Eval baseline. |
 | **`sticky-trim`** | `contextStrategy: "sticky-trim"` | Freeze leading turns; only trim after them (cache-friendlier). |
 | **`tool-offload`** | `contextStrategy: "tool-offload"` | Fold large `tool_result`s into stash (protect last turn); + `recall_context`. |
 | **`hmt`** | `contextStrategy: "hmt"` | Head/middle/tail: fold middle only; + stash/`recall_context`. |
-| **`compact`** | `contextStrategy: "compact"` | Trim, then LLM-summarize dropped turns when large enough. |
-| **`hybrid`** | `contextStrategy: "hybrid"` | Sticky head + aggressive middle tool-offload + middle collapse; + `recall_context`. |
+
+On-demand (not a continuous strategy): `session.compact()` / Client `compact()` / REPL `/compact` rewrites stored history to `[LLM summary] + recent turns`.
 
 - Stash markers look like `…[hidden:tool_<id> · recall_context]…` when a stash strategy is on.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
 - CLI: `--context-strategy <id>`, `--session`, `--max-context-tokens`, …
-- Env: `MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|compact`.
+- Env: `MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid`.
 
 Session stays a thin kernel; extend via composition:
 
 | Extension point | Role |
 |-----------------|------|
 | `SessionStore` | Persist/load snapshots (`Memory` / `Fs` / custom) |
-| `ContextAssembler` | Build the model view (default: budget trim) |
+| `ContextAssembler` | Build the model view (default: hybrid w/ tools, trim otherwise) |
 | `SessionHooks` | `onBeforeRun` / `onAfterAssemble` / `onAfterRun` / `onBeforeSave` |
 | `SessionExtension` | Package assembler + hooks (`defineSessionExtension`) |
 
-Kernel responsibilities only: identity, canonical history, `run`/`reset`/`export`, store I/O.
+Kernel responsibilities only: identity, canonical history, `run`/`compact`/`reset`/`export`, store I/O.
 Follow-up **input queue** (`createInputQueue`) lives in `@min/session` only: default `enqueue`, with a 1.5s `dense-latest` window for rapid supplements. Drained **after** each `agent.run` returns — `@min/core` is unchanged.
 Everything else plugs in:
 

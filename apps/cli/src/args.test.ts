@@ -19,7 +19,8 @@ describe("parseArgs", () => {
 
   it("parses session and context budget flags", () => {
     expect(parseArgs(["-i"]).repl).toBe(true);
-    expect(parseArgs(["-i"]).contextStrategy).toBe("trim");
+    // Default left unset so Runtime picks hybrid (tools) / trim (no-tools).
+    expect(parseArgs(["-i"]).contextStrategy).toBeUndefined();
     expect(
       parseArgs([
         "-y",
@@ -41,5 +42,11 @@ describe("parseArgs", () => {
       contextStrategy: "tool-offload",
       listSessions: true,
     });
+  });
+
+  it("rejects compact as a continuous strategy", () => {
+    expect(() => parseArgs(["--context-strategy", "compact"])).toThrow(
+      /trim \| hmt/,
+    );
   });
 });

@@ -6,7 +6,8 @@ export type ReplAction =
   | { type: "handled" }
   | { type: "sessions" }
   | { type: "open"; id: string }
-  | { type: "new" };
+  | { type: "new" }
+  | { type: "compact" };
 
 /** Handle slash commands. Returns null if `line` is not a command. */
 export function handleReplCommand(
@@ -30,6 +31,7 @@ export function handleReplCommand(
   /sessions          list saved sessions (via Client)
   /open <id>         switch to a saved session
   /new               start a fresh session
+  /compact           summarize older turns and rewrite stored history
   /reset             clear in-memory conversation history
   /queue             show follow-up queue size
   /dense             push next line as dense-latest (or: /dense <text>)
@@ -99,6 +101,10 @@ to dense-latest. Anything else is sent as a user message.`);
     client.reset();
     console.log("session history cleared");
     return { type: "handled" };
+  }
+
+  if (name === "compact") {
+    return { type: "compact" };
   }
 
   return { type: "prompt", text: line };

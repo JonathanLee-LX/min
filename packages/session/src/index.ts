@@ -7,8 +7,9 @@ export {
   type ContextFoldOptions,
 } from "./assemble.js";
 export {
-  assembleCompactContext,
-  type CompactAssembleOptions,
+  compactHistoryMessages,
+  type CompactHistoryOptions,
+  type CompactHistoryResult,
 } from "./assemble-compact.js";
 export {
   assembleHybridContext,
@@ -74,9 +75,7 @@ export {
 } from "./stash.js";
 export {
   CONTEXT_STRATEGY_IDS,
-  compactContextExtension,
   createBudgetAssembler,
-  createCompactAssembler,
   createHybridAssembler,
   createHmtAssembler,
   createStickyTrimAssembler,
@@ -89,7 +88,6 @@ export {
   stickyTrimContextExtension,
   toolOffloadContextExtension,
   trimContextExtension,
-  type CompactContextExtensionOptions,
   type ContextStrategyId,
   type HybridContextExtensionOptions,
   type HmtContextExtensionOptions,

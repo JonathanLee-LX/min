@@ -19,7 +19,12 @@ export interface ClientSessionInfo {
 }
 
 /** Why a `session` ClientEvent was emitted. */
-export type SessionEventReason = "update" | "open" | "reset" | "new";
+export type SessionEventReason =
+  | "update"
+  | "open"
+  | "reset"
+  | "new"
+  | "compact";
 
 export interface ClientStatusSnapshot {
   status: ClientStatus;
@@ -101,7 +106,10 @@ export interface ClientOptions {
   allowBash?: boolean;
   maxContextTokens?: number;
   maxUserTurns?: number;
-  /** `trim` (default) or experimental `hmt`. */
+  /**
+   * Continuous assemble strategy.
+   * Default (via Runtime): `hybrid` with tools, `trim` without.
+   */
   contextStrategy?: RuntimeOptions["contextStrategy"];
   sessionExtensions?: RuntimeOptions["sessionExtensions"];
 
@@ -173,6 +181,20 @@ export interface MinClient {
    * Emits `session` with `reason: "new"`.
    */
   newSession(): Promise<void>;
+
+  /**
+   * Explicit on-demand history compact (LLM summary + rewrite store).
+   * Not a continuous context strategy. Emits `session` with `reason: "compact"`.
+   */
+  compact(opts?: {
+    keepRecentTurns?: number;
+    signal?: AbortSignal;
+  }): Promise<{
+    summary: string;
+    droppedMessageCount: number;
+    keptTurns: number;
+    messageCount: number;
+  }>;
 
   /**
    * Escape hatch for advanced hosts. Prefer not to use from ordinary UI code.

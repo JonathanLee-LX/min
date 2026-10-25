@@ -58,4 +58,10 @@ describe("handleReplCommand", () => {
       id: "ses_abc",
     });
   });
+
+  it("routes /compact", () => {
+    expect(handleReplCommand(fakeCli(), "/compact")).toEqual({
+      type: "compact",
+    });
+  });
 });

@@ -29,15 +29,15 @@ export interface CliArgs {
   /** Max trailing user-turns kept in the model view. */
   maxUserTurns?: number;
   /**
-   * Context projection strategy.
-   * `trim` (default) | `hmt` | `tool-offload` | `sticky-trim` | `compact`
+   * Continuous context projection strategy.
+   * Undefined → Runtime default (`hybrid` with tools, `trim` without).
+   * On-demand LLM rewrite: REPL `/compact` (not a strategy id).
    */
-  contextStrategy:
+  contextStrategy?:
     | "trim"
     | "hmt"
     | "tool-offload"
     | "sticky-trim"
-    | "compact"
     | "hybrid";
   prompt?: string;
 }
@@ -56,7 +56,7 @@ export function parseArgs(argv: string[]): CliArgs {
     noSessionStore: false,
     listSessions: false,
     maxContextTokens: Number(process.env.MIN_MAX_CONTEXT_TOKENS ?? 32_000),
-    contextStrategy: parseStrategy(process.env.MIN_CONTEXT_STRATEGY) ?? "trim",
+    contextStrategy: parseStrategy(process.env.MIN_CONTEXT_STRATEGY),
   };
 
   const positional: string[] = [];
@@ -111,7 +111,7 @@ export function parseArgs(argv: string[]): CliArgs {
       const parsed = parseStrategy(raw);
       if (!parsed) {
         throw new Error(
-          "--context-strategy must be trim | hmt | tool-offload | sticky-trim | compact",
+          "--context-strategy must be trim | hmt | tool-offload | sticky-trim | hybrid",
         );
       }
       args.contextStrategy = parsed;
@@ -162,7 +162,7 @@ Options:
   --list-sessions     list sessions in --session-dir and exit
   --max-context-tokens <n>  model view budget (default: 32000)
   --max-user-turns <n>      keep at most N trailing user turns in the view
-  --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|compact|hybrid
+  --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|hybrid
   -i, --repl          interactive mode
   -h, --help          show help
 
@@ -170,23 +170,24 @@ During a run:
   Ctrl+C              abort the current turn (REPL stays open)
 
 REPL commands:
-  /help  /session  /reset  /queue  /dense  /exit
+  /help  /session  /compact  /reset  /queue  /dense  /exit
   (lines typed during a run are queued; drained after the agent pass)
 
 Context:
   Full history is stored; the model sees a projected view (pluggable strategy).
-  trim         drop oldest turns (default baseline)
+  Default with tools: hybrid. Without tools (or --no-tools): trim.
+  trim         drop oldest turns (eval baseline)
   sticky-trim  freeze leading turns, trim after them (cache-friendlier)
   tool-offload fold large tool_results into stash + recall_context
   hmt          head/middle/tail fold + stash + recall_context
-  compact      trim then LLM-summarize dropped turns when large enough
-  hybrid       sticky head + aggressive middle tool offload + recall
+  hybrid       sticky head + aggressive middle tool offload + recall (default w/ tools)
+  /compact     on-demand LLM summary that rewrites stored history (not a strategy)
   Assistant text streams as it arrives; tool traces print on stderr-friendly lines.
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
   MIN_MAX_CONTEXT_TOKENS
-  MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|compact|hybrid
+  MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid
 `;
 }
 
@@ -199,7 +200,6 @@ function parseStrategy(
     raw === "hmt" ||
     raw === "tool-offload" ||
     raw === "sticky-trim" ||
-    raw === "compact" ||
     raw === "hybrid"
   ) {
     return raw;
