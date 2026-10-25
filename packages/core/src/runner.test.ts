@@ -143,4 +143,60 @@ describe("Runner / createAgent", () => {
     ).rejects.toMatchObject({ name: "AbortError" });
     await agent.dispose();
   });
+  it("projects messages for the model without mutating run history", async () => {
+    const provider = mockProvider([
+      {
+        toolCalls: [{ name: "noop", arguments: {} }],
+      },
+      { text: "done" },
+    ]);
+    const agent = await createAgent({
+      provider,
+      tools: [
+        defineTool({
+          name: "noop",
+          description: "noop",
+          inputSchema: z.object({}),
+          async execute() {
+            return { content: "FAT_TOOL_BODY_" + "x".repeat(200) };
+          },
+        }),
+      ],
+    });
+
+    const seen: number[] = [];
+    const result = await agent.run({
+      input: "go",
+      projectMessages(messages) {
+        seen.push(messages.length);
+        return messages.map((m) => {
+          if (m.role !== "tool") return m;
+          return {
+            ...m,
+            content: m.content.map((p) =>
+              p.type === "tool_result"
+                ? { ...p, content: "[folded]" }
+                : p,
+            ),
+          };
+        });
+      },
+    });
+
+    expect(seen.length).toBe(2);
+    expect(result.turns).toBe(2);
+    const tool = result.messages.find((m) => m.role === "tool");
+    expect(tool?.content[0]?.type).toBe("tool_result");
+    if (tool?.content[0]?.type === "tool_result") {
+      expect(tool.content[0].content).toContain("FAT_TOOL_BODY_");
+    }
+    const secondCall = provider.calls[1];
+    const projectedTool = secondCall?.messages.find((m) => m.role === "tool");
+    expect(projectedTool?.content[0]?.type).toBe("tool_result");
+    if (projectedTool?.content[0]?.type === "tool_result") {
+      expect(projectedTool.content[0].content).toBe("[folded]");
+    }
+    await agent.dispose();
+  });
+
 });

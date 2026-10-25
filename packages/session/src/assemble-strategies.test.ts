@@ -171,4 +171,47 @@ describe("assembleHybridContext", () => {
     expect(result.kept).toBe(messages);
     expect(result.view[0]).toEqual(messages[0]);
   });
+  it("ages older tool_results inside a single user-turn tool loop", () => {
+    const stash = createContextStash();
+    const blob = "Q".repeat(6_000);
+    const messages = [
+      userMessage("implement feature"),
+      assistantMessage([toolCallPart("t1", "read_file", { path: "a" })]),
+      toolMessage([toolResultPart("t1", blob)]),
+      assistantMessage([toolCallPart("t2", "read_file", { path: "b" })]),
+      toolMessage([toolResultPart("t2", blob)]),
+      assistantMessage([toolCallPart("t3", "read_file", { path: "c" })]),
+      toolMessage([toolResultPart("t3", blob)]),
+    ];
+    const result = assembleHybridContext(
+      {
+        messages,
+        budget: {
+          maxContextTokens: 100_000,
+          stash,
+          fold: {
+            maxToolResultChars: 400,
+            toolResultHeadChars: 50,
+            toolResultTailChars: 50,
+          },
+        },
+      },
+      { stickyTurns: 1, protectTailTurns: 1, protectRecentToolResults: 1 },
+    );
+    expect(result.regions?.middleTurns).toBe(0);
+    expect(result.foldedParts).toBeGreaterThan(0);
+    expect(stash.size).toBeGreaterThan(0);
+    expect(result.kept).toBe(messages);
+
+    const viewTools = result.view.filter((m) => m.role === "tool");
+    expect(viewTools.length).toBe(3);
+    const lengths = viewTools.map((m) => {
+      const p = m.content[0];
+      return p?.type === "tool_result" ? p.content.length : 0;
+    });
+    // Older bodies folded; most recent protected.
+    expect(lengths[0]!).toBeLessThan(blob.length);
+    expect(lengths[1]!).toBeLessThan(blob.length);
+    expect(lengths[2]!).toBe(blob.length);
+  });
 });

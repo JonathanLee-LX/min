@@ -215,18 +215,39 @@ export async function createSession(
 
     lastAssemble = assembled;
 
+    // Seed the Runner with the full pending turn (never the folded/trimmed
+    // view). projectMessages re-assembles a model-only view before every
+    // complete — including the first — so mid-loop growth stays foldable
+    // and lastAssemble reflects the real projection.
     const result = await opts.agent.run({
-      input: assembled.view,
+      input: pending,
       signal: runOpts.signal,
       maxTurns: runOpts.maxTurns,
       onEvent: runOpts.onEvent,
       onPermissionAsk: runOpts.onPermissionAsk,
+      projectMessages: async (inFlight) => {
+        let projected = await finalAssembler.assemble({
+          messages: [...inFlight],
+          system,
+          tools,
+          budget,
+        });
+        for (const h of hooks) {
+          if (!h.onAfterAssemble) continue;
+          const next = await h.onAfterAssemble({
+            ...hookCtx,
+            pending: [...inFlight],
+            assemble: projected,
+          });
+          if (next) projected = next;
+        }
+        lastAssemble = projected;
+        return projected.view;
+      },
     });
 
-    // Prefer unfolded `kept` so tool-result folding never rewrites canonical history.
-    const kept = assembled.kept ?? assembled.view;
-    const generated = result.messages.slice(assembled.view.length);
-    messages = [...assembled.dropped, ...kept, ...generated];
+    // Runner history is canonical for this turn (pending + generated).
+    messages = result.messages;
     const nextMessages = messages;
     if (!meta.title) {
       meta = { ...meta, title: userText.slice(0, 80) };

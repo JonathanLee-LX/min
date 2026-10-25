@@ -91,6 +91,14 @@ export interface RunInput {
   maxTurns?: number;
   onEvent?: (event: RunEvent) => void | Promise<void>;
   /**
+   * Optional per-complete projection of the in-flight message list.
+   * The returned view is sent to the model only — Runner keeps the
+   * canonical `messages` array intact for the run result / session store.
+   */
+  projectMessages?: (
+    messages: readonly Message[],
+  ) => Message[] | Promise<Message[]>;
+  /**
    * Called when a permission handler returns `ask`.
    * If omitted, ask is treated as deny (non-interactive safe default).
    */

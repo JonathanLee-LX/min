@@ -1,3 +1,4 @@
+import type { Message } from "@min/core";
 import {
   splitUserTurns,
   type AssembleInput,
@@ -15,6 +16,13 @@ export interface HybridAssembleOptions {
   stickyTurns?: number;
   /** Trailing user-turns whose tool_results stay verbatim. Default: 1. */
   protectTailTurns?: number;
+  /**
+   * Inside the active turn (sole sticky turn, or protected tail), keep the
+   * last N `tool_result` messages verbatim and fold older oversized ones.
+   * Closes the single user-turn + long tool-loop gap where H/M/T has no
+   * middle. Default: 2. Pass `0` to fold every tool_result in that span.
+   */
+  protectRecentToolResults?: number;
   /** Aggressive fold defaults (smaller than plain tool-offload). */
   fold?: ContextFoldOptions | false;
 }
@@ -23,7 +31,8 @@ export interface HybridAssembleOptions {
  * Hybrid strategy for harder evals:
  * 1. Freeze sticky head (prefix-cache)
  * 2. Aggressively offload tool_results outside head+tail into stash
- * 3. If still over budget, drop oldest turns between sticky and tail
+ * 3. Age older tool_results inside the active turn (single-turn coding loops)
+ * 4. If still over budget, drop oldest turns between sticky and tail
  *
  * Forces reliance on recall when earlier fat tool bodies are needed later.
  */
@@ -42,6 +51,7 @@ export function assembleHybridContext(
 
   const stickyN = Math.max(0, opts.stickyTurns ?? 1);
   const protectTail = Math.max(0, opts.protectTailTurns ?? 1);
+  const protectRecent = Math.max(0, opts.protectRecentToolResults ?? 2);
   const foldOpts =
     opts.fold === false
       ? false
@@ -59,7 +69,10 @@ export function assembleHybridContext(
   }
 
   const stickyCount = Math.min(stickyN, turns.length);
-  const tailCount = Math.min(protectTail, Math.max(0, turns.length - stickyCount));
+  const tailCount = Math.min(
+    protectTail,
+    Math.max(0, turns.length - stickyCount),
+  );
   const sticky = turns.slice(0, stickyCount);
   const middle = turns.slice(stickyCount, turns.length - tailCount);
   const tail = turns.slice(turns.length - tailCount);
@@ -69,7 +82,7 @@ export function assembleHybridContext(
   const tailFlat = tail.flat();
 
   const toolNames = indexToolNames(input.messages);
-  // Fold only the middle span — sticky + tail tool bodies stay full.
+  // Fold only the middle span — sticky + tail tool bodies stay full initially.
   const preFold = [...stickyFlat, ...middleFlat, ...tailFlat];
   const midStart = stickyFlat.length;
   const midEnd = midStart + middleFlat.length;
@@ -101,8 +114,40 @@ export function assembleHybridContext(
 
   let view = [...viewSticky, ...viewMiddle, ...viewTail];
 
-  // Last resort: fold inside tail tools too (still via stash).
+  // Intra-turn aging: fold older tool_results inside the active span.
+  // - Single user-turn (no middle/tail): age inside sticky.
+  // - Multi-turn: age inside protected tail (where the tool loop grows).
+  if (foldOpts) {
+    const ageStart =
+      middle.length === 0 && tailCount === 0
+        ? 0
+        : viewSticky.length + viewMiddle.length;
+    const aged = ageOlderToolResults(view, {
+      start: ageStart,
+      end: view.length,
+      protectRecent,
+      fold: foldOpts,
+      stash: input.budget.stash,
+      toolNames,
+    });
+    view = aged.messages;
+    foldedParts += aged.foldedParts;
+    stashedIds.push(...aged.stashedIds);
+    viewSticky = view.slice(0, viewSticky.length);
+    viewMiddle = view.slice(
+      viewSticky.length,
+      viewSticky.length + viewMiddle.length,
+    );
+    viewTail = view.slice(viewSticky.length + viewMiddle.length);
+  }
+
+  // Last resort: fold everything after sticky (or the whole view when the
+  // sole turn lives in sticky) so single-turn overflow still offloads.
   if (estimate.messages(view) > messageBudget && foldOpts) {
+    const emergencyStart =
+      viewSticky.length > 0 && viewSticky.length < view.length
+        ? viewSticky.length
+        : 0;
     const emergency = foldMessagesForView(view, {
       fold: {
         ...foldOpts,
@@ -111,7 +156,7 @@ export function assembleHybridContext(
         toolResultTailChars: 80,
       },
       stash: input.budget.stash,
-      range: { start: viewSticky.length, end: view.length },
+      range: { start: emergencyStart, end: view.length },
       toolNameByCallId: toolNames,
     });
     view = emergency.messages;
@@ -139,6 +184,55 @@ export function assembleHybridContext(
       tailTurns: tailCount,
     },
   };
+}
+
+/**
+ * Fold oversized tool_results in [start, end) except the last
+ * `protectRecent` tool_result-bearing messages (kept verbatim).
+ */
+export function ageOlderToolResults(
+  messages: Message[],
+  opts: {
+    start: number;
+    end: number;
+    protectRecent: number;
+    fold: ContextFoldOptions | false;
+    stash?: AssembleInput["budget"]["stash"];
+    toolNames: ReadonlyMap<string, string>;
+  },
+): { messages: Message[]; foldedParts: number; stashedIds: string[] } {
+  if (opts.fold === false || opts.start >= opts.end) {
+    return { messages, foldedParts: 0, stashedIds: [] };
+  }
+
+  const toolMsgIdx: number[] = [];
+  for (let i = opts.start; i < opts.end; i++) {
+    const msg = messages[i];
+    if (!msg) continue;
+    if (msg.content.some((p) => p.type === "tool_result")) {
+      toolMsgIdx.push(i);
+    }
+  }
+
+  if (toolMsgIdx.length <= opts.protectRecent) {
+    return { messages, foldedParts: 0, stashedIds: [] };
+  }
+
+  const protectFrom =
+    opts.protectRecent === 0
+      ? opts.end
+      : toolMsgIdx[toolMsgIdx.length - opts.protectRecent]!;
+
+  if (protectFrom <= opts.start) {
+    return { messages, foldedParts: 0, stashedIds: [] };
+  }
+
+  return foldMessagesForView(messages, {
+    fold: opts.fold,
+    stash: opts.stash,
+    range: { start: opts.start, end: protectFrom },
+    toolNameByCallId: opts.toolNames,
+  });
 }
 
 function empty(

@@ -1,6 +1,7 @@
 import {
   assistantMessage,
   createAgent,
+  defineTool,
   mockProvider,
   textPart,
   toolCallPart,
@@ -9,9 +10,10 @@ import {
   userMessage,
 } from "@min/core";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { createInputQueue } from "./input-queue.js";
 import { createSession } from "./session.js";
-import { hmtContextExtension } from "./strategies.js";
+import { hmtContextExtension, hybridContextExtension } from "./strategies.js";
 import { createMemoryStore } from "./store.js";
 
 describe("createSession", () => {
@@ -210,4 +212,76 @@ describe("createSession", () => {
     ).toBe(true);
     await agent.dispose();
   });
+
+  it("re-projects context mid tool-loop while keeping canonical history full", async () => {
+    const blob = "Z".repeat(8_000);
+    const provider = mockProvider([
+      { toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "a" } }] },
+      { toolCalls: [{ id: "c2", name: "read_file", arguments: { path: "b" } }] },
+      { toolCalls: [{ id: "c3", name: "read_file", arguments: { path: "c" } }] },
+      { text: "all done" },
+    ]);
+    const agent = await createAgent({
+      provider,
+      tools: [
+        defineTool({
+          name: "read_file",
+          description: "read",
+          inputSchema: z.object({ path: z.string() }),
+          async execute() {
+            return { content: blob };
+          },
+        }),
+      ],
+    });
+
+    const hybrid = hybridContextExtension({
+      budget: {
+        maxContextTokens: 100_000,
+        fold: {
+          maxToolResultChars: 500,
+          toolResultHeadChars: 60,
+          toolResultTailChars: 60,
+        },
+      },
+      protectRecentToolResults: 1,
+    });
+
+    const assembles: number[] = [];
+    const session = await createSession({
+      agent,
+      stash: hybrid.stash,
+      extensions: [hybrid],
+      hooks: {
+        onAfterAssemble({ assemble }) {
+          assembles.push(assemble.foldedParts ?? 0);
+        },
+      },
+    });
+
+    const result = await session.run("build something big");
+    expect(result.turns).toBe(4);
+    // projectMessages runs once per model complete (≥ 4), plus the pre-run assemble.
+    expect(assembles.length).toBeGreaterThanOrEqual(5);
+    expect(Math.max(...assembles)).toBeGreaterThan(0);
+
+    const storedTools = session.messages.filter((m) => m.role === "tool");
+    expect(storedTools.length).toBe(3);
+    for (const m of storedTools) {
+      const part = m.content[0];
+      expect(part?.type).toBe("tool_result");
+      if (part?.type === "tool_result") {
+        expect(part.content).toBe(blob);
+      }
+    }
+
+    const viewTool = session.lastAssemble?.view.find((m) => m.role === "tool");
+    expect(viewTool?.content[0]?.type).toBe("tool_result");
+    if (viewTool?.content[0]?.type === "tool_result") {
+      expect(viewTool.content[0].content.length).toBeLessThan(blob.length);
+    }
+    expect(session.stash?.size).toBeGreaterThan(0);
+    await agent.dispose();
+  });
+
 });

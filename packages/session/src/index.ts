@@ -12,6 +12,7 @@ export {
   type CompactHistoryResult,
 } from "./assemble-compact.js";
 export {
+  ageOlderToolResults,
   assembleHybridContext,
   type HybridAssembleOptions,
 } from "./assemble-hybrid.js";

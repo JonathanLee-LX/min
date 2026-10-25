@@ -4,9 +4,10 @@
  * Why this scenario exists
  * ------------------------
  * Single-shot coding runs are usually ONE user-turn with a long tool loop.
- * Hybrid's middle fold never sees a "middle" in that shape (H/M/T = 1/0/0).
- * This script forces ≥3 user-turns so sticky head / folded middle / protected
- * tail are real regions, then checks fold + stash + recall.
+ * Hybrid now ages older tool_results inside that active turn (keep last N),
+ * and Session re-projects via projectMessages on every model complete.
+ * This script still forces ≥3 user-turns so sticky head / folded middle /
+ * protected tail are real regions, then checks fold + stash + recall.
  *
  * Scenario: "Needle under fat turns"
  * ----------------------------------

@@ -26,6 +26,13 @@ export interface RunnerOptions {
   maxTurns?: number;
   maxTokens?: number;
   permissionHandler?: PermissionHandler;
+  /**
+   * Default message projector (overridden by RunInput.projectMessages).
+   * View-only — never written back into the Runner message list.
+   */
+  projectMessages?: (
+    messages: readonly Message[],
+  ) => Message[] | Promise<Message[]>;
 }
 
 export class Runner {
@@ -62,8 +69,13 @@ export class Runner {
           typeof this.opts.system === "function"
             ? this.opts.system()
             : this.opts.system;
+        const project =
+          input.projectMessages ?? this.opts.projectMessages;
+        const modelMessages = project
+          ? await project(messages)
+          : messages;
         const completionReq = {
-          messages,
+          messages: modelMessages,
           tools: toolDefs.length ? toolDefs : undefined,
           system,
           maxTokens: this.opts.maxTokens,

@@ -113,7 +113,11 @@ export function createStickyTrimAssembler(
 export function createHybridAssembler(
   budget: ContextBudget,
   stash?: ContextStash,
-  opts?: { stickyTurns?: number; protectTailTurns?: number },
+  opts?: {
+    stickyTurns?: number;
+    protectTailTurns?: number;
+    protectRecentToolResults?: number;
+  },
 ): ContextAssembler {
   return {
     assemble(input) {
@@ -129,6 +133,7 @@ export function createHybridAssembler(
         {
           stickyTurns: opts?.stickyTurns ?? 1,
           protectTailTurns: opts?.protectTailTurns ?? 1,
+          protectRecentToolResults: opts?.protectRecentToolResults,
           fold: merged.fold,
         },
       );
@@ -217,6 +222,8 @@ export interface HybridContextExtensionOptions {
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
   stickyTurns?: number;
   protectTailTurns?: number;
+  /** See HybridAssembleOptions.protectRecentToolResults. */
+  protectRecentToolResults?: number;
 }
 
 export function hybridContextExtension(
@@ -229,6 +236,7 @@ export function hybridContextExtension(
     assembler: createHybridAssembler(budget, stash, {
       stickyTurns: opts.stickyTurns,
       protectTailTurns: opts.protectTailTurns,
+      protectRecentToolResults: opts.protectRecentToolResults,
     }),
   });
   return Object.assign(ext, { stash, strategy: "hybrid" as const });
@@ -242,6 +250,7 @@ export interface ResolveContextStrategyOptions {
   stash?: ContextStash;
   protectTailTurns?: number;
   stickyTurns?: number;
+  protectRecentToolResults?: number;
   minDroppedTokens?: number;
 }
 
@@ -305,6 +314,7 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
         stash: opts.stash,
         stickyTurns: opts.stickyTurns,
         protectTailTurns: opts.protectTailTurns,
+        protectRecentToolResults: opts.protectRecentToolResults,
       });
       return {
         strategy: "hybrid",

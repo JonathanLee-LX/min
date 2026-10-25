@@ -83,7 +83,7 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 | Strategy | How to enable | Behavior |
 |----------|---------------|----------|
-| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + aggressive middle tool-offload + middle collapse; + `recall_context`. |
+| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + middle tool-offload + **intra-turn aging** (fold older `tool_result`s inside the active turn, keep last N verbatim) + middle collapse; + `recall_context`. |
 | **`trim`** (default w/o tools) | `--no-tools` / `contextStrategy: "trim"` | Drop oldest user-turns under budget. Eval baseline. |
 | **`sticky-trim`** | `contextStrategy: "sticky-trim"` | Freeze leading turns; only trim after them (cache-friendlier). |
 | **`tool-offload`** | `contextStrategy: "tool-offload"` | Fold large `tool_result`s into stash (protect last turn); + `recall_context`. |
@@ -91,10 +91,18 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 On-demand (not a continuous strategy): `session.compact()` / Client `compact()` / REPL `/compact` rewrites stored history to `[LLM summary] + recent turns`.
 
+**Dual history + mid-loop projection**
+
+- Canonical session / Runner history stays full (including fat tool bodies).
+- Before every model `complete` inside a tool loop, Session re-runs the assembler via `RunInput.projectMessages` and sends only the projected view.
+- That closes the gap where a single user-turn coding run never got a second assemble (hybrid used to look idle until the next `session.run`).
+- Multi-turn fold/stash/recall check: `pnpm --filter @min/example-hmt-context exec tsx verify-multiturn.mts`
+
 - Stash markers look like `…[hidden:tool_<id> · recall_context]…` when a stash strategy is on.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
 - CLI: `--context-strategy <id>`, `--session`, `--max-context-tokens`, …
 - Env: `MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid`.
+- CLI `context-budget-log` prints after every assemble (including mid-loop), not only when trimmed.
 
 Session stays a thin kernel; extend via composition:
 
