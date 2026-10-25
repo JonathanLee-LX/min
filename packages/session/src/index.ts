@@ -11,6 +11,10 @@ export {
   type CompactAssembleOptions,
 } from "./assemble-compact.js";
 export {
+  assembleHybridContext,
+  type HybridAssembleOptions,
+} from "./assemble-hybrid.js";
+export {
   assembleStickyTrimContext,
   type StickyTrimOptions,
 } from "./assemble-sticky-trim.js";
@@ -73,11 +77,13 @@ export {
   compactContextExtension,
   createBudgetAssembler,
   createCompactAssembler,
+  createHybridAssembler,
   createHmtAssembler,
   createStickyTrimAssembler,
   createToolOffloadAssembler,
   createTrimAssembler,
   hmtContextExtension,
+  hybridContextExtension,
   mergeBudget,
   resolveContextStrategy,
   stickyTrimContextExtension,
@@ -85,6 +91,7 @@ export {
   trimContextExtension,
   type CompactContextExtensionOptions,
   type ContextStrategyId,
+  type HybridContextExtensionOptions,
   type HmtContextExtensionOptions,
   type ResolveContextStrategyOptions,
   type StickyTrimExtensionOptions,

@@ -32,7 +32,13 @@ export interface CliArgs {
    * Context projection strategy.
    * `trim` (default) | `hmt` | `tool-offload` | `sticky-trim` | `compact`
    */
-  contextStrategy: "trim" | "hmt" | "tool-offload" | "sticky-trim" | "compact";
+  contextStrategy:
+    | "trim"
+    | "hmt"
+    | "tool-offload"
+    | "sticky-trim"
+    | "compact"
+    | "hybrid";
   prompt?: string;
 }
 
@@ -156,7 +162,7 @@ Options:
   --list-sessions     list sessions in --session-dir and exit
   --max-context-tokens <n>  model view budget (default: 32000)
   --max-user-turns <n>      keep at most N trailing user turns in the view
-  --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|compact (default: trim)
+  --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|compact|hybrid
   -i, --repl          interactive mode
   -h, --help          show help
 
@@ -174,12 +180,13 @@ Context:
   tool-offload fold large tool_results into stash + recall_context
   hmt          head/middle/tail fold + stash + recall_context
   compact      trim then LLM-summarize dropped turns when large enough
+  hybrid       sticky head + aggressive middle tool offload + recall
   Assistant text streams as it arrives; tool traces print on stderr-friendly lines.
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
   MIN_MAX_CONTEXT_TOKENS
-  MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|compact
+  MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|compact|hybrid
 `;
 }
 
@@ -192,7 +199,8 @@ function parseStrategy(
     raw === "hmt" ||
     raw === "tool-offload" ||
     raw === "sticky-trim" ||
-    raw === "compact"
+    raw === "compact" ||
+    raw === "hybrid"
   ) {
     return raw;
   }

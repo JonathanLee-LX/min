@@ -88,6 +88,7 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 | **`tool-offload`** | `contextStrategy: "tool-offload"` | Fold large `tool_result`s into stash (protect last turn); + `recall_context`. |
 | **`hmt`** | `contextStrategy: "hmt"` | Head/middle/tail: fold middle only; + stash/`recall_context`. |
 | **`compact`** | `contextStrategy: "compact"` | Trim, then LLM-summarize dropped turns when large enough. |
+| **`hybrid`** | `contextStrategy: "hybrid"` | Sticky head + aggressive middle tool-offload + middle collapse; + `recall_context`. |
 
 - Stash markers look like `…[hidden:tool_<id> · recall_context]…` when a stash strategy is on.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.

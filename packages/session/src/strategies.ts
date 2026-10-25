@@ -4,6 +4,7 @@ import {
   type ContextBudget,
 } from "./assemble.js";
 import { assembleCompactContext } from "./assemble-compact.js";
+import { assembleHybridContext } from "./assemble-hybrid.js";
 import { assembleStickyTrimContext } from "./assemble-sticky-trim.js";
 import { assembleToolOffloadContext } from "./assemble-tool-offload.js";
 import { assembleTrimContext } from "./assemble-trim.js";
@@ -22,7 +23,8 @@ export type ContextStrategyId =
   | "hmt"
   | "tool-offload"
   | "sticky-trim"
-  | "compact";
+  | "compact"
+  | "hybrid";
 
 export const CONTEXT_STRATEGY_IDS: ContextStrategyId[] = [
   "trim",
@@ -30,6 +32,7 @@ export const CONTEXT_STRATEGY_IDS: ContextStrategyId[] = [
   "tool-offload",
   "sticky-trim",
   "compact",
+  "hybrid",
 ];
 
 /** Baseline assembler: drop oldest turns under token/turn budget. */
@@ -104,6 +107,33 @@ export function createStickyTrimAssembler(
           budget: mergeBudget(budget, input.budget),
         },
         { stickyTurns: opts?.stickyTurns ?? 1 },
+      );
+    },
+  };
+}
+
+/** Sticky head + aggressive middle tool offload + middle collapse. */
+export function createHybridAssembler(
+  budget: ContextBudget,
+  stash?: ContextStash,
+  opts?: { stickyTurns?: number; protectTailTurns?: number },
+): ContextAssembler {
+  return {
+    assemble(input) {
+      const merged = mergeBudget(budget, input.budget);
+      return assembleHybridContext(
+        {
+          ...input,
+          budget: {
+            ...merged,
+            stash: stash ?? merged.stash ?? input.budget.stash,
+          },
+        },
+        {
+          stickyTurns: opts?.stickyTurns ?? 1,
+          protectTailTurns: opts?.protectTailTurns ?? 1,
+          fold: merged.fold,
+        },
       );
     },
   };
@@ -237,6 +267,28 @@ export function compactContextExtension(
   return Object.assign(ext, { strategy: "compact" as const });
 }
 
+export interface HybridContextExtensionOptions {
+  stash?: ContextStash;
+  budget?: Partial<ContextBudget> & { maxContextTokens?: number };
+  stickyTurns?: number;
+  protectTailTurns?: number;
+}
+
+export function hybridContextExtension(
+  opts: HybridContextExtensionOptions = {},
+): SessionExtension & { stash: ContextStash; strategy: "hybrid" } {
+  const stash = opts.stash ?? createContextStash();
+  const budget = budgetFromPartial(opts.budget, stash);
+  const ext = defineSessionExtension({
+    name: "context.hybrid",
+    assembler: createHybridAssembler(budget, stash, {
+      stickyTurns: opts.stickyTurns,
+      protectTailTurns: opts.protectTailTurns,
+    }),
+  });
+  return Object.assign(ext, { stash, strategy: "hybrid" as const });
+}
+
 export interface ResolveContextStrategyOptions {
   strategy: ContextStrategyId;
   budget?: Partial<ContextBudget> & { maxContextTokens?: number };
@@ -311,6 +363,20 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
           budget: opts.budget,
           minDroppedTokens: opts.minDroppedTokens,
         }),
+      };
+    }
+    case "hybrid": {
+      const ext = hybridContextExtension({
+        budget: opts.budget,
+        stash: opts.stash,
+        stickyTurns: opts.stickyTurns,
+        protectTailTurns: opts.protectTailTurns,
+      });
+      return {
+        strategy: "hybrid",
+        extension: ext,
+        stash: ext.stash,
+        needsRecall: true,
       };
     }
     default: {

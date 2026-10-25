@@ -9,6 +9,7 @@ import {
 } from "@min/core";
 import { describe, expect, it } from "vitest";
 import { assembleCompactContext } from "./assemble-compact.js";
+import { assembleHybridContext } from "./assemble-hybrid.js";
 import { assembleStickyTrimContext } from "./assemble-sticky-trim.js";
 import { assembleToolOffloadContext } from "./assemble-tool-offload.js";
 import { createContextStash, parseHiddenIds } from "./stash.js";
@@ -150,5 +151,32 @@ describe("assembleCompactContext", () => {
     expect(result.strategy).toBe("compact");
     expect(provider.calls.length).toBe(0);
     expect(result.view).toHaveLength(2);
+  });
+});
+
+describe("assembleHybridContext", () => {
+  it("folds middle tools while keeping sticky head and protecting tail", () => {
+    const stash = createContextStash();
+    const messages = fatHistory(3, 10_000);
+    const result = assembleHybridContext(
+      {
+        messages,
+        budget: {
+          maxContextTokens: 100_000,
+          stash,
+          fold: {
+            maxToolResultChars: 600,
+            toolResultHeadChars: 80,
+            toolResultTailChars: 80,
+          },
+        },
+      },
+      { stickyTurns: 1, protectTailTurns: 1 },
+    );
+    expect(result.strategy).toBe("hybrid");
+    expect(result.foldedParts).toBeGreaterThan(0);
+    expect(stash.size).toBeGreaterThan(0);
+    expect(result.kept).toBe(messages);
+    expect(result.view[0]).toEqual(messages[0]);
   });
 });
