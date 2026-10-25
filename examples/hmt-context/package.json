@@ -7,6 +7,7 @@
     "start": "tsx run.mts",
     "live": "tsx run-live.mts",
     "measure": "tsx measure.mts",
+    "eval:live": "tsx eval-live.mts",
     "build": "echo \"example — no build\"",
     "typecheck": "echo \"skip\"",
     "test": "echo \"skip\""
