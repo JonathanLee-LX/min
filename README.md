@@ -44,11 +44,11 @@ Known limits of this alpha: MCP is not connected by `createRuntime` (the host ca
 
 GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run. Every run, including a dry run, checks `NPM_TOKEN` with `npm whoami` before the build.
 
-1. Create a granular npm token that can publish the `@min-agent` scope. Save it as the repository secret `NPM_TOKEN`.
+1. Create an npm **Automation** token (or a granular token with 2FA bypass) that can publish the `@min-agent` scope. Classic “Publish” tokens fail in CI with `EOTP` when the account has 2FA. Save it as the repository secret `NPM_TOKEN`.
 2. Set the version in the root `package.json`. That is the only version npm receives. For this alpha it is `0.1.0-alpha.0`.
 3. Push the matching tag, `v0.1.0-alpha.0`.
 
-The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag.
+The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag (`gh workflow run publish.yml -f version=0.1.0-alpha.0`).
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
