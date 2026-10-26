@@ -27,7 +27,21 @@ describe("createRuntime", () => {
       noSessionStore: true,
     });
     expect(rt.contextStrategy).toBe("hybrid");
+    expect(rt.maxTurns).toBe(40);
     expect(rt.session.stash).toBeDefined();
+    await rt.session.dispose();
+    await rt.agent.dispose();
+  });
+
+  it("honors maxTurns override", async () => {
+    const rt = await createRuntime({
+      cwd: process.cwd(),
+      provider: mockProvider([{ text: "ok" }]),
+      noSessionStore: true,
+      noTools: true,
+      maxTurns: 8,
+    });
+    expect(rt.maxTurns).toBe(8);
     await rt.session.dispose();
     await rt.agent.dispose();
   });

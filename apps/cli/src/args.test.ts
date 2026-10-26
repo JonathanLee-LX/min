@@ -30,6 +30,8 @@ describe("parseArgs", () => {
         "8000",
         "--max-user-turns",
         "6",
+        "--max-turns",
+        "80",
         "--context-strategy",
         "tool-offload",
         "--list-sessions",
@@ -39,6 +41,7 @@ describe("parseArgs", () => {
       sessionId: "ses_1",
       maxContextTokens: 8000,
       maxUserTurns: 6,
+      maxTurns: 80,
       contextStrategy: "tool-offload",
       listSessions: true,
     });

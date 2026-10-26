@@ -37,7 +37,7 @@ async function main(): Promise<void> {
   const st = cli.client.getStatus();
   console.error(`provider=${st.provider}  cwd=${args.cwd}`);
   console.error(
-    `session=${st.sessionId}  strategy=${cli.client.advanced.runtime.contextStrategy}  maxContextTokens=${args.maxContextTokens}`,
+    `session=${st.sessionId}  strategy=${cli.client.advanced.runtime.contextStrategy}  maxContextTokens=${args.maxContextTokens}  maxTurns=${args.maxTurns}`,
   );
   if (!args.noTools) {
     const bashMode = args.allowBash || args.yes || args.auto ? "allow" : "ask";

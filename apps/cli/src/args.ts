@@ -33,6 +33,8 @@ export interface CliArgs {
   maxContextTokens: number;
   /** Max trailing user-turns kept in the model view. */
   maxUserTurns?: number;
+  /** Max model completes (tool-loop turns) per user message. */
+  maxTurns: number;
   /**
    * Continuous context projection strategy.
    * Undefined → Runtime default (`hybrid` with tools, `trim` without).
@@ -62,6 +64,7 @@ export function parseArgs(argv: string[]): CliArgs {
     noSessionStore: false,
     listSessions: false,
     maxContextTokens: Number(process.env.MIN_MAX_CONTEXT_TOKENS ?? 32_000),
+    maxTurns: Number(process.env.MIN_MAX_TURNS ?? 40),
     contextStrategy: parseStrategy(process.env.MIN_CONTEXT_STRATEGY),
   };
 
@@ -114,6 +117,13 @@ export function parseArgs(argv: string[]): CliArgs {
         throw new Error("--max-user-turns must be a positive integer");
       }
       args.maxUserTurns = n;
+    } else if (a === "--max-turns") {
+      const raw = argv[++i];
+      const n = Number(raw);
+      if (!raw || !Number.isFinite(n) || n < 1) {
+        throw new Error("--max-turns must be a positive integer");
+      }
+      args.maxTurns = Math.floor(n);
     } else if (a === "--context-strategy") {
       const raw = argv[++i];
       const parsed = parseStrategy(raw);
@@ -180,6 +190,7 @@ Options:
   --list-sessions     list sessions in --session-dir and exit
   --max-context-tokens <n>  model view budget (default: 32000)
   --max-user-turns <n>      keep at most N trailing user turns in the view
+  --max-turns <n>           max model completes per user message (default: 40)
   --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|hybrid
   -i, --repl          interactive mode
   -h, --help          show help
@@ -207,6 +218,7 @@ Env:
   MIN_AUTO=1          same as --auto
   MIN_PROVIDER_MODULE extra module(s) that call registerProvider
   MIN_MAX_CONTEXT_TOKENS
+  MIN_MAX_TURNS
   MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid
 `;
 }

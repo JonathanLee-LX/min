@@ -98,6 +98,16 @@ export class Runner {
         messages.push(toolMessage(results));
       }
 
+      // Cap hit mid tool-loop: last message is tool results awaiting another complete.
+      if (turns >= maxTurns && messages.at(-1)?.role === "tool") {
+        await emit({
+          type: "error",
+          error: new Error(
+            `Stopped after maxTurns=${maxTurns} (tool loop still pending). Raise with --max-turns / RuntimeOptions.maxTurns.`,
+          ),
+        });
+      }
+
       await emit({ type: "done", messages });
       return {
         messages,

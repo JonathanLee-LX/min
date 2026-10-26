@@ -385,6 +385,7 @@ function resolveFactory(options: ClientOptions): FactoryOpts {
     allowBash: options.allowBash,
     maxContextTokens: options.maxContextTokens,
     maxUserTurns: options.maxUserTurns,
+    maxTurns: options.maxTurns,
     contextStrategy: options.contextStrategy,
     sessionExtensions: options.sessionExtensions,
   };

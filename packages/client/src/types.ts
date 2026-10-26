@@ -106,6 +106,8 @@ export interface ClientOptions {
   allowBash?: boolean;
   maxContextTokens?: number;
   maxUserTurns?: number;
+  /** Max model completes per user message. Default: 40. */
+  maxTurns?: number;
   /**
    * Continuous assemble strategy.
    * Default (via Runtime): `hybrid` with tools, `trim` without.

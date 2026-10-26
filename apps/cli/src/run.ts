@@ -43,6 +43,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     allowBash: args.allowBash || args.yes || args.auto,
     maxContextTokens: args.maxContextTokens,
     maxUserTurns: args.maxUserTurns,
+    maxTurns: args.maxTurns,
     contextStrategy: args.contextStrategy,
     sessionExtensions: [contextBudgetLog()],
     // Interactive CLI applies grantRoot itself; auto/yes+root-grant use Client.

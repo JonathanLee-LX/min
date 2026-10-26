@@ -48,6 +48,11 @@ export interface RuntimeOptions {
   maxContextTokens?: number;
   maxUserTurns?: number;
   /**
+   * Max model completes (tool-loop turns) per user message.
+   * Default: 40. Override via CLI `--max-turns` / `MIN_MAX_TURNS`.
+   */
+  maxTurns?: number;
+  /**
    * Context projection strategy (pluggable).
    * Default: `hybrid` when tools are enabled, otherwise `trim`.
    * Eval / override: `hmt` | `tool-offload` | `sticky-trim`.
@@ -58,6 +63,9 @@ export interface RuntimeOptions {
   sessionExtensions?: Parameters<typeof createSession>[0]["extensions"];
 }
 
+/** Default agent tool-loop budget (model completes per user message). */
+export const DEFAULT_MAX_TURNS = 40;
+
 export interface Runtime {
   agent: Agent;
   session: Session;
@@ -67,6 +75,7 @@ export interface Runtime {
   allowedToolsGate: AllowedToolsGate;
   cwd: string;
   contextStrategy: ContextStrategyId;
+  maxTurns: number;
 }
 
 export function sessionDirFor(cwd: string, sessionDir?: string): string {
@@ -139,11 +148,13 @@ export async function createRuntime(
     : allowedToolsGate.handler;
   const permissionGate = createPermissionGate(permissionHandler);
 
+  const maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
+
   const agent = await createAgent({
     provider: opts.provider,
     tools: permissionGate.wrap(tools),
     system: () => systemParts.join("\n\n"),
-    maxTurns: 20,
+    maxTurns,
   });
 
   const store = opts.noSessionStore
@@ -177,6 +188,7 @@ export async function createRuntime(
     allowedToolsGate,
     cwd: opts.cwd,
     contextStrategy,
+    maxTurns,
   };
 }
 
