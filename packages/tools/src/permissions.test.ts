@@ -1,9 +1,15 @@
+import { realpathSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createWorkspacePermissionPolicy } from "./permissions.js";
 import { createSandbox } from "./sandbox.js";
+
+/** macOS tmpdir may be /var/... while realpath is /private/var/... */
+async function realTemp(prefix: string): Promise<string> {
+  return realpathSync(await mkdtemp(path.join(tmpdir(), prefix)));
+}
 
 function ctx(name: string, args: Record<string, unknown> = {}) {
   return {
@@ -30,8 +36,8 @@ describe("createWorkspacePermissionPolicy", () => {
   });
 
   it("asks to grantRoot when path escapes sandbox", async () => {
-    const primary = await mkdtemp(path.join(tmpdir(), "min-pol-p-"));
-    const outside = await mkdtemp(path.join(tmpdir(), "min-pol-o-"));
+    const primary = await realTemp("min-pol-p-");
+    const outside = await realTemp("min-pol-o-");
     await writeFile(path.join(outside, "x.txt"), "x", "utf8");
     const sandbox = createSandbox(primary);
     const policy = createWorkspacePermissionPolicy(sandbox);

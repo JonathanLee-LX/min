@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -5,17 +6,22 @@ import { describe, expect, it } from "vitest";
 import { createSandbox, SandboxError } from "./sandbox.js";
 import { createWorkspaceTools } from "./tools.js";
 
+/** macOS tmpdir may be /var/... while realpath is /private/var/... */
+async function realTemp(prefix: string): Promise<string> {
+  return realpathSync(await mkdtemp(path.join(tmpdir(), prefix)));
+}
+
 describe("sandbox", () => {
   it("resolves inside root and rejects escapes", async () => {
-    const root = await mkdtemp(path.join(tmpdir(), "min-sb-"));
+    const root = await realTemp("min-sb-");
     const sb = createSandbox(root);
     expect(sb.resolve("a/b")).toBe(path.join(root, "a/b"));
     expect(() => sb.resolve("../outside")).toThrow(SandboxError);
   });
 
   it("probe suggests a tight root and grantRoot enables resolve", async () => {
-    const primary = await mkdtemp(path.join(tmpdir(), "min-primary-"));
-    const outside = await mkdtemp(path.join(tmpdir(), "min-outside-"));
+    const primary = await realTemp("min-primary-");
+    const outside = await realTemp("min-outside-");
     await writeFile(path.join(outside, "secret.txt"), "sec", "utf8");
 
     const sb = createSandbox(primary);
