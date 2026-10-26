@@ -223,7 +223,9 @@ async function promptPermission(
 ): Promise<PermissionAnswer> {
   console.log(`\n⚠ permission: ${reason}`);
   const line = (
-    await rl.question("Allow? [y]es / [n]o / [a]lways this tool > ")
+    await rl.question(
+      "Allow? [y]es / [n]o / [a]lways this tool (rest of session) > ",
+    )
   )
     .trim()
     .toLowerCase();

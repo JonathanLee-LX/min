@@ -15,7 +15,11 @@ import {
   type Session,
   type SessionStore,
 } from "@min/session";
-import { createAllowedToolsGate, skills } from "@min/skills";
+import {
+  createAllowedToolsGate,
+  skills,
+  type AllowedToolsGate,
+} from "@min/skills";
 import {
   workspaceTools,
   type WorkspacePermissionPolicy,
@@ -57,6 +61,11 @@ export interface Runtime {
   session: Session;
   store?: SessionStore;
   permissions?: WorkspacePermissionPolicy;
+  /**
+   * Skill `allowed-tools` gate. Always present so hosts can
+   * `grantSession(tool)` when the user approves an escape ask.
+   */
+  allowedToolsGate: AllowedToolsGate;
   cwd: string;
   contextStrategy: ContextStrategyId;
 }
@@ -151,6 +160,7 @@ export async function createRuntime(
     session,
     store,
     permissions,
+    allowedToolsGate,
     cwd: opts.cwd,
     contextStrategy,
   };

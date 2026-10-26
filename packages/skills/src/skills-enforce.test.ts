@@ -17,7 +17,7 @@ function memorySource(skill: Skill): SkillSource {
 }
 
 describe("skills allowed-tools enforcement", () => {
-  it("denies tools outside the loaded skill allowlist", async () => {
+  it("asks (then denies without approver) for tools outside the allowlist", async () => {
     const gate = createAllowedToolsGate();
     const skill: Skill = {
       name: "ro",
@@ -42,22 +42,77 @@ describe("skills allowed-tools enforcement", () => {
       extensions: [
         skills({ sources: [memorySource(skill)], allowedToolsGate: gate }),
       ],
-      // No workspace tools — bash is unknown; permission still runs before execute.
       permissionHandler: gate.wrap(async () => ({ action: "allow" })),
     });
 
-    const denials: string[] = [];
+    const asks: string[] = [];
+    const toolErrors: string[] = [];
     await agent.run({
       input: "use the skill then bash",
       onEvent(e) {
-        if (e.type === "permission" && e.decision === "deny") {
-          denials.push(e.toolCall.name);
+        if (e.type === "permission" && e.decision === "ask") {
+          asks.push(e.toolCall.name);
+        }
+        if (e.type === "tool_result" && e.isError) {
+          toolErrors.push(e.content);
         }
       },
     });
 
     expect(gate.activeAllowlist()).toEqual(new Set(["read_file", "glob"]));
-    expect(denials).toContain("bash");
+    expect(asks).toContain("bash");
+    expect(toolErrors.some((c) => c.includes("no interactive approver"))).toBe(
+      true,
+    );
+    await agent.dispose();
+  });
+
+  it("runs the tool after onPermissionAsk allow, and persists allow_session via grantSession", async () => {
+    const gate = createAllowedToolsGate();
+    const skill: Skill = {
+      name: "ro",
+      description: "read only",
+      uri: "memory:ro",
+      body: "Only read files.",
+      allowedTools: ["read_file", "glob"],
+    };
+
+    const agent = await createAgent({
+      provider: mockProvider([
+        {
+          toolCalls: [
+            { name: "load_skill", arguments: { name: "ro" } },
+          ],
+        },
+        {
+          toolCalls: [{ name: "bash", arguments: { command: "echo hi" } }],
+        },
+        {
+          toolCalls: [{ name: "bash", arguments: { command: "echo again" } }],
+        },
+        { text: "done" },
+      ]),
+      extensions: [
+        skills({ sources: [memorySource(skill)], allowedToolsGate: gate }),
+      ],
+      permissionHandler: gate.wrap(async () => ({ action: "allow" })),
+    });
+
+    let asks = 0;
+    await agent.run({
+      input: "load then bash twice",
+      async onPermissionAsk(req) {
+        asks += 1;
+        if (asks === 1) {
+          gate.grantSession(req.toolCall.name);
+          return "allow_session";
+        }
+        throw new Error("should not ask again after grantSession");
+      },
+    });
+
+    expect(asks).toBe(1);
+    expect([...gate.sessionGrants()]).toEqual(["bash"]);
     await agent.dispose();
   });
 });

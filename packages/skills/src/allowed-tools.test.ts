@@ -14,7 +14,7 @@ describe("createAllowedToolsGate", () => {
     expect(await gate.handler(ctx("bash"))).toEqual({ action: "allow" });
     gate.activate({ name: "docs", allowedTools: ["read_file", "glob"] });
     expect(await gate.handler(ctx("read_file"))).toEqual({ action: "allow" });
-    expect(await gate.handler(ctx("bash"))).toMatchObject({ action: "deny" });
+    expect(await gate.handler(ctx("bash"))).toMatchObject({ action: "ask" });
     expect(await gate.handler(ctx("load_skill"))).toEqual({ action: "allow" });
   });
 
@@ -27,7 +27,7 @@ describe("createAllowedToolsGate", () => {
     gate.activate({ name: "b", allowedTools: ["read_file", "bash"] });
     expect([...gate.activeAllowlist()!].sort()).toEqual(["read_file"]);
     expect(await gate.handler(ctx("write_file"))).toMatchObject({
-      action: "deny",
+      action: "ask",
     });
   });
 
@@ -38,16 +38,40 @@ describe("createAllowedToolsGate", () => {
     expect([...gate.activeAllowlist()!]).toEqual(["read_file"]);
   });
 
-  it("wrap runs gate before inner policy", async () => {
+  it("grantSession allows a tool for the rest of the session", async () => {
+    const gate = createAllowedToolsGate();
+    gate.activate({ name: "docs", allowedTools: ["read_file", "glob"] });
+    expect(await gate.handler(ctx("bash"))).toMatchObject({ action: "ask" });
+    gate.grantSession("bash");
+    expect(await gate.handler(ctx("bash"))).toEqual({ action: "allow" });
+    expect(await gate.handler(ctx("write_file"))).toMatchObject({
+      action: "ask",
+    });
+    expect([...gate.sessionGrants()]).toEqual(["bash"]);
+  });
+
+  it("wrap asks before inner policy when outside allowlist", async () => {
     const gate = createAllowedToolsGate();
     gate.activate({ name: "a", allowedTools: ["read_file"] });
     const inner = async () =>
       ({ action: "ask" as const, reason: "sandbox" });
     const composed = gate.wrap(inner);
-    expect(await composed(ctx("bash"))).toMatchObject({ action: "deny" });
+    expect(await composed(ctx("bash"))).toMatchObject({
+      action: "ask",
+      reason: expect.stringContaining("allowed-tools"),
+    });
     expect(await composed(ctx("read_file"))).toEqual({
       action: "ask",
       reason: "sandbox",
     });
+  });
+
+  it("wrap continues to inner after grantSession", async () => {
+    const gate = createAllowedToolsGate();
+    gate.activate({ name: "a", allowedTools: ["read_file"] });
+    gate.grantSession("bash");
+    const inner = async () => ({ action: "allow" as const });
+    const composed = gate.wrap(inner);
+    expect(await composed(ctx("bash"))).toEqual({ action: "allow" });
   });
 });
