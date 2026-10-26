@@ -1,0 +1,142 @@
+export interface SessionListItem {
+  id: string;
+  title?: string;
+  updatedAt: string;
+}
+
+export type TuiCommand =
+  | { type: "prompt"; text: string }
+  | { type: "exit" }
+  | { type: "help" }
+  | { type: "session" }
+  | { type: "sessions" }
+  | { type: "open"; id: string }
+  | { type: "open-usage" }
+  | { type: "new" }
+  | { type: "compact" }
+  | { type: "reset" }
+  | { type: "queue" }
+  | { type: "dense"; text: string }
+  | { type: "dense-usage" };
+
+export type SubmitRoute =
+  | { type: "empty" }
+  | { type: "send"; text: string }
+  | { type: "queue"; text: string }
+  | { type: "command"; command: TuiCommand }
+  | { type: "busy-blocked"; name: string };
+
+export const TUI_HELP = `Commands:
+  /help              show this help
+  /session           current session id, title, messages, queue
+  /sessions          list saved sessions
+  /open <id>         switch to a saved session
+  /new               start a fresh session
+  /compact           summarize older turns and rewrite stored history
+  /reset             clear conversation history
+  /queue             show the follow-up queue
+  /dense <text>      queue text as a dense-latest supplement
+  /exit              quit
+
+Keys:
+  Enter              send, or queue while the agent is running
+  Alt+Enter, Ctrl+J  insert a newline
+  Up/Down            previous line, or input history at the ends
+  PageUp/PageDown    scroll the transcript
+  Ctrl+C             abort the run, or quit when idle
+  Ctrl+A / Ctrl+E    start / end of line
+  Ctrl+W / Ctrl+U    delete previous word / to line start`;
+
+const BUSY_BLOCKED = new Set(["open", "new", "reset", "compact"]);
+
+export function parseTuiCommand(line: string): TuiCommand {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("/")) return { type: "prompt", text: trimmed };
+  const [cmd, ...rest] = trimmed.slice(1).trim().split(/\s+/);
+  const name = (cmd ?? "").toLowerCase();
+  if (name === "exit" || name === "quit" || name === "q") return { type: "exit" };
+  if (name === "help" || name === "h" || name === "?") return { type: "help" };
+  if (name === "session") return { type: "session" };
+  if (name === "sessions") return { type: "sessions" };
+  if (name === "open") {
+    const id = rest.join(" ").trim();
+    return id ? { type: "open", id } : { type: "open-usage" };
+  }
+  if (name === "new") return { type: "new" };
+  if (name === "compact") return { type: "compact" };
+  if (name === "reset") return { type: "reset" };
+  if (name === "queue") return { type: "queue" };
+  if (name === "dense") {
+    const text = rest.join(" ").trim();
+    return text ? { type: "dense", text } : { type: "dense-usage" };
+  }
+  return { type: "prompt", text: trimmed };
+}
+
+/** Decide what a submitted composer line does. Busy runs queue plain text. */
+export function routeSubmit(line: string, busy: boolean): SubmitRoute {
+  const command = parseTuiCommand(line);
+  if (command.type === "prompt") {
+    if (!command.text) return { type: "empty" };
+    return busy ? { type: "queue", text: command.text } : { type: "send", text: command.text };
+  }
+  if (busy && BUSY_BLOCKED.has(command.type)) {
+    return { type: "busy-blocked", name: command.type };
+  }
+  return { type: "command", command };
+}
+
+export function formatSession(info: {
+  id: string;
+  title?: string;
+  messageCount: number;
+  provider: string;
+  queueSize: number;
+}): string {
+  return [
+    `session ${info.id}`,
+    `  title:    ${info.title ?? "(untitled)"}`,
+    `  messages: ${info.messageCount}`,
+    `  provider: ${info.provider}`,
+    `  queue:    ${info.queueSize}`,
+  ].join("\n");
+}
+
+export function formatQueue(items: readonly string[]): string {
+  if (items.length === 0) return "queue size=0";
+  const lines = [`queue size=${items.length}`];
+  items.forEach((item, index) => {
+    const clipped = item.length > 80 ? `${item.slice(0, 77)}...` : item;
+    lines.push(`  [${index}] ${clipped}`);
+  });
+  return lines.join("\n");
+}
+
+export function formatSessionList(
+  metas: readonly SessionListItem[],
+  currentId: string,
+): string {
+  if (metas.length === 0) return "(no saved sessions)";
+  return metas
+    .map((meta) => {
+      const mark = meta.id === currentId ? "*" : " ";
+      const title = meta.title ? `  ${meta.title}` : "";
+      return `${mark} ${meta.id}  ${meta.updatedAt}${title}`;
+    })
+    .join("\n");
+}
+
+export function formatCompact(result: {
+  summary: string;
+  droppedMessageCount: number;
+  keptTurns: number;
+  messageCount: number;
+}): string {
+  if (!result.droppedMessageCount) {
+    return `compact: nothing to summarize (messages=${result.messageCount})`;
+  }
+  const preview =
+    result.summary.length > 240 ? `${result.summary.slice(0, 237)}...` : result.summary;
+  const head = `compact: dropped ${result.droppedMessageCount} msgs, kept ${result.keptTurns} turn(s), now ${result.messageCount} msgs`;
+  return preview ? `${head}\n${preview}` : head;
+}

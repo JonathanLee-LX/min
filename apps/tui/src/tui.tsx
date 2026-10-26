@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  render(<App args={args} />);
+  render(<App args={args} />, { exitOnCtrlC: false });
 }
 
 main().catch((err) => {

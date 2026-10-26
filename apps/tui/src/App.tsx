@@ -5,48 +5,119 @@ import {
   type MinClient,
 } from "@min-agent/client";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
-import { Box, Text, useApp, useInput } from "ink";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
+import {
+  TUI_HELP,
+  formatCompact,
+  formatQueue,
+  formatSession,
+  formatSessionList,
+  routeSubmit,
+  type TuiCommand,
+} from "./commands.js";
+import {
+  commitEditor,
+  createEditor,
+  editorCaret,
+  inputAction,
+  reduceEditor,
+  type EditorState,
+  type InputKey,
+} from "./editor.js";
+import { permissionAnswer, permissionLines } from "./permission-view.js";
+import { wrapText } from "./text.js";
+import {
+  linesFromMessages,
+  transcriptRowCount,
+  layoutViewport,
+  type LogKind,
+  type LogLine,
+  type TranscriptMessage,
+} from "./transcript.js";
 
-/** Chat-style lines — aligned with Web (user right/green, assistant default, tools muted). */
-type LogLine = {
-  id: number;
-  kind: "user" | "assistant" | "tool" | "sys";
+const LOG_CAP = 2000;
+
+interface PendingPermission {
+  id: string;
+  reason: string;
+  toolCall: { name: string; arguments: unknown };
+  grantRoot?: string;
+}
+
+interface DisplayLine {
+  key: string;
+  kind: LogKind;
   text: string;
-};
+}
 
 export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+  const [editor, setEditor] = useState<EditorState>(createEditor);
   const [busy, setBusy] = useState(false);
   const [statusLabel, setStatusLabel] = useState("idle");
+  const [queueSize, setQueueSize] = useState(0);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [stream, setStream] = useState("");
-  const [pendingPerm, setPendingPerm] = useState<{
-    id: string;
-    reason: string;
-  } | null>(null);
+  const [pendingPerm, setPendingPerm] = useState<PendingPermission | null>(null);
+  const [scroll, setScroll] = useState(0);
+  const [size, setSize] = useState(() => terminalSize(stdout));
+  const [seenMeasure, setSeenMeasure] = useState({ rows: 0, columns: 0 });
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
   const streamBuf = useRef("");
+  const viewRef = useRef({ total: 0, height: 1 });
 
-  const push = useCallback((kind: LogLine["kind"], text: string) => {
+  const pushLine = useCallback((kind: LogKind, text: string) => {
     seq.current += 1;
     const id = seq.current;
-    setLogs((prev) => [...prev.slice(-80), { id, kind, text }]);
+    setLogs((prev) => {
+      const next = [...prev, { id, kind, text }];
+      return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
+    });
   }, []);
+
+  const replaceLogs = useCallback((messages: readonly TranscriptMessage[]) => {
+    const seeded = linesFromMessages(messages);
+    const capped = seeded.length > LOG_CAP ? seeded.slice(seeded.length - LOG_CAP) : seeded;
+    setLogs(
+      capped.map((line) => {
+        seq.current += 1;
+        return { id: seq.current, kind: line.kind, text: line.text };
+      }),
+    );
+    setScroll(0);
+    streamBuf.current = "";
+    setStream("");
+  }, []);
+
+  useEffect(() => {
+    const update = () => setSize(terminalSize(stdout));
+    update();
+    stdout.on("resize", update);
+    return () => {
+      stdout.off("resize", update);
+    };
+  }, [stdout]);
 
   useEffect(() => {
     let cancelled = false;
     let unsub: (() => void) | undefined;
+
+    const syncQueue = () => {
+      const live = clientRef.current;
+      if (live) setQueueSize(live.queue.size);
+    };
+
     (async () => {
       try {
         await loadProviderExtensions();
         const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
-        const c = await createClient({
+        const created = await createClient({
           cwd: args.cwd,
           provider: resolveProvider({
             provider: args.provider,
@@ -66,175 +137,314 @@ export function App({ args }: { args: TuiArgs }) {
             : undefined,
         });
         if (cancelled) {
-          await c.dispose();
+          await created.dispose();
           return;
         }
-        clientRef.current = c;
-        setClient(c);
-        const st = c.getStatus();
-        push(
-          "sys",
-          `provider=${st.provider}  session=${st.sessionId}  cwd=${st.cwd}`,
-        );
-
-        unsub = c.subscribe((e: ClientEvent) => {
-          if (e.type === "status") {
-            setStatusLabel(e.status);
-            setBusy(e.status !== "idle");
+        clientRef.current = created;
+        unsub = created.subscribe((event: ClientEvent) => {
+          if (event.type === "status") {
+            setStatusLabel(event.status);
+            setBusy(event.status !== "idle");
+            if (event.status !== "asking") setPendingPerm(null);
+            syncQueue();
             return;
           }
-          if (e.type === "assistant_delta") {
-            streamBuf.current += e.text;
+          if (event.type === "assistant_delta") {
+            streamBuf.current += event.text;
             setStream(streamBuf.current);
             return;
           }
-          if (e.type === "assistant_done") {
+          if (event.type === "assistant_done") {
             streamBuf.current = "";
             setStream("");
-            if (e.text) push("assistant", e.text);
+            if (event.text) pushLine("assistant", event.text);
             return;
           }
-          if (e.type === "tool_start") {
-            push(
-              "tool",
-              `→ ${e.name}(${JSON.stringify(e.args).slice(0, 80)})`,
-            );
+          if (event.type === "tool_start") {
+            pushLine("tool", `→ ${event.name} ${brief(event.args, 400)}`);
             return;
           }
-          if (e.type === "tool_end") {
-            push(
-              "tool",
-              `← ${e.ok ? "" : "ERR "}${e.preview.slice(0, 120)}`,
-            );
+          if (event.type === "tool_end") {
+            pushLine("tool", `${event.ok ? "← " : "← ERR "}${event.preview}`);
             return;
           }
-          if (e.type === "queued") {
-            push("sys", `queued (${e.queueSize})`);
+          if (event.type === "queued") {
+            setQueueSize(event.queueSize);
             return;
           }
-          if (e.type === "follow_up") {
-            push("sys", `follow-up: ${e.texts.join(" | ").slice(0, 100)}`);
+          if (event.type === "follow_up") {
+            pushLine("sys", `follow-up: ${clip(event.texts.join(" | "), 160)}`);
+            syncQueue();
             return;
           }
-          if (e.type === "error") {
-            push("sys", e.aborted ? "aborted" : e.message);
+          if (event.type === "error") {
+            pushLine("sys", event.aborted ? "aborted" : event.message);
             return;
           }
-          if (e.type === "permission") {
-            setPendingPerm({ id: e.id, reason: e.reason });
+          if (event.type === "permission") {
+            setPendingPerm({
+              id: event.id,
+              reason: event.reason,
+              toolCall: {
+                name: event.toolCall.name,
+                arguments: event.toolCall.arguments,
+              },
+              grantRoot: event.grantRoot,
+            });
+            return;
+          }
+          if (event.type === "session") {
+            if (event.messages) replaceLogs(event.messages);
+            syncQueue();
           }
         });
+        const snapshot = created.getSession();
+        replaceLogs(snapshot.messages);
+        const status = created.getStatus();
+        pushLine(
+          "sys",
+          `provider=${status.provider}  session=${status.sessionId}  cwd=${status.cwd}`,
+        );
+        setQueueSize(status.queueSize);
+        setStatusLabel(status.status);
+        setBusy(status.status !== "idle");
+        setClient(created);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(messageOf(err));
       }
     })();
+
     return () => {
       cancelled = true;
       unsub?.();
+      const live = clientRef.current;
+      clientRef.current = null;
+      if (live) void live.dispose();
     };
   }, [
+    args.auto,
     args.cwd,
-    args.provider,
     args.model,
-    args.sessionId,
     args.noTools,
+    args.provider,
+    args.sessionId,
     args.yes,
-    push,
+    pushLine,
+    replaceLogs,
   ]);
 
-  useEffect(() => {
-    return () => {
-      const c = clientRef.current;
-      if (!c) return;
-      void c.dispose();
-    };
-  }, []);
-
-  const send = useCallback(
-    async (text: string) => {
-      if (!client || !text.trim()) return;
-      if (pendingPerm) return;
-      const prompt = text.trim();
-      streamBuf.current = "";
-      setStream("");
-      push("user", prompt);
-      await client.send(prompt);
+  const runCommand = useCallback(
+    async (live: MinClient, command: TuiCommand) => {
+      if (command.type === "exit") {
+        exit();
+        return;
+      }
+      if (command.type === "help") {
+        pushLine("sys", TUI_HELP);
+        return;
+      }
+      if (command.type === "session") {
+        const session = live.getSession();
+        const status = live.getStatus();
+        pushLine(
+          "sys",
+          formatSession({
+            id: session.id,
+            title: session.title,
+            messageCount: session.messageCount,
+            provider: status.provider,
+            queueSize: live.queue.size,
+          }),
+        );
+        return;
+      }
+      if (command.type === "sessions") {
+        try {
+          const metas = await live.listSessions();
+          pushLine("sys", formatSessionList(metas, live.getSession().id));
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "open-usage") {
+        pushLine("sys", "usage: /open <session-id>");
+        return;
+      }
+      if (command.type === "open") {
+        try {
+          await live.openSession(command.id);
+          pushLine("sys", `opened ${live.getSession().id}`);
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "new") {
+        try {
+          await live.newSession();
+          pushLine("sys", `new session ${live.getSession().id}`);
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "compact") {
+        try {
+          pushLine("sys", formatCompact(await live.compact()));
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "reset") {
+        try {
+          live.reset();
+          pushLine("sys", "history cleared");
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "queue") {
+        pushLine("sys", formatQueue(live.queue.peek()));
+        return;
+      }
+      if (command.type === "dense-usage") {
+        pushLine("sys", "usage: /dense <text>  — queue as dense-latest supplement");
+        return;
+      }
+      if (command.type === "dense") {
+        try {
+          live.queue.push(command.text, { mode: "dense-latest" });
+          setQueueSize(live.queue.size);
+          pushLine("sys", `queued dense-latest (size=${live.queue.size})`);
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "prompt") {
+        pushLine("user", command.text);
+        try {
+          await live.send(command.text);
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
+      }
     },
-    [client, pendingPerm, push],
+    [exit, pushLine],
   );
 
-  useInput((ch, key) => {
-    if (pendingPerm && client) {
-      if (ch === "y" || ch === "Y") {
-        client.respondPermission(pendingPerm.id, "allow");
-        setPendingPerm(null);
+  const submitLine = useCallback(
+    async (text: string) => {
+      const live = clientRef.current;
+      if (!live) return;
+      const route = routeSubmit(text, live.getStatus().busy);
+      if (route.type === "empty") return;
+      if (route.type === "send" || route.type === "queue") {
+        pushLine("user", route.text);
+        try {
+          if (route.type === "queue") {
+            live.queue.push(route.text);
+            setQueueSize(live.queue.size);
+          } else {
+            await live.send(route.text);
+          }
+        } catch (err) {
+          pushLine("sys", messageOf(err));
+        }
         return;
       }
-      if (ch === "n" || ch === "N") {
-        client.respondPermission(pendingPerm.id, "deny");
-        setPendingPerm(null);
+      if (route.type === "busy-blocked") {
+        pushLine("sys", `/${route.name} is unavailable while the agent is running`);
         return;
       }
-      if (ch === "a" || ch === "A") {
-        client.respondPermission(pendingPerm.id, "allow_session");
-        setPendingPerm(null);
-        return;
-      }
-      return;
-    }
+      await runCommand(live, route.command);
+    },
+    [pushLine, runCommand],
+  );
 
-    if (key.ctrl && ch === "c") {
-      if (busy && client) {
-        client.abort();
+  const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
+  handleInput.current = (input, key) => {
+    const action = inputAction(input, key);
+    if (action.type === "interrupt") {
+      const live = clientRef.current;
+      if (live?.getStatus().busy) {
+        live.abort();
         return;
       }
       exit();
       return;
     }
-    if (busy) {
-      if (key.return && input.trim() && client) {
-        const line = input.trim();
-        setInput("");
-        try {
-          client.queue.push(line);
-        } catch {
-          /* ignore */
-        }
+    if (action.type === "scroll") {
+      setScroll((current) => {
+        const page = Math.max(1, viewRef.current.height);
+        const max = Math.max(0, viewRef.current.total - viewRef.current.height);
+        if (action.direction === "up") return Math.min(max, current + page);
+        return Math.max(0, current - page);
+      });
+      return;
+    }
+    if (pendingPerm) {
+      const answer = key.ctrl || key.meta || key.return ? null : permissionAnswer(input);
+      if (answer && clientRef.current) {
+        clientRef.current.respondPermission(pendingPerm.id, answer);
+        setPendingPerm(null);
       }
       return;
     }
-    if (key.return) {
-      const line = input;
-      setInput("");
-      if (line === "/exit" || line === "/quit") {
-        exit();
-        return;
-      }
-      if (line === "/session" && client) {
-        const s = client.getSession();
-        push(
-          "sys",
-          `session ${s.id}  msgs=${s.messageCount}  queue=${client.queue.size}`,
-        );
-        return;
-      }
-      if (line === "/reset" && client) {
-        client.reset();
-        setLogs([]);
-        push("sys", "history cleared");
-        return;
-      }
-      void send(line);
+    if (action.type === "edit") {
+      setEditor((current) => reduceEditor(current, action.op));
       return;
     }
-    if (key.backspace || key.delete) {
-      setInput((s) => s.slice(0, -1));
-      return;
+    if (action.type === "submit") {
+      if (!clientRef.current) return;
+      const committed = commitEditor(editor);
+      setEditor(committed.state);
+      if (!committed.text) return;
+      setScroll(0);
+      void submitLine(committed.text);
     }
-    if (ch && !key.ctrl && !key.meta) {
-      setInput((s) => s + ch);
+  };
+
+  const onInput = useCallback((input: string, key: InputKey) => {
+    handleInput.current(input, key);
+  }, []);
+
+  useInput(onInput);
+
+  const columns = size.columns;
+  const termRows = size.rows;
+  const innerWidth = Math.max(1, columns - 2);
+  const caret = editorCaret(editor);
+  const composer = `you  ${caret.before}${caret.caret}${caret.after}`;
+  const inputRows = wrapText(composer, innerWidth).length;
+  const permText = pendingPerm ? permissionLines(pendingPerm) : [];
+  const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
+  const footer = footerLines(busy, pendingPerm !== null);
+  const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
+  const reserved = 2 + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + footerRows;
+  const logHeight = Math.max(1, termRows - reserved);
+  const displayLines = toDisplayLines(logs, stream);
+  const rowCount = transcriptRowCount(displayLines, innerWidth);
+
+  if (client) {
+    const columnsChanged = innerWidth !== seenMeasure.columns;
+    const delta = rowCount - seenMeasure.rows;
+    const baselineChanged = rowCount !== seenMeasure.rows || columnsChanged;
+    let nextScroll = scroll;
+    if (baselineChanged && !columnsChanged && scroll > 0 && delta !== 0) {
+      nextScroll = Math.max(0, scroll + delta);
     }
-  });
+    const maxScroll = Math.max(0, rowCount - logHeight);
+    if (nextScroll > maxScroll) nextScroll = maxScroll;
+    if (baselineChanged) setSeenMeasure({ rows: rowCount, columns: innerWidth });
+    if (nextScroll !== scroll) setScroll(nextScroll);
+  }
+
+  viewRef.current = { total: rowCount, height: logHeight };
+  const layout = layoutViewport(displayLines, innerWidth, logHeight, scroll);
 
   if (error) {
     return (
@@ -252,64 +462,124 @@ export function App({ args }: { args: TuiArgs }) {
     );
   }
 
+  const status = client.getStatus();
+  const scrollHint =
+    layout.hiddenAbove || layout.hiddenBelow
+      ? ` · ↑${layout.hiddenAbove} ↓${layout.hiddenBelow}`
+      : "";
+
   return (
-    <Box flexDirection="column" paddingX={1} height="100%">
-      <Box paddingX={1} paddingY={0}>
+    <Box flexDirection="column" paddingX={1} width={columns} height={termRows}>
+      <Text wrap="truncate">
         <Text bold>min</Text>
         <Text dimColor>
-          {" "}
-          · {client.getStatus().provider} · {statusLabel}
-          {busy ? " · running" : ""}
+          {` · ${status.provider} · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
         </Text>
-      </Box>
+      </Text>
 
-      <Box flexDirection="column" marginTop={1} height={16}>
-        {logs.slice(-12).map((l) => (
+      <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
+        {layout.visible.map((row, index) => (
           <Text
-            key={l.id}
-            color={
-              l.kind === "user"
-                ? "green"
-                : l.kind === "tool"
-                  ? "gray"
-                  : l.kind === "sys"
-                    ? "magenta"
-                    : undefined
-            }
+            key={`${row.source.key}:${layout.hiddenAbove + index}`}
+            color={lineColor(row.source.kind)}
             wrap="truncate"
           >
-            {l.kind === "user"
-              ? `you  ${l.text}`
-              : l.kind === "assistant"
-                ? `min  ${l.text}`
-                : l.text}
+            {row.text}
           </Text>
         ))}
-        {stream ? (
-          <Text>
-            min  {stream}
-            <Text dimColor>▍</Text>
-          </Text>
-        ) : null}
       </Box>
 
-      {pendingPerm ? (
-        <Box marginTop={1} paddingX={1}>
-          <Text color="yellow">
-            permission: {pendingPerm.reason}  [y] once  [n] no  [a] remember
-          </Text>
+      {permText.length > 0 ? (
+        <Box flexDirection="column" marginTop={1}>
+          {permText.map((line, index) => (
+            <Text
+              key={`${index}:${line}`}
+              color={index === 0 ? "yellow" : undefined}
+              dimColor={index === permText.length - 1}
+              wrap="wrap"
+            >
+              {line}
+            </Text>
+          ))}
         </Box>
-      ) : (
-        <Box marginTop={1} paddingX={1}>
-          <Text color="green">you </Text>
-          <Text>{input}</Text>
-          <Text dimColor>{busy ? " · enter queues" : "▊"}</Text>
-        </Box>
-      )}
-      <Text dimColor>
-        Enter send · busy: Enter queues · /session /reset /exit · Ctrl+C
-        abort/quit
-      </Text>
+      ) : null}
+
+      <Box marginTop={1}>
+        <Text color="green">you{"  "}</Text>
+        <Text>{caret.before}</Text>
+        <Text inverse>{caret.caret}</Text>
+        <Text>{caret.after}</Text>
+      </Box>
+      {footer.map((line) => (
+        <Text key={line} dimColor wrap="wrap">
+          {line}
+        </Text>
+      ))}
     </Box>
   );
+}
+
+function toDisplayLines(logs: readonly LogLine[], stream: string): DisplayLine[] {
+  const lines = logs.map((line) => ({
+    key: String(line.id),
+    kind: line.kind,
+    text: prefixed(line),
+  }));
+  if (stream) {
+    lines.push({ key: "stream", kind: "assistant", text: `min  ${stream}▍` });
+  }
+  return lines;
+}
+
+function prefixed(line: LogLine): string {
+  if (line.kind === "user") return `you  ${line.text}`;
+  if (line.kind === "assistant") return `min  ${line.text}`;
+  return line.text;
+}
+
+function lineColor(kind: LogKind): string | undefined {
+  if (kind === "user") return "green";
+  if (kind === "tool") return "gray";
+  if (kind === "sys") return "magenta";
+  return undefined;
+}
+
+function footerLines(busy: boolean, pending: boolean): string[] {
+  if (pending) {
+    return [
+      "y once · n deny · a remember · no answer denies in 2 minutes",
+      "PgUp/PgDn scroll · Ctrl+C abort",
+    ];
+  }
+  return [
+    `Enter ${busy ? "queues" : "sends"} · Alt+Enter newline · ↑↓ history · PgUp/PgDn scroll · Ctrl+C ${busy ? "abort" : "quit"}`,
+    "/help /session /sessions /open /new /compact /reset /queue /dense /exit",
+  ];
+}
+
+function terminalSize(stdout: NodeJS.WriteStream): { columns: number; rows: number } {
+  return {
+    columns: Math.max(20, stdout.columns || 80),
+    rows: Math.max(8, (stdout.rows || 24) - 1),
+  };
+}
+
+function shortId(id: string): string {
+  return id.length > 8 ? id.slice(0, 8) : id;
+}
+
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 3)}...`;
+}
+
+function brief(value: unknown, max: number): string {
+  const raw = typeof value === "string" ? value : (JSON.stringify(value) ?? "");
+  const flat = raw.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  return `${flat.slice(0, max - 3)}...`;
+}
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }

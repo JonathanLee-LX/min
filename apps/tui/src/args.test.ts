@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseArgs } from "./args.js";
+import { helpText, parseArgs } from "./args.js";
 
 describe("tui parseArgs", () => {
   it("parses flags", () => {
@@ -14,5 +14,13 @@ describe("tui parseArgs", () => {
 
   it("parses --auto and implies yes", () => {
     expect(parseArgs(["--auto"])).toMatchObject({ auto: true, yes: true });
+  });
+
+  it("documents session commands and multiline keys", () => {
+    const help = helpText();
+    expect(help).toContain("/sessions");
+    expect(help).toContain("/open <id>");
+    expect(help).toContain("Alt+Enter");
+    expect(help).toContain("PageUp/PageDown");
   });
 });

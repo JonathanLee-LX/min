@@ -48,18 +48,33 @@ Options:
   --provider <name>   mock | deepseek | openai | anthropic
   --model <id>        provider model id
   --cwd <dir>         sandbox root
-  --session <id>      session id
+  --session <id>      resume a saved session
   --no-tools          disable workspace tools
   -y, --yes           auto-approve tool prompts once
   --auto              full-auto (bash + session grants + root grants)
   -h, --help          show help
 
+Commands:
+  /help              show this help
+  /session           current session id, title, messages, queue
+  /sessions          list saved sessions
+  /open <id>         switch to a saved session
+  /new               start a fresh session
+  /compact           summarize older turns and rewrite stored history
+  /reset             clear conversation history
+  /queue             show the follow-up queue
+  /dense <text>      queue text as a dense-latest supplement
+  /exit              quit
+
 Keys:
-  Enter               send message
-  Ctrl+C              quit (or interrupt when supported)
-  /exit               quit
-  /session            show session info
-  /reset              clear history
+  Enter              send, or queue the line while the agent is running
+  Alt+Enter, Ctrl+J  insert a newline
+  Up/Down            previous line, or input history at the ends
+  PageUp/PageDown    scroll the transcript
+  Ctrl+C             abort the run, or quit when idle
+  Ctrl+A / Ctrl+E    start / end of line
+  Ctrl+W / Ctrl+U    delete the previous word / to the line start
+  y / n / a          answer a permission prompt (no answer denies in 2 minutes)
 `;
 }
 
