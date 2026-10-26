@@ -4,6 +4,8 @@ export interface TuiArgs {
   provider?: string;
   model?: string;
   sessionId?: string;
+  /** Registered theme id. Defaults to `default`. */
+  theme?: string;
   noTools: boolean;
   yes: boolean;
   /** Full-auto permissions (implies yes). */
@@ -29,11 +31,13 @@ export function parseArgs(argv: string[]): TuiArgs {
     else if (a === "--provider") args.provider = argv[++i];
     else if (a === "--model") args.model = argv[++i];
     else if (a === "--session") args.sessionId = argv[++i];
+    else if (a === "--theme") args.theme = argv[++i];
     else if (a.startsWith("-")) throw new Error(`Unknown flag: ${a}`);
   }
 
   if (envFlagTrue(process.env.MIN_AUTO)) args.auto = true;
   if (args.auto) args.yes = true;
+  if (!args.theme && process.env.MIN_THEME?.trim()) args.theme = process.env.MIN_THEME.trim();
 
   return args;
 }
@@ -49,6 +53,7 @@ Options:
   --model <id>        provider model id
   --cwd <dir>         sandbox root
   --session <id>      resume a saved session
+  --theme <id>        registered theme id (default; MIN_THEME also works)
   --no-tools          disable workspace tools
   -y, --yes           auto-approve tool prompts once
   --auto              full-auto (bash + session grants + root grants)

@@ -6,14 +6,14 @@ import {
   type RenderSpan,
   type SpanTone,
 } from "./render.js";
+import { defaultTheme, type TuiTheme } from "./theme.js";
 import type { LogKind } from "./transcript.js";
 import { displayWidth, wrapText } from "./text.js";
 
-/** Chrome labels stay ASCII. Chat turns use a color bar instead of you/min. */
-const CHROME_GUTTER = 5;
+export type { LineTone } from "./theme.js";
+export { toneFor } from "./theme.js";
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
-  tool: "▸",
   error: "err",
   notice: "note",
   sys: "sys",
@@ -45,76 +45,33 @@ export interface PaintedRow {
   spans: PaintedSpan[];
 }
 
-export interface LineTone {
-  label?: string;
-  body?: string;
-  background?: string;
-  dimLabel: boolean;
-  dimBody: boolean;
-}
-
-/**
- * Chat turns are color blocks with no you/min labels. Tool output nests under
- * the call and stays readable. Session chrome steps back.
- */
-export function toneFor(kind: LogKind): LineTone {
-  switch (kind) {
-    case "user":
-      return {
-        label: "black",
-        body: "black",
-        background: "green",
-        dimLabel: false,
-        dimBody: false,
-      };
-    case "assistant":
-      return {
-        label: "white",
-        body: "white",
-        background: "blue",
-        dimLabel: false,
-        dimBody: false,
-      };
-    case "tool":
-      return { label: "yellow", body: "yellow", dimLabel: false, dimBody: false };
-    case "tool-result":
-      return { body: "white", dimLabel: true, dimBody: false };
-    case "tool-error":
-    case "error":
-      return { label: "red", body: "red", dimLabel: false, dimBody: false };
-    case "notice":
-      return { label: "yellow", body: "yellow", dimLabel: false, dimBody: false };
-    case "sys":
-      return { dimLabel: true, dimBody: true };
-    case "gap":
-      return { dimLabel: true, dimBody: true };
-  }
-}
-
 function frameFor(
   kind: Exclude<LogKind, "gap">,
   columns: number,
+  theme: TuiTheme,
 ): { gutter: string; blank: string; bodyWidth: number } {
+  const { frames } = theme;
   if (kind === "user" || kind === "assistant") {
-    const gutter = "▌ ";
+    const gutter = frames.chatBar;
     const width = displayWidth(gutter);
     return { gutter, blank: gutter, bodyWidth: Math.max(1, columns - width) };
   }
   if (kind === "tool-result" || kind === "tool-error") {
-    const gutter = "  │ ";
+    const gutter = frames.toolResult;
     const width = displayWidth(gutter);
     return { gutter, blank: gutter, bodyWidth: Math.max(1, columns - width) };
   }
   if (kind === "tool") {
-    const gutter = "▸ ";
+    const gutter = frames.toolMarker;
     const width = displayWidth(gutter);
-    return { gutter, blank: "  ", bodyWidth: Math.max(1, columns - width) };
+    return { gutter, blank: " ".repeat(width), bodyWidth: Math.max(1, columns - width) };
   }
-  const label = (CHROME_LABELS[kind] ?? "·").padEnd(CHROME_GUTTER, " ");
+  const chromeWidth = Math.max(1, frames.chromeWidth);
+  const label = (CHROME_LABELS[kind] ?? "·").padEnd(chromeWidth, " ");
   return {
     gutter: label,
-    blank: " ".repeat(CHROME_GUTTER),
-    bodyWidth: Math.max(1, columns - CHROME_GUTTER),
+    blank: " ".repeat(chromeWidth),
+    bodyWidth: Math.max(1, columns - chromeWidth),
   };
 }
 
@@ -142,9 +99,10 @@ export function separateTurns(lines: readonly TranscriptSource[]): TranscriptSou
 export function paintTranscript(
   lines: readonly TranscriptSource[],
   columns: number,
+  theme: TuiTheme = defaultTheme,
 ): PaintedRow[] {
   const rows: PaintedRow[] = [];
-  for (const line of separateTurns(lines)) rows.push(...paintOne(line, columns));
+  for (const line of separateTurns(lines)) rows.push(...paintOne(line, columns, theme));
   return rows;
 }
 
@@ -152,7 +110,7 @@ export function paintTranscript(
  * Reuse rows whose text did not change. Streaming then lays out only the
  * growing reply, not the history above it.
  */
-export function createPaintCache(): {
+export function createPaintCache(theme: TuiTheme = defaultTheme): {
   paint(lines: readonly TranscriptSource[], columns: number): PaintedRow[];
 } {
   const cache = new Map<string, { sig: string; rows: PaintedRow[] }>();
@@ -162,13 +120,13 @@ export function createPaintCache(): {
       const rows: PaintedRow[] = [];
       for (const line of separateTurns(lines)) {
         seen.add(line.key);
-        const sig = `${columns}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const sig = `${theme.id}\0${columns}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
         const cached = cache.get(line.key);
         if (cached?.sig === sig) {
           rows.push(...cached.rows);
           continue;
         }
-        const painted = paintOne(line, columns);
+        const painted = paintOne(line, columns, theme);
         cache.set(line.key, { sig, rows: painted });
         rows.push(...painted);
       }
@@ -180,7 +138,7 @@ export function createPaintCache(): {
   };
 }
 
-function paintOne(line: TranscriptSource, columns: number): PaintedRow[] {
+function paintOne(line: TranscriptSource, columns: number, theme: TuiTheme): PaintedRow[] {
   if (line.kind === "gap") {
     return [
       {
@@ -194,7 +152,7 @@ function paintOne(line: TranscriptSource, columns: number): PaintedRow[] {
       },
     ];
   }
-  const { gutter, blank, bodyWidth } = frameFor(line.kind, columns);
+  const { gutter, blank, bodyWidth } = frameFor(line.kind, columns, theme);
   const blocks = renderContent({
     role: roleFor(line.kind),
     text: line.text,
@@ -439,20 +397,23 @@ export function activityFrames(phase: ActivityPhase): readonly string[] {
   return FRAMES[phase];
 }
 
-export function activityFor(input: {
-  status: "idle" | "running" | "asking";
-  streaming: boolean;
-  toolName: string | null;
-  continuing: boolean;
-}): Activity | null {
+export function activityFor(
+  input: {
+    status: "idle" | "running" | "asking";
+    streaming: boolean;
+    toolName: string | null;
+    continuing: boolean;
+  },
+  theme: TuiTheme = defaultTheme,
+): Activity | null {
   if (input.status === "asking") {
-    return spec("approval", "waiting for approval", "yellow", 140);
+    return spec("approval", "waiting for approval", theme.activity.approval, 140);
   }
   if (input.status !== "running") return null;
-  if (input.toolName) return spec("tool", clipLabel(input.toolName), "cyan", 80);
-  if (input.streaming) return spec("writing", "writing", "cyan", 140);
-  if (input.continuing) return spec("continuing", "continuing", "yellow", 140);
-  return spec("thinking", "thinking", "magenta", 80);
+  if (input.toolName) return spec("tool", clipLabel(input.toolName), theme.activity.tool, 80);
+  if (input.streaming) return spec("writing", "writing", theme.activity.writing, 140);
+  if (input.continuing) return spec("continuing", "continuing", theme.activity.continuing, 140);
+  return spec("thinking", "thinking", theme.activity.thinking, 80);
 }
 
 export function frameChar(activity: Activity, frame: number): string {

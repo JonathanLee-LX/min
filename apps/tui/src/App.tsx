@@ -7,7 +7,7 @@ import {
 } from "@min-agent/client";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 import {
   TUI_HELP,
@@ -42,6 +42,7 @@ import {
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
 import { displayWidth, wrapText } from "./text.js";
+import { getTheme } from "./theme.js";
 import {
   linesFromMessages,
   summarizeToolCall,
@@ -64,6 +65,7 @@ export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { setRawMode, internal_eventEmitter } = useStdin();
+  const theme = useMemo(() => getTheme(args.theme), [args.theme]);
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);
@@ -89,7 +91,12 @@ export function App({ args }: { args: TuiArgs }) {
       setStream(text);
     });
   }
-  const paintCache = useRef(createPaintCache());
+  const paintCache = useRef(createPaintCache(theme));
+  const paintThemeId = useRef(theme.id);
+  if (paintThemeId.current !== theme.id) {
+    paintThemeId.current = theme.id;
+    paintCache.current = createPaintCache(theme);
+  }
   const viewRef = useRef({ total: 0, height: 1 });
   const inflightTools = useRef(new Map<string, string>());
   const activityRef = useRef<ReturnType<typeof activityFor>>(null);
@@ -482,12 +489,15 @@ export function App({ args }: { args: TuiArgs }) {
     };
   }, [internal_eventEmitter]);
 
-  const activity = activityFor({
-    status: statusLabel,
-    streaming: stream.length > 0,
-    toolName,
-    continuing,
-  });
+  const activity = activityFor(
+    {
+      status: statusLabel,
+      streaming: stream.length > 0,
+      toolName,
+      continuing,
+    },
+    theme,
+  );
   activityRef.current = activity;
   const activityKey = activity ? `${activity.phase}\0${activity.label}\0${activity.intervalMs}` : "";
   useEffect(() => {
@@ -508,7 +518,8 @@ export function App({ args }: { args: TuiArgs }) {
       ? ((completeIndex % suggestions.length) + suggestions.length) % suggestions.length
       : 0;
   const ghost = commandGhost(editor.text, selectedComplete);
-  const composer = `▌ ${caret.before}${caret.caret}${caret.after}${ghost}`;
+  const chatBar = theme.frames.chatBar;
+  const composer = `${chatBar}${caret.before}${caret.caret}${caret.after}${ghost}`;
   const inputRows = wrapText(composer, innerWidth).length;
   const suggestRows = suggestions.length > 0 ? 1 : 0;
   const permText = pendingPerm ? permissionLines(pendingPerm) : [];
@@ -518,11 +529,12 @@ export function App({ args }: { args: TuiArgs }) {
   const activityRows = activity ? 1 : 0;
   const reserved =
     2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + suggestRows + footerRows;
-  const userTone = toneFor("user");
+  const userTone = toneFor("user", theme);
+  const composerBody = `${caret.before}${caret.caret}${caret.after}${ghost}`;
   const composerPad = padToWidth(
-    `${caret.before}${caret.caret}${caret.after}${ghost}`,
-    Math.max(1, innerWidth - displayWidth("▌ ")),
-  ).slice(`${caret.before}${caret.caret}${caret.after}${ghost}`.length);
+    composerBody,
+    Math.max(1, innerWidth - displayWidth(chatBar)),
+  ).slice(composerBody.length);
   const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth);
   const rowCount = painted.length;
@@ -547,7 +559,7 @@ export function App({ args }: { args: TuiArgs }) {
   if (error) {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text color="red">error: {error}</Text>
+        <Text color={theme.chrome.error}>error: {error}</Text>
       </Box>
     );
   }
@@ -569,15 +581,17 @@ export function App({ args }: { args: TuiArgs }) {
   return (
     <Box flexDirection="column" paddingX={1} width={columns} height={termRows}>
       <Text wrap="truncate">
-        <Text bold>min</Text>
-        <Text dimColor>
+        <Text bold color={theme.chrome.brand}>
+          min
+        </Text>
+        <Text dimColor={theme.chrome.statusDim}>
           {` · ${status.provider} · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
         </Text>
       </Text>
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
         {layout.visible.map((row) => {
-          const tone = toneFor(row.kind);
+          const tone = toneFor(row.kind, theme);
           if (row.kind === "gap") {
             return (
               <Box key={row.key} height={1} flexShrink={0}>
@@ -621,7 +635,7 @@ export function App({ args }: { args: TuiArgs }) {
           {permText.map((line, index) => (
             <Text
               key={`${index}:${line}`}
-              color={index === 0 ? "yellow" : undefined}
+              color={index === 0 ? theme.chrome.permission : undefined}
               dimColor={index === permText.length - 1}
               wrap="wrap"
             >
@@ -634,7 +648,7 @@ export function App({ args }: { args: TuiArgs }) {
       <Box marginTop={1} width={innerWidth}>
         <Text wrap="truncate" backgroundColor={userTone.background}>
           <Text color={userTone.label} backgroundColor={userTone.background}>
-            ▌{" "}
+            {chatBar}
           </Text>
           <Text color={userTone.body} backgroundColor={userTone.background}>
             {caret.before}
@@ -662,7 +676,7 @@ export function App({ args }: { args: TuiArgs }) {
           {suggestions.map((command, index) => (
             <Text
               key={command.name}
-              color={index === selectedComplete ? "green" : undefined}
+              color={index === selectedComplete ? theme.chrome.completeSelected : undefined}
               bold={index === selectedComplete}
               dimColor={index !== selectedComplete}
             >

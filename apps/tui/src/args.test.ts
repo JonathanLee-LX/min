@@ -16,6 +16,11 @@ describe("tui parseArgs", () => {
     expect(parseArgs(["--auto"])).toMatchObject({ auto: true, yes: true });
   });
 
+  it("parses --theme", () => {
+    expect(parseArgs(["--theme", "default"])).toMatchObject({ theme: "default" });
+    expect(helpText()).toContain("--theme");
+  });
+
   it("documents session commands and multiline keys", () => {
     const help = helpText();
     expect(help).toContain("/sessions");

@@ -1,0 +1,199 @@
+import type { LogKind } from "./transcript.js";
+
+/**
+ * Visual tokens for the TUI.
+ *
+ * TODO(theme-config): load overrides from `--theme`, `MIN_THEME`, or
+ * `<cwd>/.min/theme.json`. Hosts call {@link createTheme} / {@link registerTheme};
+ * paint and App only read a resolved {@link TuiTheme}.
+ */
+
+/** Ink/chalk color name, or a hex string when the host supports it. */
+export type ThemeColor = string;
+
+export interface RoleStyle {
+  label?: ThemeColor;
+  body?: ThemeColor;
+  background?: ThemeColor;
+  dimLabel?: boolean;
+  dimBody?: boolean;
+}
+
+export interface FrameStyle {
+  /** Left bar on user / assistant / composer rows. */
+  chatBar: string;
+  /** Marker before a tool call. */
+  toolMarker: string;
+  /** Indent before tool output. */
+  toolResult: string;
+  /** Fixed width for sys / note / err labels. */
+  chromeWidth: number;
+}
+
+export interface ActivityStyle {
+  thinking: ThemeColor;
+  writing: ThemeColor;
+  tool: ThemeColor;
+  continuing: ThemeColor;
+  approval: ThemeColor;
+}
+
+export interface ChromeStyle {
+  brand: ThemeColor;
+  error: ThemeColor;
+  permission: ThemeColor;
+  completeSelected: ThemeColor;
+  statusDim: boolean;
+}
+
+export interface TuiTheme {
+  id: string;
+  name: string;
+  roles: Record<LogKind, RoleStyle>;
+  frames: FrameStyle;
+  activity: ActivityStyle;
+  chrome: ChromeStyle;
+}
+
+export type ThemeOverrides = {
+  id?: string;
+  name?: string;
+  roles?: Partial<Record<LogKind, Partial<RoleStyle>>>;
+  frames?: Partial<FrameStyle>;
+  activity?: Partial<ActivityStyle>;
+  chrome?: Partial<ChromeStyle>;
+};
+
+/** Built-in green / blue blocks. */
+export const defaultTheme: TuiTheme = {
+  id: "default",
+  name: "Default",
+  roles: {
+    user: {
+      label: "black",
+      body: "black",
+      background: "green",
+      dimLabel: false,
+      dimBody: false,
+    },
+    assistant: {
+      label: "white",
+      body: "white",
+      background: "blue",
+      dimLabel: false,
+      dimBody: false,
+    },
+    tool: {
+      label: "yellow",
+      body: "yellow",
+      dimLabel: false,
+      dimBody: false,
+    },
+    "tool-result": {
+      body: "white",
+      dimLabel: true,
+      dimBody: false,
+    },
+    "tool-error": {
+      label: "red",
+      body: "red",
+      dimLabel: false,
+      dimBody: false,
+    },
+    error: {
+      label: "red",
+      body: "red",
+      dimLabel: false,
+      dimBody: false,
+    },
+    notice: {
+      label: "yellow",
+      body: "yellow",
+      dimLabel: false,
+      dimBody: false,
+    },
+    sys: { dimLabel: true, dimBody: true },
+    gap: { dimLabel: true, dimBody: true },
+  },
+  frames: {
+    chatBar: "▌ ",
+    toolMarker: "▸ ",
+    toolResult: "  │ ",
+    chromeWidth: 5,
+  },
+  activity: {
+    thinking: "magenta",
+    writing: "cyan",
+    tool: "cyan",
+    continuing: "yellow",
+    approval: "yellow",
+  },
+  chrome: {
+    brand: "white",
+    error: "red",
+    permission: "yellow",
+    completeSelected: "green",
+    statusDim: true,
+  },
+};
+
+const registry = new Map<string, TuiTheme>([[defaultTheme.id, defaultTheme]]);
+
+/** Register a theme for later lookup by id. Replaces an existing id. */
+export function registerTheme(theme: TuiTheme): void {
+  if (!theme.id.trim()) throw new Error("theme id is required");
+  registry.set(theme.id, theme);
+}
+
+export function listThemes(): string[] {
+  return [...registry.keys()].sort();
+}
+
+export function getTheme(id?: string): TuiTheme {
+  if (!id || id === defaultTheme.id) return registry.get(defaultTheme.id) ?? defaultTheme;
+  const found = registry.get(id);
+  if (!found) throw new Error(`Unknown theme: ${id}`);
+  return found;
+}
+
+/**
+ * Build a theme from the default (or another base) plus sparse overrides.
+ * Custom themes should go through this so new role keys stay filled in.
+ */
+export function createTheme(overrides: ThemeOverrides, base: TuiTheme = defaultTheme): TuiTheme {
+  const roles = { ...base.roles } as Record<LogKind, RoleStyle>;
+  if (overrides.roles) {
+    for (const key of Object.keys(overrides.roles) as LogKind[]) {
+      const patch = overrides.roles[key];
+      if (!patch) continue;
+      roles[key] = { ...roles[key], ...patch };
+    }
+  }
+  return {
+    id: overrides.id ?? base.id,
+    name: overrides.name ?? base.name,
+    roles,
+    frames: { ...base.frames, ...overrides.frames },
+    activity: { ...base.activity, ...overrides.activity },
+    chrome: { ...base.chrome, ...overrides.chrome },
+  };
+}
+
+export interface LineTone {
+  label?: ThemeColor;
+  body?: ThemeColor;
+  background?: ThemeColor;
+  dimLabel: boolean;
+  dimBody: boolean;
+}
+
+export function toneFor(kind: LogKind, theme: TuiTheme = defaultTheme): LineTone {
+  const role = theme.roles[kind];
+  return {
+    label: role.label,
+    body: role.body,
+    background: role.background,
+    dimLabel: role.dimLabel === true,
+    dimBody: role.dimBody === true,
+  };
+}
