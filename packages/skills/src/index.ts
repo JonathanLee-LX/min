@@ -17,7 +17,6 @@ export { filesystemSkillSource } from "./filesystem.js";
 export {
   createAllowedToolsGate,
   type AllowedToolsGate,
-  type AllowedToolsGateOptions,
 } from "./allowed-tools.js";
 
 export interface SkillsExtensionOptions {
