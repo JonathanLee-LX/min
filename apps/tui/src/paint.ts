@@ -9,15 +9,11 @@ import {
 import type { LogKind } from "./transcript.js";
 import { displayWidth, wrapText } from "./text.js";
 
-/** Speaker column. Labels are ASCII and pad out to this many cells. */
-const GUTTER = 5;
+/** Chrome labels stay ASCII. Chat turns use a color bar instead of you/min. */
+const CHROME_GUTTER = 5;
 
-const LABELS: Record<Exclude<LogKind, "gap">, string> = {
-  user: "you",
-  assistant: "min",
-  tool: "tool",
-  "tool-result": "ok",
-  "tool-error": "fail",
+const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
+  tool: "▸",
   error: "err",
   notice: "note",
   sys: "sys",
@@ -52,24 +48,37 @@ export interface PaintedRow {
 export interface LineTone {
   label?: string;
   body?: string;
+  background?: string;
   dimLabel: boolean;
   dimBody: boolean;
 }
 
 /**
- * Answers stay bright. Tool traffic, notes, and session chrome step down
- * so a long tool log does not drown the reply.
+ * Chat turns are color blocks with no you/min labels. Tool output nests under
+ * the call and stays readable. Session chrome steps back.
  */
 export function toneFor(kind: LogKind): LineTone {
   switch (kind) {
     case "user":
-      return { label: "green", body: "green", dimLabel: false, dimBody: false };
+      return {
+        label: "black",
+        body: "black",
+        background: "green",
+        dimLabel: false,
+        dimBody: false,
+      };
     case "assistant":
-      return { label: "cyan", dimLabel: false, dimBody: false };
+      return {
+        label: "white",
+        body: "white",
+        background: "blue",
+        dimLabel: false,
+        dimBody: false,
+      };
     case "tool":
-      return { label: "cyan", body: "cyan", dimLabel: false, dimBody: false };
+      return { label: "yellow", body: "yellow", dimLabel: false, dimBody: false };
     case "tool-result":
-      return { label: "gray", body: "gray", dimLabel: true, dimBody: true };
+      return { body: "white", dimLabel: true, dimBody: false };
     case "tool-error":
     case "error":
       return { label: "red", body: "red", dimLabel: false, dimBody: false };
@@ -80,6 +89,40 @@ export function toneFor(kind: LogKind): LineTone {
     case "gap":
       return { dimLabel: true, dimBody: true };
   }
+}
+
+function frameFor(
+  kind: Exclude<LogKind, "gap">,
+  columns: number,
+): { gutter: string; blank: string; bodyWidth: number } {
+  if (kind === "user" || kind === "assistant") {
+    const gutter = "▌ ";
+    const width = displayWidth(gutter);
+    return { gutter, blank: gutter, bodyWidth: Math.max(1, columns - width) };
+  }
+  if (kind === "tool-result" || kind === "tool-error") {
+    const gutter = "  │ ";
+    const width = displayWidth(gutter);
+    return { gutter, blank: gutter, bodyWidth: Math.max(1, columns - width) };
+  }
+  if (kind === "tool") {
+    const gutter = "▸ ";
+    const width = displayWidth(gutter);
+    return { gutter, blank: "  ", bodyWidth: Math.max(1, columns - width) };
+  }
+  const label = (CHROME_LABELS[kind] ?? "·").padEnd(CHROME_GUTTER, " ");
+  return {
+    gutter: label,
+    blank: " ".repeat(CHROME_GUTTER),
+    bodyWidth: Math.max(1, columns - CHROME_GUTTER),
+  };
+}
+
+/** Pad a body so a background color fills the block. */
+export function padToWidth(text: string, width: number): string {
+  const used = displayWidth(text);
+  if (used >= width) return text;
+  return text + " ".repeat(width - used);
 }
 
 /** Blank line before each new user or assistant turn. */
@@ -151,17 +194,28 @@ function paintOne(line: TranscriptSource, columns: number): PaintedRow[] {
       },
     ];
   }
-  const gutter = LABELS[line.kind].padEnd(GUTTER, " ");
-  const blank = " ".repeat(GUTTER);
-  const bodyWidth = Math.max(1, columns - GUTTER);
+  const { gutter, blank, bodyWidth } = frameFor(line.kind, columns);
   const blocks = renderContent({
     role: roleFor(line.kind),
     text: line.text,
     streaming: line.streaming === true,
   });
   const rows = paintBlocks(line, blocks, gutter, blank, bodyWidth);
+  for (const row of rows) fillRowWidth(row, bodyWidth);
   if (!line.streaming) return rows;
   return appendCaret(rows, line, gutter, blank, bodyWidth);
+}
+
+function fillRowWidth(row: PaintedRow, bodyWidth: number): void {
+  const used = displayWidth(row.body);
+  if (used >= bodyWidth) {
+    row.text = row.gutter + row.body;
+    return;
+  }
+  const pad = " ".repeat(bodyWidth - used);
+  row.body += pad;
+  row.spans.push({ text: pad, tone: "plain", bold: false });
+  row.text = row.gutter + row.body;
 }
 
 function roleFor(kind: LogKind): RenderRole {
@@ -254,14 +308,18 @@ function appendCaret(
 ): PaintedRow[] {
   const caret: PaintedSpan = { text: "▍", tone: "plain", bold: false };
   const last = rows[rows.length - 1];
-  if (last && displayWidth(last.body) + displayWidth(caret.text) <= bodyWidth) {
-    last.spans.push(caret);
-    last.body += caret.text;
-    last.text += caret.text;
-    return rows;
+  if (last) {
+    // Drop the fill padding so the caret sits after the real text.
+    trimFill(last);
+    if (displayWidth(last.body) + displayWidth(caret.text) <= bodyWidth) {
+      last.spans.push(caret);
+      last.body += caret.text;
+      fillRowWidth(last, bodyWidth);
+      return rows;
+    }
   }
   const prefix = rows.length === 0 ? gutter : blank;
-  rows.push({
+  const row: PaintedRow = {
     key: `${line.key}:${rows.length}`,
     kind: line.kind,
     lead: rows.length === 0,
@@ -269,8 +327,20 @@ function appendCaret(
     body: caret.text,
     text: prefix + caret.text,
     spans: [caret],
-  });
+  };
+  fillRowWidth(row, bodyWidth);
+  rows.push(row);
   return rows;
+}
+
+function trimFill(row: PaintedRow): void {
+  while (row.spans.length > 0) {
+    const last = row.spans[row.spans.length - 1]!;
+    if (last.tone !== "plain" || !/^\s+$/.test(last.text)) break;
+    row.spans.pop();
+    row.body = row.body.slice(0, row.body.length - last.text.length);
+  }
+  row.text = row.gutter + row.body;
 }
 
 function paintSpans(spans: readonly RenderSpan[], bold: boolean): PaintedSpan[] {

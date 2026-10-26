@@ -44,6 +44,7 @@ export interface InputKey {
 export type InputAction =
   | { type: "edit"; op: EditorOp }
   | { type: "submit" }
+  | { type: "complete" }
   | { type: "scroll"; direction: "up" | "down" }
   | { type: "interrupt" }
   | { type: "ignore" };
@@ -135,7 +136,8 @@ export function inputAction(input: string, key: InputKey): InputAction {
   if (key.ctrl && input === "e") return { type: "edit", op: { op: "end" } };
   if (key.ctrl && input === "u") return { type: "edit", op: { op: "killLineStart" } };
   if (key.ctrl && input === "w") return { type: "edit", op: { op: "backspaceWord" } };
-  if (key.ctrl || key.meta || key.escape || key.tab) return { type: "ignore" };
+  if (key.tab) return { type: "complete" };
+  if (key.ctrl || key.meta || key.escape) return { type: "ignore" };
   if (!input) return { type: "ignore" };
   return { type: "edit", op: { op: "insert", text: input } };
 }

@@ -12,7 +12,7 @@ describe("summarizeToolCall", () => {
 });
 
 describe("paintTranscript", () => {
-  it("puts a speaker gutter on the first row and indents the wrap", () => {
+  it("paints chat turns as color bars without you/min labels", () => {
     const rows = paintTranscript(
       [
         { key: "u", kind: "user", text: "hello" },
@@ -20,21 +20,39 @@ describe("paintTranscript", () => {
       ],
       20,
     );
-    expect(rows[0]).toMatchObject({ kind: "user", lead: true, gutter: "you  ", body: "hello" });
+    expect(rows[0]).toMatchObject({ kind: "user", lead: true, gutter: "▌ " });
+    expect(rows[0]?.body.trimEnd()).toBe("hello");
+    expect(rows[0]?.gutter).not.toContain("you");
     const assistant = rows.filter((row) => row.kind === "assistant");
     expect(assistant.length).toBe(3);
     expect(assistant[0]?.lead).toBe(true);
-    expect(assistant[0]?.gutter.startsWith("min")).toBe(true);
-    expect(assistant[1]?.gutter).toBe("     ");
-    expect(assistant[1]?.body.length).toBe(15);
+    expect(assistant[0]?.gutter).toBe("▌ ");
+    expect(assistant[0]?.gutter).not.toContain("min");
+    expect(assistant[1]?.gutter).toBe("▌ ");
+    expect(displayWidth(assistant[1]!.body.trimEnd())).toBe(18);
     const layout = layoutViewport(rows, 20, 50, 0);
     expect(layout.total).toBe(rows.length);
+  });
+
+  it("nests tool output under the call so the body stays visible", () => {
+    const rows = paintTranscript(
+      [
+        { key: "t", kind: "tool", text: "bash  ls" },
+        { key: "r", kind: "tool-result", text: "apps\npackages\nREADME.md" },
+      ],
+      40,
+    );
+    expect(rows[0]).toMatchObject({ kind: "tool", gutter: "▸ ", body: expect.stringContaining("bash  ls") });
+    const output = rows.filter((row) => row.kind === "tool-result");
+    expect(output.map((row) => row.body.trimEnd())).toEqual(["apps", "packages", "README.md"]);
+    expect(output.every((row) => row.gutter === "  │ ")).toBe(true);
+    expect(output.every((row) => !row.gutter.includes("ok"))).toBe(true);
   });
 
   it("keeps a long answer by wrapping instead of dropping the tail", () => {
     const text = "a".repeat(100);
     const rows = paintTranscript([{ key: "a", kind: "assistant", text }], 25);
-    expect(rows.map((row) => row.body).join("")).toBe(text);
+    expect(rows.map((row) => row.body.trimEnd()).join("")).toBe(text);
     for (const row of rows) expect(displayWidth(row.text)).toBeLessThanOrEqual(25);
   });
 

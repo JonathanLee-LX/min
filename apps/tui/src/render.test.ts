@@ -81,7 +81,7 @@ describe("paint markdown", () => {
       40,
     );
     expect(code[0]?.spans[0]).toMatchObject({ text: "ts", tone: "dim" });
-    expect(code[1]?.body).toBe("const value = 1");
+    expect(code[1]?.body.trimEnd()).toBe("const value = 1");
     expect(code[1]?.spans[0]?.tone).toBe("code");
   });
 
@@ -90,8 +90,8 @@ describe("paint markdown", () => {
       [{ key: "s", kind: "assistant", text: "```\ncode", streaming: true }],
       40,
     );
-    expect(rows.map((row) => row.body).join("")).not.toContain("▍code");
-    expect(rows[rows.length - 1]?.body.endsWith("▍")).toBe(true);
+    expect(rows.map((row) => row.body.trimEnd()).join("")).not.toContain("▍code");
+    expect(rows[rows.length - 1]?.body.trimEnd().endsWith("▍")).toBe(true);
     expect(rows.some((row) => row.spans.some((span) => span.tone === "code" && span.text === "code"))).toBe(
       true,
     );

@@ -26,6 +26,26 @@ export type SubmitRoute =
   | { type: "command"; command: TuiCommand }
   | { type: "busy-blocked"; name: string };
 
+export interface CommandSpec {
+  name: string;
+  hint: string;
+  /** Commands that take an argument get a trailing space when completed. */
+  arg?: boolean;
+}
+
+export const TUI_COMMANDS: readonly CommandSpec[] = [
+  { name: "help", hint: "show this help" },
+  { name: "session", hint: "current session id, title, messages, queue" },
+  { name: "sessions", hint: "list saved sessions" },
+  { name: "open", hint: "switch to a saved session", arg: true },
+  { name: "new", hint: "start a fresh session" },
+  { name: "compact", hint: "summarize older turns and rewrite stored history" },
+  { name: "reset", hint: "clear conversation history" },
+  { name: "queue", hint: "show the follow-up queue" },
+  { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
+  { name: "exit", hint: "quit" },
+];
+
 export const TUI_HELP = `Commands:
   /help              show this help
   /session           current session id, title, messages, queue
@@ -40,12 +60,39 @@ export const TUI_HELP = `Commands:
 
 Keys:
   Enter              send, or queue while the agent is running
+  Tab                complete a /command
   Alt+Enter, Ctrl+J  insert a newline
   Up/Down            previous line, or input history at the ends
   PageUp/PageDown    scroll the transcript
   Ctrl+C             abort the run, or quit when idle
   Ctrl+A / Ctrl+E    start / end of line
   Ctrl+W / Ctrl+U    delete previous word / to line start`;
+
+/** Slash command names matching a draft that has no arguments yet. */
+export function commandSuggestions(text: string): CommandSpec[] {
+  const match = /^\/([^\s]*)$/.exec(text);
+  if (!match) return [];
+  const prefix = (match[1] ?? "").toLowerCase();
+  return TUI_COMMANDS.filter((command) => command.name.startsWith(prefix));
+}
+
+/** Ghost suffix for the selected match, not including the typed prefix. */
+export function commandGhost(text: string, selected: number): string {
+  const matches = commandSuggestions(text);
+  if (matches.length === 0) return "";
+  const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
+  const typed = text.slice(1).toLowerCase();
+  const rest = pick.name.slice(typed.length);
+  return `${rest}${pick.arg ? " " : ""}`;
+}
+
+/** Replace the draft with the selected slash command. */
+export function applyCommandCompletion(text: string, selected: number): string | null {
+  const matches = commandSuggestions(text);
+  if (matches.length === 0) return null;
+  const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
+  return `/${pick.name}${pick.arg ? " " : ""}`;
+}
 
 const BUSY_BLOCKED = new Set(["open", "new", "reset", "compact"]);
 

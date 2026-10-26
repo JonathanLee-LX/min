@@ -11,6 +11,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 import {
   TUI_HELP,
+  applyCommandCompletion,
+  commandGhost,
+  commandSuggestions,
   formatCompact,
   formatQueue,
   formatSession,
@@ -28,10 +31,17 @@ import {
   type InputKey,
 } from "./editor.js";
 import { decodeInput } from "./keys.js";
-import { activityFor, createPaintCache, frameChar, toneFor, type TranscriptSource } from "./paint.js";
+import {
+  activityFor,
+  createPaintCache,
+  frameChar,
+  padToWidth,
+  toneFor,
+  type TranscriptSource,
+} from "./paint.js";
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
-import { wrapText } from "./text.js";
+import { displayWidth, wrapText } from "./text.js";
 import {
   linesFromMessages,
   summarizeToolCall,
@@ -67,6 +77,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [continuing, setContinuing] = useState(false);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [scroll, setScroll] = useState(0);
+  const [completeIndex, setCompleteIndex] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [seenMeasure, setSeenMeasure] = useState({ rows: 0, columns: 0 });
   const seq = useRef(0);
@@ -422,7 +433,24 @@ export function App({ args }: { args: TuiArgs }) {
       }
       return;
     }
+    if (action.type === "complete") {
+      const next = applyCommandCompletion(editor.text, completeIndex);
+      if (next === null) return;
+      setEditor((current) => ({ ...current, text: next, cursor: next.length }));
+      setCompleteIndex(0);
+      return;
+    }
     if (action.type === "edit") {
+      const matches = commandSuggestions(editor.text);
+      if (matches.length > 0 && (action.op.op === "up" || action.op.op === "down")) {
+        const direction = action.op.op;
+        const count = matches.length;
+        setCompleteIndex((current) =>
+          direction === "down" ? (current + 1) % count : (current - 1 + count) % count,
+        );
+        return;
+      }
+      setCompleteIndex(0);
       setEditor((current) => reduceEditor(current, action.op));
       return;
     }
@@ -430,6 +458,7 @@ export function App({ args }: { args: TuiArgs }) {
       if (!clientRef.current) return;
       const committed = commitEditor(editor);
       setEditor(committed.state);
+      setCompleteIndex(0);
       if (!committed.text) return;
       setScroll(0);
       void submitLine(committed.text);
@@ -473,14 +502,27 @@ export function App({ args }: { args: TuiArgs }) {
   const termRows = size.rows;
   const innerWidth = Math.max(1, columns - 2);
   const caret = editorCaret(editor);
-  const composer = `you  ${caret.before}${caret.caret}${caret.after}`;
+  const suggestions = commandSuggestions(editor.text);
+  const selectedComplete =
+    suggestions.length > 0
+      ? ((completeIndex % suggestions.length) + suggestions.length) % suggestions.length
+      : 0;
+  const ghost = commandGhost(editor.text, selectedComplete);
+  const composer = `▌ ${caret.before}${caret.caret}${caret.after}${ghost}`;
   const inputRows = wrapText(composer, innerWidth).length;
+  const suggestRows = suggestions.length > 0 ? 1 : 0;
   const permText = pendingPerm ? permissionLines(pendingPerm) : [];
   const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const footer = footerLines(busy, pendingPerm !== null);
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const activityRows = activity ? 1 : 0;
-  const reserved = 2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + footerRows;
+  const reserved =
+    2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + suggestRows + footerRows;
+  const userTone = toneFor("user");
+  const composerPad = padToWidth(
+    `${caret.before}${caret.caret}${caret.after}${ghost}`,
+    Math.max(1, innerWidth - displayWidth("▌ ")),
+  ).slice(`${caret.before}${caret.caret}${caret.after}${ghost}`.length);
   const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth);
   const rowCount = painted.length;
@@ -545,15 +587,18 @@ export function App({ args }: { args: TuiArgs }) {
           }
           return (
             <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
-              <Text wrap="truncate">
-                <Text bold={row.lead} color={tone.label} dimColor={tone.dimLabel}>
-                  {row.gutter}
-                </Text>
+              <Text wrap="truncate" backgroundColor={tone.background}>
+                {row.gutter ? (
+                  <Text bold={row.lead} color={tone.label} dimColor={tone.dimLabel} backgroundColor={tone.background}>
+                    {row.gutter}
+                  </Text>
+                ) : null}
                 {row.spans.map((span, spanIndex) => (
                   <Text
                     key={spanIndex}
                     bold={span.bold}
                     color={tone.body}
+                    backgroundColor={tone.background}
                     dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}
                   >
                     {span.text}
@@ -586,12 +631,47 @@ export function App({ args }: { args: TuiArgs }) {
         </Box>
       ) : null}
 
-      <Box marginTop={1}>
-        <Text color="green">you{"  "}</Text>
-        <Text>{caret.before}</Text>
-        <Text inverse>{caret.caret}</Text>
-        <Text>{caret.after}</Text>
+      <Box marginTop={1} width={innerWidth}>
+        <Text wrap="truncate" backgroundColor={userTone.background}>
+          <Text color={userTone.label} backgroundColor={userTone.background}>
+            ▌{" "}
+          </Text>
+          <Text color={userTone.body} backgroundColor={userTone.background}>
+            {caret.before}
+          </Text>
+          <Text color={userTone.body} backgroundColor={userTone.background} inverse>
+            {caret.caret}
+          </Text>
+          <Text color={userTone.body} backgroundColor={userTone.background}>
+            {caret.after}
+          </Text>
+          {ghost ? (
+            <Text color={userTone.body} backgroundColor={userTone.background} dimColor>
+              {ghost}
+            </Text>
+          ) : null}
+          {composerPad ? (
+            <Text color={userTone.body} backgroundColor={userTone.background}>
+              {composerPad}
+            </Text>
+          ) : null}
+        </Text>
       </Box>
+      {suggestions.length > 0 ? (
+        <Text wrap="truncate">
+          {suggestions.map((command, index) => (
+            <Text
+              key={command.name}
+              color={index === selectedComplete ? "green" : undefined}
+              bold={index === selectedComplete}
+              dimColor={index !== selectedComplete}
+            >
+              {`${index === 0 ? "" : "  "}/${command.name}`}
+            </Text>
+          ))}
+          <Text dimColor>{`  · Tab · ↑↓`}</Text>
+        </Text>
+      ) : null}
       {footer.map((line) => (
         <Text key={line} dimColor wrap="wrap">
           {line}
@@ -619,7 +699,7 @@ function footerLines(busy: boolean, pending: boolean): string[] {
     ];
   }
   return [
-    `Enter ${busy ? "queues" : "sends"} · Alt+Enter newline · ↑↓ history · PgUp/PgDn scroll · Ctrl+C ${busy ? "abort" : "quit"}`,
+    `Enter ${busy ? "queues" : "sends"} · Tab completes /cmd · Alt+Enter newline · ↑↓ history · PgUp/PgDn scroll · Ctrl+C ${busy ? "abort" : "quit"}`,
     "/help /session /sessions /open /new /compact /reset /queue /dense /exit",
   ];
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatCompact, formatQueue, parseTuiCommand, routeSubmit } from "./commands.js";
+import {
+  applyCommandCompletion,
+  commandGhost,
+  commandSuggestions,
+  formatCompact,
+  formatQueue,
+  parseTuiCommand,
+  routeSubmit,
+} from "./commands.js";
 
 describe("routeSubmit", () => {
   it("sends plain text when idle and queues it while busy", () => {
@@ -45,5 +53,22 @@ describe("routeSubmit", () => {
         messageCount: 2,
       }),
     ).toContain("nothing to summarize");
+  });
+});
+
+describe("command completion", () => {
+  it("lists slash matches and completes the selected one", () => {
+    expect(commandSuggestions("hello")).toEqual([]);
+    expect(commandSuggestions("/he").map((command) => command.name)).toEqual(["help"]);
+    expect(commandSuggestions("/s").map((command) => command.name)).toEqual([
+      "session",
+      "sessions",
+    ]);
+    expect(commandSuggestions("/open x")).toEqual([]);
+    expect(applyCommandCompletion("/he", 0)).toBe("/help");
+    expect(applyCommandCompletion("/op", 0)).toBe("/open ");
+    expect(applyCommandCompletion("/s", 1)).toBe("/sessions");
+    expect(commandGhost("/s", 0)).toBe("ession");
+    expect(commandGhost("/s", 1)).toBe("essions");
   });
 });
