@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { createAgent } from "./agent.js";
 import * as core from "./index.js";
 import {
   assistantMessage,
@@ -16,6 +17,7 @@ import {
   toolResultPart,
   userMessage,
 } from "./messages.js";
+import { mockProvider } from "./provider.js";
 import { defineTool, ToolRegistry } from "./tools.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,11 +42,37 @@ const PUBLIC_EXPORTS = [
   "userMessage",
 ].sort();
 
+const RUN_EVENT_TYPES = [
+  "done",
+  "error",
+  "text_delta",
+  "tool_call",
+  "tool_result",
+  "turn_end",
+  "turn_start",
+].sort();
+
 const VENDOR_IMPORT = /from\s+["'](@anthropic-ai\/sdk|openai|@modelcontextprotocol\/sdk)["']/;
 
 describe("core architecture contracts", () => {
   it("exposes a stable public API surface", () => {
     expect(Object.keys(core).sort()).toEqual(PUBLIC_EXPORTS);
+  });
+
+  it("freezes RunEvent discriminants without a permission event", () => {
+    const source = readFileSync(path.join(ROOT, "src", "types.ts"), "utf8");
+    const block =
+      source.match(/export type RunEvent\s*=([\s\S]*?)\nexport /)?.[1] ?? "";
+    const types = [...block.matchAll(/type:\s*"([a-z_]+)"/g)].map((match) => match[1]!);
+    expect([...new Set(types)].sort()).toEqual(RUN_EVENT_TYPES);
+    expect(types).not.toContain("permission");
+  });
+
+  it("keeps Agent free of a permissions API", async () => {
+    const agent = await createAgent({ provider: mockProvider([{ text: "ok" }]) });
+    expect(Object.keys(agent).sort()).toEqual(["dispose", "provider", "run", "tools"]);
+    expect("permissions" in agent).toBe(false);
+    await agent.dispose();
   });
 
   it("stays provider-agnostic: no vendor SDK imports in core source", () => {

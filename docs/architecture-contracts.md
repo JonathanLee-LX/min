@@ -31,11 +31,17 @@ apps    ← client (+ config for TUI)
 |------|----------|
 | Core tools | `ToolRegistry.execute` returns `{ isError }` instead of throwing to the model |
 | Core types | Messages use `ContentPart` (`text` / `tool_call` / `tool_result`) |
-| Session | Canonical `session.messages` stay full; assemblers only change the model view |
-| Runtime | Default tool set has no MCP; permissions live on the runtime, not the agent |
-| Client | `tool_end` always carries `preview` + `content`; event discriminants are frozen |
-| Config | Unknown JSON keys go under `extensions`; `version` is 1 |
-| Tools | Sandbox rejects `..` escapes; permission rules file is `version: 1` |
+| Core events | `RunEvent` is `turn_start\|text_delta\|tool_call\|tool_result\|turn_end\|done\|error` — no `permission` |
+| Core agent | `Agent` keys are `provider` / `tools` / `run` / `dispose` only |
+| Session | Canonical `session.messages` stay full; assemblers only change the model view; `bindPermissionAsk` clears after run |
+| Runtime | Default tool set has no MCP; permissions live on the runtime; deny → `tool_result.isError` then `done` |
+| Client | `tool_end` always carries `preview` + `content`; `ClientEvent` / `MinClient` surfaces frozen; `done` is not a ClientEvent |
+| Client grants | `persistPermissionGrants: false` must not write `.min/permissions.json` |
+| Config | Unknown JSON keys go under `extensions`; `version` is 1; permissions/sessions stay sidecars |
+| Sidecar paths | `config.permissionRulesPath` formula matches `tools.permissionRulesPath`; sessions live under `.min/sessions` |
+| Tools | Sandbox rejects `..` escapes; permission rules file is `version: 1`; `grantRoot` is the escaped dir |
+| Skills | `appendSystem` grows on catalog + `load_skill`; `allowed-tools` pre-approve only |
+| Providers | Adapter results expose only core part types (`text` / `tool_call`) |
 
 ## Changing a contract
 

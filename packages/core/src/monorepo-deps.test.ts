@@ -60,4 +60,41 @@ describe("monorepo dependency direction", () => {
       Object.keys(core.dependencies ?? {}).filter((name) => name.startsWith("@min-agent/")),
     ).toEqual([]);
   });
+
+  it("keeps config and tools permissionRulesPath formulas identical", () => {
+    const configPaths = readFileSync(
+      path.join(PACKAGES, "config", "src", "paths.ts"),
+      "utf8",
+    );
+    const toolsGrants = readFileSync(
+      path.join(PACKAGES, "tools", "src", "grants.ts"),
+      "utf8",
+    );
+    const extract = (source: string, name: string) => {
+      const match = source.match(
+        new RegExp(`export function ${name}\\([^)]*\\)[^{]*\\{([^}]+)\\}`),
+      );
+      expect(match, `${name} missing`).toBeTruthy();
+      return match![1]!.replace(/\s+/g, " ").trim();
+    };
+    expect(extract(configPaths, "permissionRulesPath")).toBe(
+      extract(toolsGrants, "permissionRulesPath"),
+    );
+    expect(extract(configPaths, "permissionRulesPath")).toContain(
+      '.min", "permissions.json"',
+    );
+  });
+
+  it("keeps config defaultSessionDir aligned with runtime sessionDirFor", () => {
+    const configPaths = readFileSync(
+      path.join(PACKAGES, "config", "src", "paths.ts"),
+      "utf8",
+    );
+    const runtime = readFileSync(
+      path.join(PACKAGES, "runtime", "src", "runtime.ts"),
+      "utf8",
+    );
+    expect(configPaths).toContain('.min", "sessions"');
+    expect(runtime).toMatch(/\.min\/sessions/);
+  });
 });

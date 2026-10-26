@@ -89,6 +89,50 @@ describe("client architecture contracts", () => {
     expect("RunEvent" in clientApi).toBe(false);
   });
 
+  it("freezes MinClient method surface for UI hosts", async () => {
+    const client = await createClient({
+      cwd: process.cwd(),
+      provider: mockProvider([{ text: "ready" }]),
+      noTools: true,
+      noSessionStore: true,
+    });
+    expect(Object.keys(client).sort()).toEqual(
+      [
+        "abort",
+        "advanced",
+        "compact",
+        "dispose",
+        "getSession",
+        "getStatus",
+        "listSessions",
+        "newSession",
+        "openSession",
+        "queue",
+        "reset",
+        "respondPermission",
+        "send",
+        "subscribe",
+      ].sort(),
+    );
+    await client.dispose();
+  });
+
+  it("drops core done events — they are not ClientEvents", () => {
+    const translator = createEventTranslator();
+    expect(
+      translator.push({
+        type: "done",
+        messages: [],
+      }),
+    ).toEqual([]);
+    expect(
+      translator.push({
+        type: "turn_start",
+        turn: 1,
+      }),
+    ).toEqual([]);
+  });
+
   it("reports idle with a status snapshot after a simple turn", async () => {
     const events: ClientEvent[] = [];
     const client = await createClient({
