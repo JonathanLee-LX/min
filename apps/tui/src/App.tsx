@@ -28,7 +28,8 @@ import {
   type InputKey,
 } from "./editor.js";
 import { decodeInput } from "./keys.js";
-import { activityFor, frameChar, paintTranscript, toneFor, type TranscriptSource } from "./paint.js";
+import { activityFor, createPaintCache, frameChar, toneFor, type TranscriptSource } from "./paint.js";
+import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
 import { wrapText } from "./text.js";
 import {
@@ -70,7 +71,14 @@ export function App({ args }: { args: TuiArgs }) {
   const [seenMeasure, setSeenMeasure] = useState({ rows: 0, columns: 0 });
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
-  const streamBuf = useRef("");
+  const pumpRef = useRef<StreamPump | null>(null);
+  if (pumpRef.current === null) {
+    pumpRef.current = createStreamPump((text) => {
+      setContinuing(false);
+      setStream(text);
+    });
+  }
+  const paintCache = useRef(createPaintCache());
   const viewRef = useRef({ total: 0, height: 1 });
   const inflightTools = useRef(new Map<string, string>());
   const activityRef = useRef<ReturnType<typeof activityFor>>(null);
@@ -94,7 +102,7 @@ export function App({ args }: { args: TuiArgs }) {
       }),
     );
     setScroll(0);
-    streamBuf.current = "";
+    pumpRef.current?.reset();
     setStream("");
   }, []);
 
@@ -159,13 +167,12 @@ export function App({ args }: { args: TuiArgs }) {
             return;
           }
           if (event.type === "assistant_delta") {
-            setContinuing(false);
-            streamBuf.current += event.text;
-            setStream(streamBuf.current);
+            pumpRef.current?.push(event.text);
             return;
           }
           if (event.type === "assistant_done") {
-            streamBuf.current = "";
+            pumpRef.current?.reset();
+            setContinuing(false);
             setStream("");
             if (event.text) pushLine("assistant", event.text);
             return;
@@ -475,7 +482,7 @@ export function App({ args }: { args: TuiArgs }) {
   const activityRows = activity ? 1 : 0;
   const reserved = 2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + footerRows;
   const logHeight = Math.max(1, termRows - reserved);
-  const painted = paintTranscript(toDisplayLines(logs, stream), innerWidth);
+  const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth);
   const rowCount = painted.length;
 
   if (client) {

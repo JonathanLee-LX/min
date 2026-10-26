@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityFor, activityFrames, paintTranscript } from "./paint.js";
+import { activityFor, activityFrames, createPaintCache, paintTranscript } from "./paint.js";
 import { layoutViewport, summarizeToolCall } from "./transcript.js";
 import { displayWidth } from "./text.js";
 
@@ -74,6 +74,29 @@ describe("paintTranscript", () => {
       40,
     );
     expect(rows.map((row) => row.kind)).toEqual(["tool", "tool-result", "gap", "assistant"]);
+  });
+});
+
+describe("createPaintCache", () => {
+  it("keeps unchanged rows and only relayouts the growing reply", () => {
+    const cache = createPaintCache();
+    const first = cache.paint(
+      [
+        { key: "u", kind: "user", text: "hello" },
+        { key: "stream", kind: "assistant", text: "ab", streaming: true },
+      ],
+      40,
+    );
+    const second = cache.paint(
+      [
+        { key: "u", kind: "user", text: "hello" },
+        { key: "stream", kind: "assistant", text: "abcdef", streaming: true },
+      ],
+      40,
+    );
+    expect(second[0]).toBe(first[0]);
+    expect(second.map((row) => row.body).join("")).toContain("abcdef");
+    expect(second.at(-1)).not.toBe(first.at(-1));
   });
 });
 

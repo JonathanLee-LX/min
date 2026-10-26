@@ -105,6 +105,38 @@ export function paintTranscript(
   return rows;
 }
 
+/**
+ * Reuse rows whose text did not change. Streaming then lays out only the
+ * growing reply, not the history above it.
+ */
+export function createPaintCache(): {
+  paint(lines: readonly TranscriptSource[], columns: number): PaintedRow[];
+} {
+  const cache = new Map<string, { sig: string; rows: PaintedRow[] }>();
+  return {
+    paint(lines, columns) {
+      const seen = new Set<string>();
+      const rows: PaintedRow[] = [];
+      for (const line of separateTurns(lines)) {
+        seen.add(line.key);
+        const sig = `${columns}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const cached = cache.get(line.key);
+        if (cached?.sig === sig) {
+          rows.push(...cached.rows);
+          continue;
+        }
+        const painted = paintOne(line, columns);
+        cache.set(line.key, { sig, rows: painted });
+        rows.push(...painted);
+      }
+      for (const key of cache.keys()) {
+        if (!seen.has(key)) cache.delete(key);
+      }
+      return rows;
+    },
+  };
+}
+
 function paintOne(line: TranscriptSource, columns: number): PaintedRow[] {
   if (line.kind === "gap") {
     return [
