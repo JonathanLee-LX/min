@@ -2,6 +2,7 @@ import {
   createAutoPermissionApprover,
   createClient,
   type ClientEvent,
+  type ClientStatus,
   type MinClient,
 } from "@min-agent/client";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
@@ -27,11 +28,12 @@ import {
   type InputKey,
 } from "./editor.js";
 import { decodeInput } from "./keys.js";
+import { activityFor, frameChar, paintTranscript, toneFor, type TranscriptSource } from "./paint.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
 import { wrapText } from "./text.js";
 import {
   linesFromMessages,
-  transcriptRowCount,
+  summarizeToolCall,
   layoutViewport,
   type LogKind,
   type LogLine,
@@ -47,12 +49,6 @@ interface PendingPermission {
   grantRoot?: string;
 }
 
-interface DisplayLine {
-  key: string;
-  kind: LogKind;
-  text: string;
-}
-
 export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
@@ -61,11 +57,14 @@ export function App({ args }: { args: TuiArgs }) {
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);
   const [busy, setBusy] = useState(false);
-  const [statusLabel, setStatusLabel] = useState("idle");
+  const [statusLabel, setStatusLabel] = useState<ClientStatus>("idle");
   const [queueSize, setQueueSize] = useState(0);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [stream, setStream] = useState("");
   const [pendingPerm, setPendingPerm] = useState<PendingPermission | null>(null);
+  const [toolName, setToolName] = useState<string | null>(null);
+  const [continuing, setContinuing] = useState(false);
+  const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [scroll, setScroll] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [seenMeasure, setSeenMeasure] = useState({ rows: 0, columns: 0 });
@@ -73,6 +72,8 @@ export function App({ args }: { args: TuiArgs }) {
   const clientRef = useRef<MinClient | null>(null);
   const streamBuf = useRef("");
   const viewRef = useRef({ total: 0, height: 1 });
+  const inflightTools = useRef(new Map<string, string>());
+  const activityRef = useRef<ReturnType<typeof activityFor>>(null);
 
   const pushLine = useCallback((kind: LogKind, text: string) => {
     seq.current += 1;
@@ -148,10 +149,17 @@ export function App({ args }: { args: TuiArgs }) {
             setStatusLabel(event.status);
             setBusy(event.status !== "idle");
             if (event.status !== "asking") setPendingPerm(null);
+            if (event.status === "idle") {
+              inflightTools.current.clear();
+              setToolName(null);
+              setContinuing(false);
+            }
+            if (event.status === "asking") setContinuing(false);
             syncQueue();
             return;
           }
           if (event.type === "assistant_delta") {
+            setContinuing(false);
             streamBuf.current += event.text;
             setStream(streamBuf.current);
             return;
@@ -163,11 +171,21 @@ export function App({ args }: { args: TuiArgs }) {
             return;
           }
           if (event.type === "tool_start") {
-            pushLine("tool", `→ ${event.name} ${brief(event.args, 400)}`);
+            inflightTools.current.set(event.toolCallId, event.name);
+            setToolName(event.name);
+            setContinuing(false);
+            pushLine("tool", summarizeToolCall(event.name, event.args));
             return;
           }
           if (event.type === "tool_end") {
-            pushLine("tool", `${event.ok ? "← " : "← ERR "}${event.preview}`);
+            inflightTools.current.delete(event.toolCallId);
+            const names = [...inflightTools.current.values()];
+            setToolName(names.length > 0 ? names[names.length - 1]! : null);
+            const preview = event.preview.trim();
+            pushLine(
+              event.ok ? "tool-result" : "tool-error",
+              preview || (event.ok ? "(no output)" : "(failed)"),
+            );
             return;
           }
           if (event.type === "queued") {
@@ -175,12 +193,13 @@ export function App({ args }: { args: TuiArgs }) {
             return;
           }
           if (event.type === "follow_up") {
-            pushLine("sys", `follow-up: ${clip(event.texts.join(" | "), 160)}`);
+            setContinuing(true);
+            pushLine("notice", `follow-up: ${clip(event.texts.join(" | "), 160)}`);
             syncQueue();
             return;
           }
           if (event.type === "error") {
-            pushLine("sys", event.aborted ? "aborted" : event.message);
+            pushLine("error", event.aborted ? "aborted" : event.message);
             return;
           }
           if (event.type === "permission") {
@@ -265,7 +284,7 @@ export function App({ args }: { args: TuiArgs }) {
           const metas = await live.listSessions();
           pushLine("sys", formatSessionList(metas, live.getSession().id));
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
@@ -278,7 +297,7 @@ export function App({ args }: { args: TuiArgs }) {
           await live.openSession(command.id);
           pushLine("sys", `opened ${live.getSession().id}`);
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
@@ -287,7 +306,7 @@ export function App({ args }: { args: TuiArgs }) {
           await live.newSession();
           pushLine("sys", `new session ${live.getSession().id}`);
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
@@ -295,7 +314,7 @@ export function App({ args }: { args: TuiArgs }) {
         try {
           pushLine("sys", formatCompact(await live.compact()));
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
@@ -304,7 +323,7 @@ export function App({ args }: { args: TuiArgs }) {
           live.reset();
           pushLine("sys", "history cleared");
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
@@ -322,7 +341,7 @@ export function App({ args }: { args: TuiArgs }) {
           setQueueSize(live.queue.size);
           pushLine("sys", `queued dense-latest (size=${live.queue.size})`);
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
@@ -331,7 +350,7 @@ export function App({ args }: { args: TuiArgs }) {
         try {
           await live.send(command.text);
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
       }
     },
@@ -354,12 +373,12 @@ export function App({ args }: { args: TuiArgs }) {
             await live.send(route.text);
           }
         } catch (err) {
-          pushLine("sys", messageOf(err));
+          pushLine("error", messageOf(err));
         }
         return;
       }
       if (route.type === "busy-blocked") {
-        pushLine("sys", `/${route.name} is unavailable while the agent is running`);
+        pushLine("notice", `/${route.name} is unavailable while the agent is running`);
         return;
       }
       await runCommand(live, route.command);
@@ -427,6 +446,22 @@ export function App({ args }: { args: TuiArgs }) {
     };
   }, [internal_eventEmitter]);
 
+  const activity = activityFor({
+    status: statusLabel,
+    streaming: stream.length > 0,
+    toolName,
+    continuing,
+  });
+  activityRef.current = activity;
+  const activityKey = activity ? `${activity.phase}\0${activity.label}\0${activity.intervalMs}` : "";
+  useEffect(() => {
+    if (!activityKey) return;
+    setSpinnerFrame(0);
+    const interval = activityRef.current?.intervalMs ?? 80;
+    const timer = setInterval(() => setSpinnerFrame((frame) => frame + 1), interval);
+    return () => clearInterval(timer);
+  }, [activityKey]);
+
   const columns = size.columns;
   const termRows = size.rows;
   const innerWidth = Math.max(1, columns - 2);
@@ -437,10 +472,11 @@ export function App({ args }: { args: TuiArgs }) {
   const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const footer = footerLines(busy, pendingPerm !== null);
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
-  const reserved = 2 + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + footerRows;
+  const activityRows = activity ? 1 : 0;
+  const reserved = 2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + footerRows;
   const logHeight = Math.max(1, termRows - reserved);
-  const displayLines = toDisplayLines(logs, stream);
-  const rowCount = transcriptRowCount(displayLines, innerWidth);
+  const painted = paintTranscript(toDisplayLines(logs, stream), innerWidth);
+  const rowCount = painted.length;
 
   if (client) {
     const columnsChanged = innerWidth !== seenMeasure.columns;
@@ -457,7 +493,7 @@ export function App({ args }: { args: TuiArgs }) {
   }
 
   viewRef.current = { total: rowCount, height: logHeight };
-  const layout = layoutViewport(displayLines, innerWidth, logHeight, scroll);
+  const layout = layoutViewport(painted, innerWidth, logHeight, scroll);
 
   if (error) {
     return (
@@ -491,16 +527,29 @@ export function App({ args }: { args: TuiArgs }) {
       </Text>
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
-        {layout.visible.map((row, index) => (
-          <Text
-            key={`${row.source.key}:${layout.hiddenAbove + index}`}
-            color={lineColor(row.source.kind)}
-            wrap="truncate"
-          >
-            {row.text}
-          </Text>
-        ))}
+        {layout.visible.map((row, index) => {
+          const tone = toneFor(row.source.kind);
+          if (row.source.kind === "gap") {
+            return <Text key={`${row.source.key}:${layout.hiddenAbove + index}`}> </Text>;
+          }
+          return (
+            <Text key={`${row.source.key}:${layout.hiddenAbove + index}`} wrap="truncate">
+              <Text bold={row.source.lead} color={tone.label} dimColor={tone.dimLabel}>
+                {row.source.gutter}
+              </Text>
+              <Text color={tone.body} dimColor={tone.dimBody}>
+                {row.source.body}
+              </Text>
+            </Text>
+          );
+        })}
       </Box>
+
+      {activity ? (
+        <Text color={activity.color}>
+          {frameChar(activity, spinnerFrame)} {activity.label}
+        </Text>
+      ) : null}
 
       {permText.length > 0 ? (
         <Box flexDirection="column" marginTop={1}>
@@ -532,29 +581,14 @@ export function App({ args }: { args: TuiArgs }) {
   );
 }
 
-function toDisplayLines(logs: readonly LogLine[], stream: string): DisplayLine[] {
-  const lines = logs.map((line) => ({
+function toDisplayLines(logs: readonly LogLine[], stream: string): TranscriptSource[] {
+  const lines: TranscriptSource[] = logs.map((line) => ({
     key: String(line.id),
     kind: line.kind,
-    text: prefixed(line),
+    text: line.text,
   }));
-  if (stream) {
-    lines.push({ key: "stream", kind: "assistant", text: `min  ${stream}▍` });
-  }
+  if (stream) lines.push({ key: "stream", kind: "assistant", text: `${stream}▍` });
   return lines;
-}
-
-function prefixed(line: LogLine): string {
-  if (line.kind === "user") return `you  ${line.text}`;
-  if (line.kind === "assistant") return `min  ${line.text}`;
-  return line.text;
-}
-
-function lineColor(kind: LogKind): string | undefined {
-  if (kind === "user") return "green";
-  if (kind === "tool") return "gray";
-  if (kind === "sys") return "magenta";
-  return undefined;
 }
 
 function footerLines(busy: boolean, pending: boolean): string[] {
@@ -584,13 +618,6 @@ function shortId(id: string): string {
 function clip(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 3)}...`;
-}
-
-function brief(value: unknown, max: number): string {
-  const raw = typeof value === "string" ? value : (JSON.stringify(value) ?? "");
-  const flat = raw.replace(/\s+/g, " ").trim();
-  if (flat.length <= max) return flat;
-  return `${flat.slice(0, max - 3)}...`;
 }
 
 function messageOf(err: unknown): string {

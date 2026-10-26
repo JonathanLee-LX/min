@@ -10,7 +10,16 @@ export type TranscriptPart =
   | { type: "tool_call"; name: string; arguments: unknown }
   | { type: "tool_result"; content: string; isError?: boolean };
 
-export type LogKind = "user" | "assistant" | "tool" | "sys";
+export type LogKind =
+  | "user"
+  | "assistant"
+  | "tool"
+  | "tool-result"
+  | "tool-error"
+  | "error"
+  | "notice"
+  | "sys"
+  | "gap";
 
 export interface LogLine {
   id: number;
@@ -36,14 +45,15 @@ export function linesFromMessages(
       if (part.type === "tool_call") {
         lines.push({
           kind: "tool",
-          text: `→ ${part.name} ${brief(part.arguments, 400)}`,
+          text: summarizeToolCall(part.name, part.arguments),
         });
         continue;
       }
       if (part.type === "tool_result") {
+        const text = brief(part.content, 1000);
         lines.push({
-          kind: "tool",
-          text: `${part.isError ? "← ERR " : "← "}${brief(part.content, 1000)}`,
+          kind: part.isError ? "tool-error" : "tool-result",
+          text: text || (part.isError ? "(failed)" : "(no output)"),
         });
       }
     }
@@ -100,6 +110,29 @@ export function transcriptRowCount(
   let total = 0;
   for (const line of lines) total += wrapText(line.text, columns).length;
   return total;
+}
+
+const SALIENT_ARG = ["command", "cmd", "path", "file_path", "file", "pattern", "query", "url", "skill", "name"];
+
+/** Tool name plus the one argument a person scans for, not the raw payload. */
+export function summarizeToolCall(name: string, args: unknown): string {
+  const detail = salientArg(args);
+  return detail ? `${name}  ${detail}` : name;
+}
+
+function salientArg(args: unknown): string {
+  if (typeof args === "string") return brief(args, 72);
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    const raw = brief(args, 72);
+    return raw === "" || raw === "{}" || raw === "undefined" ? "" : raw;
+  }
+  const record = args as Record<string, unknown>;
+  for (const key of SALIENT_ARG) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return brief(value, 72);
+  }
+  const raw = brief(record, 72);
+  return raw === "{}" ? "" : raw;
 }
 
 function brief(value: unknown, max: number): string {

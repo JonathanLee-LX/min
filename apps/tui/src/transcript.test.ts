@@ -19,12 +19,11 @@ describe("linesFromMessages", () => {
         content: [{ type: "tool_result", content: "x".repeat(1200), isError: true }],
       },
     ]);
-    expect(lines.map((line) => line.kind)).toEqual(["user", "assistant", "tool", "tool"]);
+    expect(lines.map((line) => line.kind)).toEqual(["user", "assistant", "tool", "tool-error"]);
     expect(lines[0]?.text).toBe(text);
-    expect(lines[2]?.text).toContain("read_file");
-    expect(lines[3]?.text.startsWith("← ERR ")).toBe(true);
+    expect(lines[2]?.text).toBe("read_file  a.ts");
     expect(lines[3]?.text.endsWith("...")).toBe(true);
-    expect(lines[3]!.text.length).toBeLessThan(1100);
+    expect(lines[3]!.text.length).toBeLessThanOrEqual(1000);
   });
 });
 
