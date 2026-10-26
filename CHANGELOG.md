@@ -2,9 +2,7 @@
 
 ## 0.1.0-alpha.0
 
-First alpha under the npm scope `@min-agent`. Publish with dist-tag `alpha`.
-
-Published packages: `cli`, `tui`, `webui`, `client`, `runtime`, `core`, `providers`, `tools`, `skills`, `session`, `mcp`. Examples and demos stay private.
+First alpha. npm publishes one package, `@min-agent/min`, with dist-tag `alpha`. The tarball is the full monorepo build (`min`, `min-tui`, `min-web`, and the workspace dists they use). Workspace packages stay private and are not published separately.
 
 The harness contract for this alpha:
 
@@ -16,6 +14,6 @@ The harness contract for this alpha:
 
 Known limits: `createRuntime` does not connect MCP servers. A remembered bash approval stores the command's first token, and shell compounds are stored exactly. Web and TUI are thinner than the CLI. There is no authentication.
 
-Publishing is a GitHub Actions workflow. Push a `v<version>` tag after every public package under `packages/` and `apps/` is set to that version. The repository secret is `NPM_TOKEN`. A version already on npm is skipped, so the same tag can be re-run. Dist-tags are `alpha`, `beta`, `rc`, `next`, or `latest`.
+Publishing is a GitHub Actions workflow. Push a `v<version>` tag that matches the root `package.json` version. The workflow builds the repo and publishes `@min-agent/min` only. The repository secret is `NPM_TOKEN`. A version already on npm is skipped, so the same tag can be re-run. Dist-tags are `alpha`, `beta`, `rc`, `next`, or `latest`.
 
 Package metadata has no `repository` URL yet.

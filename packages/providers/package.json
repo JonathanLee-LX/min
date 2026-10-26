@@ -2,9 +2,6 @@
   "name": "@min-agent/providers",
   "version": "0.1.0-alpha.0",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
   "description": "Built-in model providers and a registry for external ModelProvider implementations",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,5 +33,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "private": true
 }

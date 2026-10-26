@@ -2,9 +2,6 @@
   "name": "@min-agent/cli",
   "version": "0.1.0-alpha.0",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
   "description": "Minimal CLI for the min agent harness",
   "type": "module",
   "bin": {
@@ -29,7 +26,6 @@
     "@min-agent/tools": "workspace:*",
     "zod": "^3.24.2"
   },
-
   "devDependencies": {
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
@@ -39,5 +35,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "private": true
 }

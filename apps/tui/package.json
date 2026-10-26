@@ -2,9 +2,6 @@
   "name": "@min-agent/tui",
   "version": "0.1.0-alpha.0",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
   "description": "Terminal UI for the min agent harness",
   "type": "module",
   "bin": {
@@ -36,5 +33,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "private": true
 }

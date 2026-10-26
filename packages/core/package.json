@@ -2,9 +2,6 @@
   "name": "@min-agent/core",
   "version": "0.1.0-alpha.0",
   "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  },
   "description": "Minimal TypeScript agent loop — messages, tools, and the ModelProvider contract",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,5 +33,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "private": true
 }

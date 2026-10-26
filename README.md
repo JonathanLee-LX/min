@@ -10,18 +10,20 @@ A minimal, extensible TypeScript **agent harness**. Core packages, `@min-agent/c
 
 ## 0.1.0-alpha.0
 
-First alpha, published under the `@min-agent` scope with the dist-tag `alpha`. Examples and demos stay private.
+First alpha. npm gets one package, `@min-agent/min`, tagged `alpha`. That tarball is the full build: `min`, `min-tui`, and `min-web`, plus the workspace modules they run. Those modules are not published as their own packages.
 
 ```bash
-npm install -g @min-agent/cli@alpha
+npm install -g @min-agent/min@alpha
 min --help
+min-tui
+min-web
 ```
 
-| Package | Role |
+| Module | Role |
 |---------|------|
-| `@min-agent/cli` | `min` command |
-| `@min-agent/tui` | `min-tui` |
-| `@min-agent/webui` | `min-web` |
+| `apps/cli` | `min` command |
+| `apps/tui` | `min-tui` |
+| `apps/webui` | `min-web` |
 | `@min-agent/client` | UI facade |
 | `@min-agent/runtime` | Host composition |
 | `@min-agent/core` | Model loop |
@@ -40,10 +42,10 @@ Known limits of this alpha: MCP is not connected by `createRuntime` (the host ca
 GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run. Every run, including a dry run, checks `NPM_TOKEN` with `npm whoami` before the build.
 
 1. Create a granular npm token that can publish the `@min-agent` scope. Save it as the repository secret `NPM_TOKEN`.
-2. Set every non-private package under `packages/` and `apps/` to the same version. Examples and demos stay private and are not published.
-3. Push the matching tag. For this alpha that is `v0.1.0-alpha.0`.
+2. Set the version in the root `package.json`. That is the only version npm receives. For this alpha it is `0.1.0-alpha.0`.
+3. Push the matching tag, `v0.1.0-alpha.0`.
 
-The workflow rejects the release when any publishable version differs from the tag. It then installs from the lockfile, builds, typechecks, tests, and publishes in dependency order. pnpm rewrites `workspace:*` to the released version. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag.
+The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag.
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
