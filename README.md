@@ -29,6 +29,83 @@ examples/
   input-queue-scenarios/   supplement / redirect queue demos
 ```
 
+## Architecture
+
+`@min/core` is the model round-trip and the tool loop. Permissions, skills, workspace policy, and the projected model view are composed by the host and never enter the runner as concepts.
+
+```mermaid
+flowchart TB
+  subgraph apps [Apps]
+    CLI["@min/cli"]
+    TUI["@min/tui"]
+    Web["@min/webui"]
+  end
+
+  Client["@min/client<br/>send / subscribe / queue / PermissionBridge"]
+  Runtime["@min/runtime createRuntime"]
+
+  subgraph host [Composed before createAgent]
+    Tools["@min/tools<br/>workspace tools + createPermissionGate"]
+    Skills["@min/skills<br/>load_skill + allowed-tools pre-approval"]
+    Recall["@min/session recall_context"]
+    MCP["@min/mcp connect<br/>optional, not in createRuntime"]
+  end
+
+  Session["@min/session<br/>canonical history, assembler, projection wrapper, ask slot"]
+  Core["@min/core Runner<br/>complete, execute, append tool message"]
+  Providers["@min/providers<br/>mock, openai, openai-chat, anthropic, deepseek"]
+
+  CLI --> Client
+  TUI --> Client
+  Web --> Client
+  Client --> Runtime
+  Runtime --> Tools
+  Runtime --> Skills
+  Runtime --> Recall
+  MCP -.-> Runtime
+  Tools --> Core
+  Skills --> Core
+  Recall --> Core
+  Runtime --> Session
+  Session -->|"agent.run"| Core
+  Session -.->|"wrap complete / stream"| Core
+  Core --> Providers
+  Tools -.->|"ask, not a RunEvent"| Client
+```
+
+One user turn:
+
+```mermaid
+sequenceDiagram
+  participant UI as CLI / TUI / Web
+  participant Client as @min/client
+  participant Session as @min/session
+  participant Runner as @min/core Runner
+  participant Gate as permission gate
+  participant Model as ModelProvider
+
+  UI->>Client: send
+  Client->>Session: session.run with onPermissionAsk
+  Note over Session: assemble, then set projector and ask slot
+  Session->>Runner: agent.run
+  loop each model turn
+    Runner->>Model: complete or stream with projected messages
+    Model-->>Runner: text or tool_call
+    Runner->>Gate: ToolRegistry.execute
+    alt policy is ask
+      Gate->>Client: ask handler
+      Client->>UI: ClientEvent permission
+      UI-->>Gate: allow, deny, or allow_session
+    end
+    Gate-->>Runner: tool result or Permission denied
+    Note over Runner: canonical tool message stays full
+  end
+  Runner-->>Session: RunEvent done
+  Session-->>Client: clear projector and ask slot
+```
+
+`RunEvent` is only `turn_start`, `text_delta`, `tool_call`, `tool_result`, `turn_end`, `done`, and `error`. A permission prompt is a client event raised by the gate.
+
 ## Quick start
 
 ```bash
