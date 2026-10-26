@@ -37,7 +37,7 @@ Known limits of this alpha: MCP is not connected by `createRuntime` (the host ca
 
 ## Publishing
 
-GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run.
+GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run. Every run, including a dry run, checks `NPM_TOKEN` with `npm whoami` before the build.
 
 1. Create a granular npm token that can publish the `@min-agent` scope. Save it as the repository secret `NPM_TOKEN`.
 2. Set every non-private package under `packages/` and `apps/` to the same version. Examples and demos stay private and are not published.
@@ -47,7 +47,7 @@ The workflow rejects the release when any publishable version differs from the t
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
-Wait to push `v0.1.0-alpha.0` until `NPM_TOKEN` exists. A real publish without that secret fails before anything is uploaded. `pnpm publish:alpha` is only a local fallback for this same alpha version. Package metadata still has no `repository` URL.
+Wait to push `v0.1.0-alpha.0` until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for this same alpha version. Package metadata still has no `repository` URL.
 
 ## Monorepo
 

@@ -39,6 +39,16 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
+      - name: Verify NPM_TOKEN
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::Repository secret NPM_TOKEN is missing. Add a granular npm token that can publish @min-agent."
+            exit 1
+          fi
+          echo "npm user: $(npm whoami)"
+
       - run: pnpm install --frozen-lockfile
 
       - name: Check package versions
@@ -65,10 +75,6 @@ jobs:
           REPO_VISIBILITY: ${{ github.event.repository.visibility }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
         run: |
-          if [ "$DRY_RUN" != "true" ] && [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::Repository secret NPM_TOKEN is missing. Add a granular npm token that can publish @min-agent, then re-run this workflow. Keep the git tag."
-            exit 1
-          fi
           if [ "$REPO_VISIBILITY" = "public" ]; then
             export NPM_CONFIG_PROVENANCE=true
           fi
