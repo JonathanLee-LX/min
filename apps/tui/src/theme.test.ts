@@ -6,6 +6,7 @@ import {
   getTheme,
   listThemes,
   registerTheme,
+  themeFromConfig,
   toneFor,
 } from "./theme.js";
 
@@ -37,5 +38,18 @@ describe("theme", () => {
     expect(listThemes()).toContain("test-theme");
     expect(getTheme("test-theme").name).toBe("Test");
     expect(() => getTheme("missing-theme")).toThrow(/Unknown theme/);
+  });
+
+  it("builds a theme from shared config ui overrides", () => {
+    const themed = themeFromConfig({
+      theme: "default",
+      themeOverrides: {
+        frames: { chatBar: "> " },
+        roles: { user: { background: "cyan", body: "black", label: "black" } },
+      },
+    });
+    expect(themed.frames.chatBar).toBe("> ");
+    expect(themed.roles.user.background).toBe("cyan");
+    expect(themed.roles.assistant.background).toBe("blue");
   });
 });

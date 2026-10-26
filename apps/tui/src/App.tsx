@@ -42,7 +42,8 @@ import {
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
 import { displayWidth, wrapText } from "./text.js";
-import { getTheme } from "./theme.js";
+import { resolveMinConfig } from "@min-agent/config";
+import { themeFromConfig } from "./theme.js";
 import {
   linesFromMessages,
   summarizeToolCall,
@@ -65,7 +66,17 @@ export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { setRawMode, internal_eventEmitter } = useStdin();
-  const theme = useMemo(() => getTheme(args.theme), [args.theme]);
+  const theme = useMemo(() => {
+    const { config } = resolveMinConfig(
+      { cwd: args.cwd },
+      {
+        ...(args.theme ? { theme: args.theme } : {}),
+        ...(args.provider ? { provider: args.provider } : {}),
+        ...(args.model ? { model: args.model } : {}),
+      },
+    );
+    return themeFromConfig(config.ui);
+  }, [args.cwd, args.theme, args.provider, args.model]);
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);

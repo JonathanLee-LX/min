@@ -53,7 +53,12 @@ Options:
   --model <id>        provider model id
   --cwd <dir>         sandbox root
   --session <id>      resume a saved session
-  --theme <id>        registered theme id (default; MIN_THEME also works)
+  --theme <id>        theme id from config / registry (MIN_THEME also works)
+
+Config files (later layers win):
+  ~/.config/min/config.json
+  <cwd>/.min/config.json
+  Permissions stay in <cwd>/.min/permissions.json
   --no-tools          disable workspace tools
   -y, --yes           auto-approve tool prompts once
   --auto              full-auto (bash + session grants + root grants)

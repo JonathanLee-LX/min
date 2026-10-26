@@ -6,7 +6,7 @@ The transcript scrolls (PageUp / PageDown) and wraps instead of clipping to a sh
 
 User and assistant turns are color blocks (green / blue) with a left bar and no `you` / `min` labels. The composer uses the same green block. Tool calls use a `▸` marker; their full output sits indented under the call. Session chrome (`sys` / `note` / `err`) stays dim. Type `/` and press Tab (or ↑↓) to complete a command. Assistant text is a small Markdown document (headings, emphasis, inline code, fenced code, lists, quotes, links). A closed `mermaid` fence is drawn as a diagram. Each transcript row is one screen line, and the lines above the window stay reachable with PageUp / PageDown. While a run is in progress the line under the transcript spins differently for thinking, writing, a tool call, a follow-up, and an approval wait.
 
-Colors, frame markers, and spinner hues come from `src/theme.ts`. The built-in `default` theme is active today; `--theme <id>` / `MIN_THEME` select a registered theme, and `createTheme` / `registerTheme` are the hooks for custom palettes. Loading a theme file is still TODO.
+Colors, frame markers, and spinner hues come from `src/theme.ts`, fed by `@min-agent/config`. Layers are defaults → `~/.config/min/config.json` → `<cwd>/.min/config.json` → `MIN_*` → `--theme`. Use `ui.theme` / `ui.themeOverrides` in those JSON files; `createTheme` / `registerTheme` remain available for code-registered palettes. Permission grants stay in `.min/permissions.json`.
 
 TODO: extract `src/render.ts` to `@min-agent/render` when Web calls the same `renderContent`. The module is pure data and does not wrap to terminal columns.
 

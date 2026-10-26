@@ -1,11 +1,11 @@
+import type { UiConfig } from "@min-agent/config";
 import type { LogKind } from "./transcript.js";
 
 /**
  * Visual tokens for the TUI.
  *
- * TODO(theme-config): load overrides from `--theme`, `MIN_THEME`, or
- * `<cwd>/.min/theme.json`. Hosts call {@link createTheme} / {@link registerTheme};
- * paint and App only read a resolved {@link TuiTheme}.
+ * Themes come from `@min-agent/config` (`ui.theme` / `ui.themeOverrides`),
+ * then `--theme` / `MIN_THEME`. Hosts may also {@link registerTheme}.
  */
 
 /** Ink/chalk color name, or a hex string when the host supports it. */
@@ -196,4 +196,32 @@ export function toneFor(kind: LogKind, theme: TuiTheme = defaultTheme): LineTone
     dimLabel: role.dimLabel === true,
     dimBody: role.dimBody === true,
   };
+}
+
+/**
+ * Resolve a TUI theme from the shared config `ui` section.
+ * Unknown registered ids fall back to {@link defaultTheme}.
+ */
+export function themeFromConfig(ui: UiConfig = {}): TuiTheme {
+  let base = defaultTheme;
+  if (ui.theme) {
+    try {
+      base = getTheme(ui.theme);
+    } catch {
+      base = defaultTheme;
+    }
+  }
+  const overrides = ui.themeOverrides;
+  if (!overrides) return base;
+  return createTheme(
+    {
+      id: overrides.id ?? `${base.id}-local`,
+      name: overrides.name ?? `${base.name} (local)`,
+      roles: overrides.roles as ThemeOverrides["roles"],
+      frames: overrides.frames as ThemeOverrides["frames"],
+      activity: overrides.activity as ThemeOverrides["activity"],
+      chrome: overrides.chrome as ThemeOverrides["chrome"],
+    },
+    base,
+  );
 }
