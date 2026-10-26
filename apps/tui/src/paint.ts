@@ -1,3 +1,10 @@
+import {
+  renderContent,
+  type RenderBlock,
+  type RenderRole,
+  type RenderSpan,
+  type SpanTone,
+} from "./render.js";
 import type { LogKind } from "./transcript.js";
 import { displayWidth, wrapText } from "./text.js";
 
@@ -19,6 +26,14 @@ export interface TranscriptSource {
   key: string;
   kind: LogKind;
   text: string;
+  /** Assistant text that is still streaming. The caret is drawn after Markdown. */
+  streaming?: boolean;
+}
+
+export interface PaintedSpan {
+  text: string;
+  tone: SpanTone;
+  bold: boolean;
 }
 
 export interface PaintedRow {
@@ -30,6 +45,7 @@ export interface PaintedRow {
   body: string;
   /** Full row, used by the viewport measurer. */
   text: string;
+  spans: PaintedSpan[];
 }
 
 export interface LineTone {
@@ -98,25 +114,183 @@ function paintOne(line: TranscriptSource, columns: number): PaintedRow[] {
         gutter: "",
         body: " ",
         text: " ",
+        spans: [],
       },
     ];
   }
   const gutter = LABELS[line.kind].padEnd(GUTTER, " ");
   const blank = " ".repeat(GUTTER);
   const bodyWidth = Math.max(1, columns - GUTTER);
-  const parts = wrapText(line.text.length > 0 ? line.text : " ", bodyWidth);
-  return parts.map((body, index) => {
-    const lead = index === 0;
+  const blocks = renderContent({
+    role: roleFor(line.kind),
+    text: line.text,
+    streaming: line.streaming === true,
+  });
+  const rows = paintBlocks(line, blocks, gutter, blank, bodyWidth);
+  if (!line.streaming) return rows;
+  return appendCaret(rows, line, gutter, blank, bodyWidth);
+}
+
+function roleFor(kind: LogKind): RenderRole {
+  if (kind === "assistant") return "assistant";
+  if (kind === "user") return "user";
+  if (kind === "tool") return "tool";
+  if (kind === "tool-result") return "tool-result";
+  if (kind === "tool-error") return "tool-error";
+  if (kind === "error") return "error";
+  if (kind === "notice") return "notice";
+  return "sys";
+}
+
+function paintBlocks(
+  line: TranscriptSource,
+  blocks: readonly RenderBlock[],
+  gutter: string,
+  blank: string,
+  bodyWidth: number,
+): PaintedRow[] {
+  const rows: PaintedRow[] = [];
+  const push = (spans: PaintedSpan[]) => {
+    const body = spans.map((span) => span.text).join("") || " ";
+    const lead = rows.length === 0;
     const prefix = lead ? gutter : blank;
-    return {
-      key: `${line.key}:${index}`,
+    const painted = spans.length > 0 ? spans : [{ text: body, tone: "plain" as const, bold: false }];
+    rows.push({
+      key: `${line.key}:${rows.length}`,
       kind: line.kind,
       lead,
       gutter: prefix,
       body,
       text: prefix + body,
-    };
+      spans: painted,
+    });
+  };
+
+  for (const block of blocks) {
+    if (block.kind === "rule") {
+      push(paintSpans([{ text: "─".repeat(bodyWidth), tone: "dim" }], false));
+      continue;
+    }
+    if (block.kind === "code") {
+      if (block.lang) push(paintSpans([{ text: block.lang, tone: "dim" }], false));
+      const source = block.lines.map((spans) => spans.map((span) => span.text).join(""));
+      const codeLines = source.length > 0 ? source : [""];
+      for (const codeLine of codeLines) {
+        for (const wrapped of wrapText(codeLine.length > 0 ? codeLine : " ", bodyWidth)) {
+          push(paintSpans([{ text: wrapped || " ", tone: "code" }], false));
+        }
+      }
+      continue;
+    }
+    const bold = block.kind === "heading";
+    for (const logical of block.lines) {
+      const wrapped =
+        block.kind === "list" ? wrapList(logical, bodyWidth) : wrapSpanRows(logical, bodyWidth);
+      for (const row of wrapped) {
+        push(block.kind === "quote" ? paintQuote(row) : paintSpans(row, bold));
+      }
+    }
+  }
+  if (rows.length === 0) push(paintSpans([{ text: " ", tone: "plain" }], false));
+  return rows;
+}
+
+function appendCaret(
+  rows: PaintedRow[],
+  line: TranscriptSource,
+  gutter: string,
+  blank: string,
+  bodyWidth: number,
+): PaintedRow[] {
+  const caret: PaintedSpan = { text: "▍", tone: "plain", bold: false };
+  const last = rows[rows.length - 1];
+  if (last && displayWidth(last.body) + displayWidth(caret.text) <= bodyWidth) {
+    last.spans.push(caret);
+    last.body += caret.text;
+    last.text += caret.text;
+    return rows;
+  }
+  const prefix = rows.length === 0 ? gutter : blank;
+  rows.push({
+    key: `${line.key}:${rows.length}`,
+    kind: line.kind,
+    lead: rows.length === 0,
+    gutter: prefix,
+    body: caret.text,
+    text: prefix + caret.text,
+    spans: [caret],
   });
+  return rows;
+}
+
+function paintSpans(spans: readonly RenderSpan[], bold: boolean): PaintedSpan[] {
+  return spans
+    .filter((span) => span.text.length > 0)
+    .map((span) => ({
+      text: span.text,
+      tone: span.tone,
+      bold: bold || span.tone === "strong",
+    }));
+}
+
+function paintQuote(spans: readonly RenderSpan[]): PaintedSpan[] {
+  return spans
+    .filter((span) => span.text.length > 0)
+    .map((span) => ({
+      text: span.text,
+      tone: span.tone === "code" || span.tone === "link" ? span.tone : "dim",
+      bold: span.tone === "strong",
+    }));
+}
+
+function wrapList(spans: readonly RenderSpan[], width: number): RenderSpan[][] {
+  const marker = spans[0] ?? { text: "", tone: "plain" as const };
+  const rest = spans.slice(1);
+  const markerWidth = displayWidth(marker.text);
+  const limit = Math.max(1, width);
+  if (markerWidth >= limit) {
+    return [[marker], ...wrapSpanRows(rest, limit)];
+  }
+  const content = wrapSpanRows(rest, limit - markerWidth);
+  return content.map((row, index) =>
+    index === 0 ? [marker, ...row] : [{ text: " ".repeat(markerWidth), tone: "plain" }, ...row],
+  );
+}
+
+function wrapSpanRows(spans: readonly RenderSpan[], width: number): RenderSpan[][] {
+  const limit = Math.max(1, width);
+  const rows: RenderSpan[][] = [];
+  let row: RenderSpan[] = [];
+  let used = 0;
+  const breakRow = () => {
+    if (row.length === 0) return;
+    rows.push(row);
+    row = [];
+    used = 0;
+  };
+  for (const span of spans) {
+    let pending = span.text;
+    while (pending.length > 0) {
+      let take = "";
+      let takeWidth = 0;
+      for (const ch of pending) {
+        const cell = displayWidth(ch);
+        if (take && used + takeWidth + cell > limit) break;
+        take += ch;
+        takeWidth += cell;
+        if (used + takeWidth >= limit) break;
+      }
+      if (!take) break;
+      if (used > 0 && used + takeWidth > limit) breakRow();
+      row.push({ text: take, tone: span.tone });
+      used += takeWidth;
+      pending = pending.slice(take.length);
+      if (used >= limit) breakRow();
+    }
+  }
+  if (row.length > 0) rows.push(row);
+  if (rows.length === 0) rows.push([{ text: "", tone: "plain" }]);
+  return rows;
 }
 
 function isTurn(kind: LogKind): boolean {

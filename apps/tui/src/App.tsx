@@ -537,9 +537,16 @@ export function App({ args }: { args: TuiArgs }) {
               <Text bold={row.source.lead} color={tone.label} dimColor={tone.dimLabel}>
                 {row.source.gutter}
               </Text>
-              <Text color={tone.body} dimColor={tone.dimBody}>
-                {row.source.body}
-              </Text>
+              {row.source.spans.map((span, spanIndex) => (
+                <Text
+                  key={spanIndex}
+                  bold={span.bold}
+                  color={tone.body}
+                  dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}
+                >
+                  {span.text}
+                </Text>
+              ))}
             </Text>
           );
         })}
@@ -587,7 +594,7 @@ function toDisplayLines(logs: readonly LogLine[], stream: string): TranscriptSou
     kind: line.kind,
     text: line.text,
   }));
-  if (stream) lines.push({ key: "stream", kind: "assistant", text: `${stream}▍` });
+  if (stream) lines.push({ key: "stream", kind: "assistant", text: stream, streaming: true });
   return lines;
 }
 
