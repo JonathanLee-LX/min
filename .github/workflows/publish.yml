@@ -44,7 +44,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::Repository secret NPM_TOKEN is missing. Add a granular npm token that can publish @min-agent."
+            echo "::error::Repository secret NPM_TOKEN is missing. Create an npm Automation token (not a classic Publish token) that can publish @min-agent, then set NPM_TOKEN."
             exit 1
           fi
           echo "npm user: $(npm whoami)"
@@ -75,6 +75,7 @@ jobs:
           REPO_VISIBILITY: ${{ github.event.repository.visibility }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
         run: |
+          set +e
           if [ "$REPO_VISIBILITY" = "public" ]; then
             export NPM_CONFIG_PROVENANCE=true
           fi
@@ -82,4 +83,10 @@ jobs:
             node scripts/release.mjs publish "$RELEASE_VERSION" --dry-run
           else
             node scripts/release.mjs publish "$RELEASE_VERSION"
+          fi
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::npm publish failed. If the log shows EOTP, replace NPM_TOKEN with an Automation token (Access Tokens → Generate New Token → Automation) or a granular token with 2FA bypass, then re-run this workflow."
+            exit "$status"
           fi
