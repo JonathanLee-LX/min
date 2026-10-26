@@ -1,9 +1,9 @@
+import type { ToolCallPart } from "@min/core";
 import type {
   PermissionContext,
   PermissionDecision,
   PermissionHandler,
-  ToolCallPart,
-} from "@min/core";
+} from "./permission-protocol.js";
 import type { Sandbox } from "./sandbox.js";
 
 export type PermissionMode = "allow" | "ask" | "deny";

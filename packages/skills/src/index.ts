@@ -1,8 +1,4 @@
-import {
-  defineExtension,
-  defineTool,
-  type Extension,
-} from "@min/core";
+import { defineTool, type Tool } from "@min/core";
 import { z } from "zod";
 import {
   createAllowedToolsGate,
@@ -33,23 +29,33 @@ export interface SkillsExtensionOptions {
   loadToolName?: string;
   /**
    * Shared pre-approval gate. When omitted, one is created and attached
-   * on the extension as `.allowedToolsGate` for the host to compose.
+   * on the result as `.allowedToolsGate` for the host to compose.
    */
   allowedToolsGate?: AllowedToolsGate;
   /**
    * When true (default), pre-approve `allowed-tools` on successful load_skill.
    */
   enforceAllowedTools?: boolean;
+  /**
+   * Receives the catalog at load time and each skill body when `load_skill` runs.
+   * The host should re-read its system prompt every model turn.
+   */
+  appendSystem?: (text: string) => void;
 }
 
-export type SkillsExtension = Extension & {
+export interface SkillsBundle {
+  tools: Tool[];
   allowedToolsGate: AllowedToolsGate;
-};
+}
 
 /**
- * Load Agent Skills (SKILL.md) and expose them to the harness.
+ * Load Agent Skills (SKILL.md) and return tools plus a pre-approval gate.
+ * System text is delivered through `appendSystem` so a later `load_skill`
+ * can extend the prompt without a core extension bus.
  */
-export function skills(options: SkillsExtensionOptions = {}): SkillsExtension {
+export async function skills(
+  options: SkillsExtensionOptions = {},
+): Promise<SkillsBundle> {
   const sources: SkillSource[] = [...(options.sources ?? [])];
   if (options.dirs?.length) {
     sources.push(filesystemSkillSource({ dirs: options.dirs }));
@@ -61,76 +67,74 @@ export function skills(options: SkillsExtensionOptions = {}): SkillsExtension {
   const allowedToolsGate =
     options.allowedToolsGate ?? createAllowedToolsGate();
   const loaded = new Set<string>();
+  const appendSystem = options.appendSystem ?? (() => {});
+  const tools: Tool[] = [];
 
-  const ext = defineExtension({
-    name: "skills",
+  const catalog: SkillMeta[] = [];
+  for (const source of sources) {
+    catalog.push(...(await source.list()));
+  }
 
-    async setup(api) {
-      const catalog: SkillMeta[] = [];
-      for (const source of sources) {
-        catalog.push(...(await source.list()));
-      }
+  if (!catalog.length) {
+    return { tools, allowedToolsGate };
+  }
 
-      if (!catalog.length) return;
+  const catalogText = [
+    "Available skills (use the load_skill tool to read full instructions when relevant):",
+    ...catalog.map((s) => {
+      const listed = s.allowedTools?.length
+        ? ` [tools: ${s.allowedTools.join(", ")}]`
+        : "";
+      return `- ${s.name}: ${s.description}${listed}`;
+    }),
+  ].join("\n");
+  appendSystem(catalogText);
 
-      const catalogText = [
-        "Available skills (use the load_skill tool to read full instructions when relevant):",
-        ...catalog.map((s) => {
-          const tools = s.allowedTools?.length
-            ? ` [tools: ${s.allowedTools.join(", ")}]`
+  if (registerLoadTool) {
+    tools.push(
+      defineTool({
+        name: loadToolName,
+        description:
+          "Load the full instructions for a named skill. Call when a skill in the catalog matches the user task.",
+        inputSchema: z.object({
+          name: z.string().describe("Skill name from the catalog"),
+        }),
+        async execute({ name }) {
+          if (loaded.has(name)) {
+            return {
+              content: `Skill "${name}" was already loaded in this session.`,
+            };
+          }
+
+          let skill: Skill | undefined;
+          for (const source of sources) {
+            try {
+              skill = await source.get(name);
+              break;
+            } catch {
+              // try next source
+            }
+          }
+
+          if (!skill) {
+            return { content: `Skill not found: ${name}`, isError: true };
+          }
+
+          loaded.add(name);
+          if (enforceAllowedTools) {
+            allowedToolsGate.activate(skill);
+          }
+
+          const allowNote = skill.allowedTools?.length
+            ? `\n\n(pre-approved tools: ${skill.allowedTools.join(" ")})`
             : "";
-          return `- ${s.name}: ${s.description}${tools}`;
-        }),
-      ].join("\n");
-      api.appendSystem(catalogText);
+          const text = `# Skill: ${skill.name}\n\n${skill.body}${allowNote}`;
+          appendSystem(text);
+          return { content: text };
+        },
+      }),
+    );
+  }
 
-      if (!registerLoadTool) return;
-
-      api.registerTool(
-        defineTool({
-          name: loadToolName,
-          description:
-            "Load the full instructions for a named skill. Call when a skill in the catalog matches the user task.",
-          inputSchema: z.object({
-            name: z.string().describe("Skill name from the catalog"),
-          }),
-          async execute({ name }) {
-            if (loaded.has(name)) {
-              return {
-                content: `Skill "${name}" was already loaded in this session.`,
-              };
-            }
-
-            let skill: Skill | undefined;
-            for (const source of sources) {
-              try {
-                skill = await source.get(name);
-                break;
-              } catch {
-                // try next source
-              }
-            }
-
-            if (!skill) {
-              return { content: `Skill not found: ${name}`, isError: true };
-            }
-
-            loaded.add(name);
-            if (enforceAllowedTools) {
-              allowedToolsGate.activate(skill);
-            }
-
-            const allowNote = skill.allowedTools?.length
-              ? `\n\n(pre-approved tools: ${skill.allowedTools.join(" ")})`
-              : "";
-            const text = `# Skill: ${skill.name}\n\n${skill.body}${allowNote}`;
-            api.appendSystem(text);
-            return { content: text };
-          },
-        }),
-      );
-    },
-  });
-
-  return Object.assign(ext, { allowedToolsGate });
+  return { tools, allowedToolsGate };
 }

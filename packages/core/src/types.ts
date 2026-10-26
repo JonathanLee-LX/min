@@ -74,12 +74,6 @@ export type RunEvent =
   | { type: "text_delta"; text: string }
   | { type: "tool_call"; toolCall: ToolCallPart }
   | { type: "tool_result"; toolCallId: string; content: string; isError?: boolean }
-  | {
-      type: "permission";
-      toolCall: ToolCallPart;
-      decision: "allow" | "deny" | "ask";
-      reason?: string;
-    }
   | { type: "turn_end"; turn: number; message: Message }
   | { type: "done"; messages: Message[] }
   | { type: "error"; error: Error };
@@ -90,23 +84,6 @@ export interface RunInput {
   signal?: AbortSignal;
   maxTurns?: number;
   onEvent?: (event: RunEvent) => void | Promise<void>;
-  /**
-   * Optional per-complete projection of the in-flight message list.
-   * The returned view is sent to the model only — Runner keeps the
-   * canonical `messages` array intact for the run result / session store.
-   */
-  projectMessages?: (
-    messages: readonly Message[],
-  ) => Message[] | Promise<Message[]>;
-  /**
-   * Called when a permission handler returns `ask`.
-   * If omitted, ask is treated as deny (non-interactive safe default).
-   */
-  onPermissionAsk?: (req: {
-    toolCall: ToolCallPart;
-    reason: string;
-    grantRoot?: string;
-  }) => Promise<"allow" | "deny" | "allow_session">;
 }
 
 export interface RunResult {

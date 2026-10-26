@@ -5,6 +5,7 @@ import {
 } from "@min/core";
 import { createRuntime } from "@min/runtime";
 import { createMemoryStore, createSession } from "@min/session";
+import { createPermissionGate } from "@min/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createClient } from "./client.js";
@@ -84,6 +85,10 @@ describe("createClient", () => {
       },
     });
 
+    const gate = createPermissionGate(() => ({
+      action: "ask",
+      reason: "need bash",
+    }));
     const agent = await createAgent({
       provider: mockProvider([
         {
@@ -91,16 +96,13 @@ describe("createClient", () => {
         },
         { text: "done" },
       ]),
-      tools: [bash],
-      permissionHandler: () => ({
-        action: "ask",
-        reason: "need bash",
-      }),
+      tools: gate.wrap([bash]),
     });
 
     const session = await createSession({
       agent,
       store: createMemoryStore(),
+      bindPermissionAsk: (ask) => gate.setAsk(ask),
     });
 
     const runtime = {

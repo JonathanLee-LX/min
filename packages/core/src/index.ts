@@ -1,22 +1,5 @@
 export { createAgent, type Agent, type CreateAgentOptions } from "./agent.js";
 export {
-  defineExtension,
-  HookBus,
-  createExtensionApi,
-  type Extension,
-  type ExtensionApi,
-  type ExtensionState,
-  type Hooks,
-  type HookContext,
-} from "./extension.js";
-export type {
-  PermissionAskRequest,
-  PermissionAskResult,
-  PermissionContext,
-  PermissionDecision,
-  PermissionHandler,
-} from "./permissions.js";
-export {
   assistantMessage,
   lastAssistantText,
   messageText,

@@ -1,4 +1,4 @@
-import { defineExtension, type Extension, type Tool } from "@min/core";
+import type { Tool } from "@min/core";
 import type { Sandbox } from "./sandbox.js";
 import {
   createWorkspacePermissionPolicy,
@@ -22,6 +22,16 @@ export {
   type WorkspacePermissionOptions,
   type WorkspacePermissionPolicy,
 } from "./permissions.js";
+export {
+  createPermissionGate,
+  type PermissionAskHandler,
+  type PermissionAskRequest,
+  type PermissionAskResult,
+  type PermissionContext,
+  type PermissionDecision,
+  type PermissionGate,
+  type PermissionHandler,
+} from "./permission-protocol.js";
 
 export type WorkspaceToolName =
   | "read_file"
@@ -35,24 +45,31 @@ export interface WorkspaceExtensionOptions extends WorkspaceToolsOptions {
   /** Fluency-first permission policy. */
   permissions?: WorkspacePermissionOptions;
   /**
-   * When false, do not install a permission handler
-   * (caller may set their own). Default true.
+   * When false, the caller installs the handler (for example composed with
+   * a skill pre-approval gate). Default true: `permissions.handler` is the
+   * policy the host should wrap with {@link createPermissionGate}.
    */
   enforcePermissions?: boolean;
   /** Extra roots granted for the whole process/session at startup. */
   addRoots?: string[];
 }
 
+export interface WorkspaceToolsBundle {
+  tools: Tool[];
+  system: string;
+  sandbox: Sandbox;
+  permissions: WorkspacePermissionPolicy;
+  /** False when `enforcePermissions` was set false. Host may ignore `permissions`. */
+  enforcePermissions: boolean;
+}
+
 /**
- * Register sandboxed workspace tools on the agent.
+ * Sandboxed workspace tools plus the system note and permission policy.
+ * The host registers `tools` on the agent and wraps them with the policy.
  */
 export function workspaceTools(
   opts: WorkspaceExtensionOptions = {},
-): Extension & {
-  sandbox: Sandbox;
-  tools: Tool[];
-  permissions: WorkspacePermissionPolicy;
-} {
+): WorkspaceToolsBundle {
   const { sandbox, tools } = createWorkspaceTools(opts);
   if (opts.addRoots?.length) {
     sandbox.addRoots(opts.addRoots);
@@ -64,29 +81,20 @@ export function workspaceTools(
     : tools;
 
   const permissions = createWorkspacePermissionPolicy(sandbox, opts.permissions);
-  const enforce = opts.enforcePermissions !== false;
+  const enforcePermissions = opts.enforcePermissions !== false;
 
-  const ext = defineExtension({
-    name: "workspace-tools",
-    setup(api) {
-      for (const tool of filtered) {
-        api.registerTool(tool);
-      }
-      if (enforce) {
-        api.setPermissionHandler(permissions.handler);
-      }
-      api.appendSystem(
-        [
-          "You have workspace tools scoped to a sandbox root.",
-          `Primary sandbox root: ${sandbox.root}`,
-          "Use relative paths when possible. Prefer read_file/glob before bash when inspecting files.",
-          "Paths outside the sandbox require user approval to add a session root (tight directory only).",
-          "Permission policy: reads/writes usually allowed inside roots; bash may require approval.",
-          "If a tool returns Permission denied, choose a safer approach or ask the user.",
-        ].join("\n"),
-      );
-    },
-  });
-
-  return Object.assign(ext, { sandbox, tools: filtered, permissions });
+  return {
+    tools: filtered,
+    sandbox,
+    permissions,
+    enforcePermissions,
+    system: [
+      "You have workspace tools scoped to a sandbox root.",
+      `Primary sandbox root: ${sandbox.root}`,
+      "Use relative paths when possible. Prefer read_file/glob before bash when inspecting files.",
+      "Paths outside the sandbox require user approval to add a session root (tight directory only).",
+      "Permission policy: reads/writes usually allowed inside roots; bash may require approval.",
+      "If a tool returns Permission denied, choose a safer approach or ask the user.",
+    ].join("\n"),
+  };
 }

@@ -4,15 +4,15 @@ A minimal, extensible TypeScript **agent harness**. Core packages, `@min/client`
 
 ## Why min
 
-- **Small core**: one agent loop, tools, hooks, and a provider-agnostic message model.
-- **Wide edge**: Extensions register tools and hooks; MCP and Agent Skills plug in without bloating the runner.
+- **Small core**: one agent loop, tools, and a provider-agnostic message model.
+- **Wide edge**: Skills, MCP, and workspace tools are composed by the host and passed into `createAgent`. The runner does not own a plugin bus.
 - **Dual protocols**: Anthropic Messages and OpenAI Responses adapters — vendor formats never leak into the loop.
 
 ## Monorepo
 
 ```text
 packages/
-  core/      @min/core     harness (Runner, tools, hooks, ModelProvider contract)
+  core/      @min/core     loop (Runner, tools, ModelProvider contract)
   providers/ @min/providers built-in providers + registerProvider extension
   mcp/       @min/mcp      MCP client extension
   skills/    @min/skills   Agent Skills (SKILL.md) + allowed-tools gate
@@ -88,7 +88,7 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 - Seed roots: `--add-root <dir>` (repeatable)
 - One-shot without TTY: `ask` → deny unless flags allow
 - Denied tools return `tool_result` with `isError` — the run continues
-- Core only enforces `allow \| deny \| ask` (+ optional `grantRoot`); policy lives in `@min/tools` / CLI
+- Policy (`allow` / `deny` / `ask`, `grantRoot`) lives in `@min/tools` and is applied by wrapping `execute` before `createAgent`. Core never sees a permission decision.
 
 ### Sessions and context budget (`@min/session`)
 
@@ -108,7 +108,7 @@ On-demand (not a continuous strategy): `session.compact()` / Client `compact()` 
 **Dual history + mid-loop projection**
 
 - Canonical session / Runner history stays full (including fat tool bodies).
-- Before every model `complete` inside a tool loop, Session re-runs the assembler via `RunInput.projectMessages` and sends only the projected view.
+- Before every model `complete` inside a tool loop, Session re-runs the assembler inside a `ModelProvider` wrapper and sends only the projected view. Canonical history stays on the Runner.
 - That closes the gap where a single user-turn coding run never got a second assemble (hybrid used to look idle until the next `session.run`).
 - Multi-turn fold/stash/recall check: `pnpm --filter @min/example-hmt-context exec tsx verify-multiturn.mts`
 
@@ -174,60 +174,62 @@ import { mcp } from "@min/mcp";
 import { skills } from "@min/skills";
 import { z } from "zod";
 
+const systemParts = ["You are min."];
+const loadedSkills = await skills({
+  dirs: ["./skills"],
+  appendSystem: (text) => systemParts.push(text),
+});
+const filesystem = await mcp({
+  servers: [{ name: "fs", transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "."] }],
+}).connect();
+
+const echo = defineTool({
+  name: "echo",
+  description: "Echo a string",
+  inputSchema: z.object({ message: z.string() }),
+  async execute({ message }) {
+    return { content: message };
+  },
+});
+
 const agent = await createAgent({
   provider: anthropicProvider({ model: "claude-sonnet-4-5" }),
-  // or: import { openaiProvider } from "@min/providers"
-  tools: [
-    defineTool({
-      name: "echo",
-      description: "Echo a string",
-      inputSchema: z.object({ message: z.string() }),
-      async execute({ message }) {
-        return { content: message };
-      },
-    }),
-  ],
-  extensions: [
-    skills({ dirs: ["./skills"] }),
-    mcp({
-      servers: [{ name: "fs", transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "."] }],
-    }),
-  ],
-  system: "You are min.",
+  tools: [echo, ...loadedSkills.tools, ...filesystem.tools],
+  system: () => systemParts.join("\n\n"),
 });
 
 const result = await agent.run("Hello");
 console.log(result.text);
-await agent.dispose();
+await filesystem.dispose();
 ```
 
-### Writing an extension
+### Adding a tool from the host
 
 ```ts
-import { defineExtension, defineTool } from "@min/core";
+import { createAgent, defineTool, type ModelProvider } from "@min/core";
 import { z } from "zod";
 
-export const myExt = defineExtension({
-  name: "my-ext",
-  setup(api) {
-    api.appendSystem("Extra instructions.");
-    api.registerTool(
-      defineTool({
-        name: "ping",
-        description: "Ping",
-        inputSchema: z.object({}),
-        async execute() {
-          return { content: "pong" };
-        },
-      }),
-    );
-    api.addHook({
-      onBeforeTool({ toolCall }) {
-        console.log("calling", toolCall.name);
-      },
-    });
+const ping = defineTool({
+  name: "ping",
+  description: "Ping",
+  inputSchema: z.object({}),
+  async execute() {
+    return { content: "pong" };
   },
 });
+
+export function withLogging(inner: ModelProvider): ModelProvider {
+  let turn = 0;
+  return {
+    id: inner.id,
+    async complete(req) {
+      turn += 1;
+      console.log("turn", turn, "messages", req.messages.length);
+      return inner.complete(req);
+    },
+    stream: inner.stream?.bind(inner),
+  };
+}
 ```
 
 ### Skills layout
@@ -247,8 +249,8 @@ Follows the [Agent Skills](https://agentskills.io/specification) format. Metadat
 | Layer | Responsibility |
 |-------|----------------|
 | Internal messages | Single source of truth (`text` / `tool_call` / `tool_result`) |
-| `ModelProvider` | Translate to Anthropic Messages or OpenAI Responses |
-| `Runner` | Thin tool-use loop + hooks |
-| `Extension` | Register tools, hooks, system appends |
+| `ModelProvider` | Translate to Anthropic Messages or OpenAI Responses. Hosts may wrap it to project messages or observe turns. |
+| `Runner` | Tool-use loop: complete, execute tools, append tool results |
+| Host composition | Skills, MCP, workspace tools, and permission gates are assembled before `createAgent` |
 
 Phase 2 will add interactive surfaces under `apps/` without changing the harness contract.

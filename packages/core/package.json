@@ -1,7 +1,7 @@
 {
   "name": "@min/core",
   "version": "0.1.0",
-  "description": "Minimal TypeScript agent harness — loop, tools, hooks, and the ModelProvider contract",
+  "description": "Minimal TypeScript agent loop — messages, tools, and the ModelProvider contract",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -1,4 +1,4 @@
-import type { PermissionContext } from "@min/core";
+import type { PermissionContext } from "@min/tools";
 import { describe, expect, it } from "vitest";
 import { createAllowedToolsGate } from "./allowed-tools.js";
 

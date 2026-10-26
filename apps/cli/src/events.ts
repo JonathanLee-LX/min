@@ -40,8 +40,6 @@ export function createEventPrinter(): EventPrinter {
         const args = JSON.stringify(event.toolCall.arguments);
         const clipped = args.length > 120 ? `${args.slice(0, 117)}...` : args;
         console.log(`\n→ ${event.toolCall.name}(${clipped})`);
-      } else if (event.type === "permission" && event.decision === "deny") {
-        console.log(`⛔ denied ${event.toolCall.name}: ${event.reason ?? ""}`);
       } else if (event.type === "tool_result") {
         const body = event.content.replace(/\s+/g, " ").trim();
         const clipped = body.length > 160 ? `${body.slice(0, 157)}...` : body;

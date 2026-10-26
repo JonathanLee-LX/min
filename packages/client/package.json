@@ -26,6 +26,7 @@
     "@min/session": "workspace:*"
   },
   "devDependencies": {
+    "@min/tools": "workspace:*",
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",

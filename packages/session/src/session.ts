@@ -4,6 +4,7 @@ import {
   type Message,
   type RunInput,
   type RunResult,
+  type ToolCallPart,
 } from "@min/core";
 import type { AssembleResult, ContextBudget } from "./assemble.js";
 import {
@@ -23,6 +24,7 @@ import {
   type InputQueue,
   type InputQueueOptions,
 } from "./input-queue.js";
+import { attachMessageProjection, type MessageProjector } from "./project.js";
 import type { ContextStash } from "./stash.js";
 import { createTrimAssembler } from "./strategies.js";
 import {
@@ -60,6 +62,11 @@ export interface CreateSessionOptions {
   assembler?: ContextAssembler;
   /** Lifecycle hooks (also accept via `extensions`). */
   hooks?: SessionHooks | SessionHooks[];
+  /**
+   * Installed around each `run` so a permission gate outside core can see
+   * the per-run approver. Cleared when the run returns.
+   */
+  bindPermissionAsk?: (ask: SessionPermissionAsk | undefined) => void;
   /** Composable packs of assembler/hooks. Later assembler wins; hooks run in order. */
   extensions?: SessionExtension[];
   /**
@@ -70,11 +77,17 @@ export interface CreateSessionOptions {
   inputQueue?: InputQueue | InputQueueOptions | false;
 }
 
+export type SessionPermissionAsk = (req: {
+  toolCall: ToolCallPart;
+  reason: string;
+  grantRoot?: string;
+}) => Promise<"allow" | "deny" | "allow_session">;
+
 export interface SessionRunOptions {
   signal?: AbortSignal;
   maxTurns?: number;
   onEvent?: RunInput["onEvent"];
-  onPermissionAsk?: RunInput["onPermissionAsk"];
+  onPermissionAsk?: SessionPermissionAsk;
 }
 
 export interface Session {
@@ -145,6 +158,7 @@ export async function createSession(
   const finalAssembler = opts.assembler ?? extAssembler;
 
   const inputQueue = resolveInputQueue(opts.inputQueue);
+  const projection = attachMessageProjection(opts.agent.provider);
 
   const hooks: SessionHooks[] = [
     ...extHooks,
@@ -216,35 +230,43 @@ export async function createSession(
     lastAssemble = assembled;
 
     // Seed the Runner with the full pending turn (never the folded/trimmed
-    // view). projectMessages re-assembles a model-only view before every
-    // complete — including the first — so mid-loop growth stays foldable
-    // and lastAssemble reflects the real projection.
-    const result = await opts.agent.run({
-      input: pending,
-      signal: runOpts.signal,
-      maxTurns: runOpts.maxTurns,
-      onEvent: runOpts.onEvent,
-      onPermissionAsk: runOpts.onPermissionAsk,
-      projectMessages: async (inFlight) => {
-        let projected = await finalAssembler.assemble({
-          messages: [...inFlight],
-          system,
-          tools,
-          budget,
+    // view). The provider wrapper re-assembles a model-only view before
+    // every complete — including the first — so mid-loop growth stays
+    // foldable and lastAssemble reflects the real projection.
+    const project: MessageProjector = async (inFlight) => {
+      let projected = await finalAssembler.assemble({
+        messages: [...inFlight],
+        system,
+        tools,
+        budget,
+      });
+      for (const h of hooks) {
+        if (!h.onAfterAssemble) continue;
+        const next = await h.onAfterAssemble({
+          ...hookCtx,
+          pending: [...inFlight],
+          assemble: projected,
         });
-        for (const h of hooks) {
-          if (!h.onAfterAssemble) continue;
-          const next = await h.onAfterAssemble({
-            ...hookCtx,
-            pending: [...inFlight],
-            assemble: projected,
-          });
-          if (next) projected = next;
-        }
-        lastAssemble = projected;
-        return projected.view;
-      },
-    });
+        if (next) projected = next;
+      }
+      lastAssemble = projected;
+      return projected.view;
+    };
+
+    projection.set(project);
+    opts.bindPermissionAsk?.(runOpts.onPermissionAsk);
+    let result: RunResult;
+    try {
+      result = await opts.agent.run({
+        input: pending,
+        signal: runOpts.signal,
+        maxTurns: runOpts.maxTurns,
+        onEvent: runOpts.onEvent,
+      });
+    } finally {
+      projection.set(undefined);
+      opts.bindPermissionAsk?.(undefined);
+    }
 
     // Runner history is canonical for this turn (pending + generated).
     messages = result.messages;

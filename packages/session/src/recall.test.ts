@@ -54,6 +54,7 @@ describe("recall_context", () => {
         },
       },
     });
+    const recall = recallContextExtension(hmt.stash);
     const agent = await createAgent({
       provider: mockProvider([
         {
@@ -61,7 +62,7 @@ describe("recall_context", () => {
         },
         { text: "recalled" },
       ]),
-      extensions: [recallContextExtension(hmt.stash)],
+      tools: [recall.tool],
     });
 
     const session = await createSession({

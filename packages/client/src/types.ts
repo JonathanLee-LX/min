@@ -1,4 +1,4 @@
-import type { Message, PermissionAskResult, ToolCallPart } from "@min/core";
+import type { Message, ToolCallPart } from "@min/core";
 import type { Runtime, RuntimeOptions } from "@min/runtime";
 import type { InputQueueMode, SessionMeta } from "@min/session";
 
@@ -8,7 +8,7 @@ export type ClientStatus = "idle" | "running" | "asking";
 /** Busy-send policy when `send` is called while a run is in progress. */
 export type OnBusySend = "queue" | "reject";
 
-export type PermissionAnswer = PermissionAskResult;
+export type PermissionAnswer = "allow" | "deny" | "allow_session";
 
 export interface ClientSessionInfo {
   id: string;

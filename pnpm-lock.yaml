@@ -250,6 +250,9 @@ importers:
         specifier: workspace:*
         version: link:../session
     devDependencies:
+      '@min/tools':
+        specifier: workspace:*
+        version: link:../tools
       '@types/node':
         specifier: ^22.14.0
         version: 22.20.5
@@ -323,7 +326,7 @@ importers:
         version: link:../core
       openai:
         specifier: ^4.90.0
-        version: 4.104.0(ws@8.22.0)
+        version: 4.104.0(ws@8.22.0)(zod@3.25.76)
     devDependencies:
       '@types/node':
         specifier: ^22.14.0
@@ -396,6 +399,9 @@ importers:
       '@min/core':
         specifier: workspace:*
         version: link:../core
+      '@min/tools':
+        specifier: workspace:*
+        version: link:../tools
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
@@ -4533,7 +4539,7 @@ snapshots:
     dependencies:
       mimic-fn: 2.1.0
 
-  openai@4.104.0(ws@8.22.0):
+  openai@4.104.0(ws@8.22.0)(zod@3.25.76):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -4544,6 +4550,7 @@ snapshots:
       node-fetch: 2.7.0
     optionalDependencies:
       ws: 8.22.0
+      zod: 3.25.76
     transitivePeerDependencies:
       - encoding
 

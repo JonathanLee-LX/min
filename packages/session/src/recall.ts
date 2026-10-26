@@ -1,9 +1,4 @@
-import {
-  defineExtension,
-  defineTool,
-  type Extension,
-  type Tool,
-} from "@min/core";
+import { defineTool, type Tool } from "@min/core";
 import { z } from "zod";
 import type { ContextStash } from "./stash.js";
 
@@ -112,26 +107,19 @@ export function createRecallTool(
   });
 }
 
+export const RECALL_SYSTEM = [
+  "Some older tool outputs may be folded in the middle of the conversation for context budget.",
+  "Folded spans look like …[hidden:<id> · recall_context]…",
+  "Call recall_context with that id when you need the full original; omit id to list what is hidden.",
+].join(" ");
+
 /**
- * Agent extension: registers `recall_context` and a short system hint.
+ * `recall_context` tool plus the system hint a host should append.
  */
 export function recallContextExtension(
   stash: ContextStash,
   opts: CreateRecallToolOptions = {},
-): Extension & { tool: Tool; stash: ContextStash } {
+): { tool: Tool; system: string; stash: ContextStash } {
   const tool = createRecallTool(stash, opts);
-  const ext = defineExtension({
-    name: "recall-context",
-    setup(api) {
-      api.registerTool(tool);
-      api.appendSystem(
-        [
-          "Some older tool outputs may be folded in the middle of the conversation for context budget.",
-          "Folded spans look like …[hidden:<id> · recall_context]…",
-          "Call recall_context with that id when you need the full original; omit id to list what is hidden.",
-        ].join(" "),
-      );
-    },
-  });
-  return Object.assign(ext, { tool, stash });
+  return { tool, system: RECALL_SYSTEM, stash };
 }

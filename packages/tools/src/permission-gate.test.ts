@@ -1,11 +1,9 @@
+import { createAgent, defineTool, mockProvider } from "@min/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { createAgent } from "./agent.js";
-import { defineExtension } from "./extension.js";
-import { mockProvider } from "./provider.js";
-import { defineTool } from "./tools.js";
+import { createPermissionGate } from "./permission-protocol.js";
 
-describe("permission enforcement", () => {
+describe("permission gate", () => {
   it("denies tool execution and continues the loop", async () => {
     const bash = defineTool({
       name: "bash",
@@ -15,6 +13,10 @@ describe("permission enforcement", () => {
         return { content: "should not run" };
       },
     });
+    const gate = createPermissionGate(() => ({
+      action: "deny",
+      reason: "bash blocked",
+    }));
 
     const agent = await createAgent({
       provider: mockProvider([
@@ -23,29 +25,17 @@ describe("permission enforcement", () => {
         },
         { text: "Understood, I will not run that." },
       ]),
-      tools: [bash],
-      permissionHandler: () => ({
-        action: "deny",
-        reason: "bash blocked",
-      }),
+      tools: gate.wrap([bash]),
     });
 
-    const events: string[] = [];
-    const result = await agent.run({
-      input: "delete everything",
-      onEvent(e) {
-        events.push(e.type);
-      },
-    });
-
-    expect(events).toContain("permission");
+    const result = await agent.run("delete everything");
     expect(result.text).toContain("Understood");
     const toolMsg = result.messages.find((m) => m.role === "tool");
     expect(JSON.stringify(toolMsg)).toContain("Permission denied");
-    await agent.dispose();
+    expect(JSON.stringify(toolMsg)).not.toContain("should not run");
   });
 
-  it("asks and allows when onPermissionAsk returns allow", async () => {
+  it("asks and allows when the approver returns allow", async () => {
     const write = defineTool({
       name: "write_file",
       description: "write",
@@ -54,8 +44,12 @@ describe("permission enforcement", () => {
         return { content: `wrote ${path}` };
       },
     });
-
+    const gate = createPermissionGate(() => ({
+      action: "ask",
+      reason: "confirm write",
+    }));
     const ask = vi.fn().mockResolvedValue("allow");
+    gate.setAsk(ask);
 
     const agent = await createAgent({
       provider: mockProvider([
@@ -69,25 +63,16 @@ describe("permission enforcement", () => {
         },
         { text: "done" },
       ]),
-      tools: [write],
-      permissionHandler: () => ({
-        action: "ask",
-        reason: "confirm write",
-      }),
+      tools: gate.wrap([write]),
     });
 
-    const result = await agent.run({
-      input: "write",
-      onPermissionAsk: ask,
-    });
-
+    const result = await agent.run("write");
     expect(ask).toHaveBeenCalledOnce();
     expect(result.text).toBe("done");
     expect(JSON.stringify(result.messages)).toContain("wrote a.txt");
-    await agent.dispose();
   });
 
-  it("applies grantRoot via onPermissionAsk before execute", async () => {
+  it("passes grantRoot to the approver before execute", async () => {
     const roots: string[] = [];
     const read = defineTool({
       name: "read_file",
@@ -97,6 +82,15 @@ describe("permission enforcement", () => {
         return { content: `ok:${path}` };
       },
     });
+    const gate = createPermissionGate(() => ({
+      action: "ask",
+      reason: "need root",
+      grantRoot: "/tmp/granted-root",
+    }));
+    gate.setAsk(async (req) => {
+      if (req.grantRoot) roots.push(req.grantRoot);
+      return "allow";
+    });
 
     const agent = await createAgent({
       provider: mockProvider([
@@ -105,28 +99,19 @@ describe("permission enforcement", () => {
         },
         { text: "read done" },
       ]),
-      tools: [read],
-      permissionHandler: () => ({
-        action: "ask",
-        reason: "need root",
-        grantRoot: "/tmp/granted-root",
-      }),
+      tools: gate.wrap([read]),
     });
 
-    const result = await agent.run({
-      input: "read outside",
-      onPermissionAsk: async (req) => {
-        if (req.grantRoot) roots.push(req.grantRoot);
-        return "allow";
-      },
-    });
-
+    const result = await agent.run("read outside");
     expect(roots).toEqual(["/tmp/granted-root"]);
     expect(JSON.stringify(result.messages)).toContain("ok:../x");
-    await agent.dispose();
   });
 
-  it("treats ask without approver as deny", async () => {
+  it("treats ask without an approver as deny", async () => {
+    const gate = createPermissionGate(() => ({
+      action: "ask",
+      reason: "need approval",
+    }));
     const agent = await createAgent({
       provider: mockProvider([
         {
@@ -134,7 +119,7 @@ describe("permission enforcement", () => {
         },
         { text: "ok" },
       ]),
-      tools: [
+      tools: gate.wrap([
         defineTool({
           name: "bash",
           description: "run",
@@ -143,23 +128,12 @@ describe("permission enforcement", () => {
             return { content: "ran" };
           },
         }),
-      ],
-      extensions: [
-        defineExtension({
-          name: "perm",
-          setup(api) {
-            api.setPermissionHandler(() => ({
-              action: "ask",
-              reason: "need approval",
-            }));
-          },
-        }),
-      ],
+      ]),
     });
 
     const result = await agent.run("go");
     expect(JSON.stringify(result.messages)).toContain("Permission denied");
+    expect(JSON.stringify(result.messages)).toContain("no interactive approver");
     expect(JSON.stringify(result.messages)).not.toContain('"ran"');
-    await agent.dispose();
   });
 });

@@ -1,4 +1,5 @@
 import { createAgent, defineTool, mockProvider } from "@min/core";
+import { createPermissionGate } from "@min/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createAllowedToolsGate, skills } from "./index.js";
@@ -37,6 +38,22 @@ describe("skills allowed-tools pre-approval", () => {
       allowedTools: ["read_file", "glob"],
     };
 
+    const loaded = await skills({
+      sources: [memorySource(skill)],
+      allowedToolsGate: gate,
+    });
+    const gateTools = createPermissionGate(
+      gate.wrap(async (ctx) => {
+        if (ctx.toolCall.name === "load_skill") return { action: "allow" };
+        return { action: "ask", reason: "confirm bash" };
+      }),
+    );
+    const asks: string[] = [];
+    gateTools.setAsk(async (req) => {
+      asks.push(req.toolCall.name);
+      return "deny";
+    });
+
     const agent = await createAgent({
       provider: mockProvider([
         {
@@ -47,25 +64,10 @@ describe("skills allowed-tools pre-approval", () => {
         },
         { text: "done" },
       ]),
-      tools: [bash],
-      extensions: [
-        skills({ sources: [memorySource(skill)], allowedToolsGate: gate }),
-      ],
-      permissionHandler: gate.wrap(async (ctx) => {
-        if (ctx.toolCall.name === "load_skill") return { action: "allow" };
-        return { action: "ask", reason: "confirm bash" };
-      }),
+      tools: gateTools.wrap([bash, ...loaded.tools]),
     });
 
-    const asks: string[] = [];
-    await agent.run({
-      input: "use the skill then bash",
-      onEvent(e) {
-        if (e.type === "permission" && e.decision === "ask") {
-          asks.push(e.toolCall.name);
-        }
-      },
-    });
+    await agent.run("use the skill then bash");
 
     expect([...gate.preapproved()].sort()).toEqual(["glob", "read_file"]);
     expect(asks).toEqual(["bash"]);
@@ -82,6 +84,22 @@ describe("skills allowed-tools pre-approval", () => {
       allowedTools: ["bash"],
     };
 
+    const loaded = await skills({
+      sources: [memorySource(skill)],
+      allowedToolsGate: gate,
+    });
+    const gateTools = createPermissionGate(
+      gate.wrap(async (ctx) => {
+        if (ctx.toolCall.name === "load_skill") return { action: "allow" };
+        return { action: "ask", reason: "confirm bash" };
+      }),
+    );
+    const asks: string[] = [];
+    gateTools.setAsk(async (req) => {
+      asks.push(req.toolCall.name);
+      return "deny";
+    });
+
     const agent = await createAgent({
       provider: mockProvider([
         {
@@ -92,25 +110,10 @@ describe("skills allowed-tools pre-approval", () => {
         },
         { text: "done" },
       ]),
-      tools: [bash],
-      extensions: [
-        skills({ sources: [memorySource(skill)], allowedToolsGate: gate }),
-      ],
-      permissionHandler: gate.wrap(async (ctx) => {
-        if (ctx.toolCall.name === "load_skill") return { action: "allow" };
-        return { action: "ask", reason: "confirm bash" };
-      }),
+      tools: gateTools.wrap([bash, ...loaded.tools]),
     });
 
-    const asks: string[] = [];
-    const result = await agent.run({
-      input: "load then bash",
-      onEvent(e) {
-        if (e.type === "permission" && e.decision === "ask") {
-          asks.push(e.toolCall.name);
-        }
-      },
-    });
+    const result = await agent.run("load then bash");
 
     expect(asks).toEqual([]);
     expect(result.messages.some((m) => m.role === "tool")).toBe(true);

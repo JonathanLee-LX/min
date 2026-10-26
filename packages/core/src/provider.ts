@@ -8,6 +8,9 @@ import type {
  * Model backend. Core only defines this contract and {@link mockProvider}.
  * Built-in vendor adapters live in `@min/providers`; any object that
  * implements this interface can be passed to `createAgent`.
+ *
+ * Hosts that need a different message view wrap `complete` / `stream`
+ * and replace `req.messages` before calling the inner provider.
  */
 export interface ModelProvider {
   readonly id: string;

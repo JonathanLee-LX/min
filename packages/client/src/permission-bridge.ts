@@ -1,11 +1,12 @@
-import type { PermissionAskResult, ToolCallPart } from "@min/core";
+import type { ToolCallPart } from "@min/core";
+import type { PermissionAnswer } from "./types.js";
 
 export interface PendingPermission {
   id: string;
   toolCall: ToolCallPart;
   reason: string;
   grantRoot?: string;
-  resolve: (answer: PermissionAskResult) => void;
+  resolve: (answer: PermissionAnswer) => void;
   timer?: ReturnType<typeof setTimeout>;
 }
 
@@ -14,10 +15,10 @@ export interface PermissionBridge {
     toolCall: ToolCallPart;
     reason: string;
     grantRoot?: string;
-  }): Promise<PermissionAskResult>;
-  respond(id: string, answer: PermissionAskResult): boolean;
+  }): Promise<PermissionAnswer>;
+  respond(id: string, answer: PermissionAnswer): boolean;
   /** Deny all outstanding asks (dispose / abort). */
-  rejectAll(answer?: PermissionAskResult): void;
+  rejectAll(answer?: PermissionAnswer): void;
   readonly size: number;
 }
 
@@ -35,7 +36,7 @@ export function createPermissionBridge(opts: {
 
     ask(req) {
       const id = `perm_${++seq}`;
-      return new Promise<PermissionAskResult>((resolve) => {
+      return new Promise<PermissionAnswer>((resolve) => {
         const entry: PendingPermission = {
           id,
           toolCall: req.toolCall,

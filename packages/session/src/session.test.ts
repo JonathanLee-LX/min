@@ -261,7 +261,7 @@ describe("createSession", () => {
 
     const result = await session.run("build something big");
     expect(result.turns).toBe(4);
-    // projectMessages runs once per model complete (≥ 4), plus the pre-run assemble.
+    // The provider wrapper projects once per model complete (≥ 4), plus the pre-run assemble.
     expect(assembles.length).toBeGreaterThanOrEqual(5);
     expect(Math.max(...assembles)).toBeGreaterThan(0);
 

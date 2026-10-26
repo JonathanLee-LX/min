@@ -47,11 +47,18 @@ function resolveExampleProvider(): ModelProvider {
   return createProvider(kind);
 }
 
+const systemParts = [
+  "You are min, a minimal agent harness. Prefer tools when useful.",
+];
+const loadedSkills = await skills({
+  dirs: [skillsDir],
+  appendSystem: (text) => systemParts.push(text),
+});
+
 const agent = await createAgent({
   provider: resolveExampleProvider(),
-  tools: [echo],
-  extensions: [skills({ dirs: [skillsDir] })],
-  system: "You are min, a minimal agent harness. Prefer tools when useful.",
+  tools: [echo, ...loadedSkills.tools],
+  system: () => systemParts.join("\n\n"),
   maxTurns: 8,
 });
 

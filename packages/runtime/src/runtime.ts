@@ -2,8 +2,8 @@ import {
   createAgent,
   type Agent,
   type ModelProvider,
-  type PermissionAskResult,
   type RunEvent,
+  type Tool,
 } from "@min/core";
 import {
   createFsStore,
@@ -21,7 +21,9 @@ import {
   type AllowedToolsGate,
 } from "@min/skills";
 import {
+  createPermissionGate,
   workspaceTools,
+  type PermissionAskResult,
   type WorkspacePermissionPolicy,
 } from "@min/tools";
 import { access } from "node:fs/promises";
@@ -74,7 +76,6 @@ export function sessionDirFor(cwd: string, sessionDir?: string): string {
 export async function createRuntime(
   opts: RuntimeOptions,
 ): Promise<Runtime> {
-  const extensions = [];
   let permissions: WorkspacePermissionPolicy | undefined;
   const allowedToolsGate = createAllowedToolsGate();
   // Product default: hybrid when tools are on (stash + recall); trim otherwise.
@@ -93,8 +94,15 @@ export async function createRuntime(
     provider: opts.provider,
   });
 
+  const systemParts = [BASE_SYSTEM];
+  const appendSystem = (text: string) => {
+    const trimmed = text.trim();
+    if (trimmed) systemParts.push(trimmed);
+  };
+  const tools: Tool[] = [];
+
   if (!opts.noTools) {
-    const ext = workspaceTools({
+    const workspace = workspaceTools({
       root: opts.cwd,
       addRoots: opts.addRoots,
       enforcePermissions: false,
@@ -103,30 +111,38 @@ export async function createRuntime(
         bash: opts.allowBash ? "allow" : "ask",
       },
     });
-    extensions.push(ext);
-    permissions = ext.permissions;
+    tools.push(...workspace.tools);
+    appendSystem(workspace.system);
+    permissions = workspace.permissions;
   }
 
   if (resolved.needsRecall && resolved.stash) {
-    extensions.push(recallContextExtension(resolved.stash));
+    const recall = recallContextExtension(resolved.stash);
+    tools.push(recall.tool);
+    appendSystem(recall.system);
   }
 
   const skillsDir = opts.skillsDir
     ? path.resolve(opts.skillsDir)
     : path.join(opts.cwd, "skills");
   if (await exists(skillsDir)) {
-    extensions.push(skills({ dirs: [skillsDir], allowedToolsGate }));
+    const loaded = await skills({
+      dirs: [skillsDir],
+      allowedToolsGate,
+      appendSystem,
+    });
+    tools.push(...loaded.tools);
   }
 
   const permissionHandler = permissions
     ? allowedToolsGate.wrap(permissions.handler)
     : allowedToolsGate.handler;
+  const permissionGate = createPermissionGate(permissionHandler);
 
   const agent = await createAgent({
     provider: opts.provider,
-    extensions,
-    permissionHandler,
-    system: BASE_SYSTEM,
+    tools: permissionGate.wrap(tools),
+    system: () => systemParts.join("\n\n"),
     maxTurns: 20,
   });
 
@@ -150,6 +166,7 @@ export async function createRuntime(
       stash: resolved.stash,
     },
     extensions: sessionExtensions,
+    bindPermissionAsk: (ask) => permissionGate.setAsk(ask),
   });
 
   return {

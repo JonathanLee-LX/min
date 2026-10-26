@@ -4,6 +4,7 @@ import {
   mockProvider,
 } from "@min/core";
 import { createMemoryStore, createSession } from "@min/session";
+import { createPermissionGate } from "@min/tools";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -63,7 +64,6 @@ describe("Client golden paths", () => {
         { text: "finished" },
       ]),
       tools: [bash],
-      permissionHandler: () => ({ action: "allow" }),
     });
     const session = await createSession({
       agent,
@@ -100,15 +100,22 @@ describe("Client golden paths", () => {
         return { content: "ok" };
       },
     });
+    const gate = createPermissionGate(() => ({
+      action: "ask",
+      reason: "confirm bash",
+    }));
     const agent = await createAgent({
       provider: mockProvider([
         { toolCalls: [{ name: "bash", arguments: { command: "id" } }] },
         { text: "allowed" },
       ]),
-      tools: [bash],
-      permissionHandler: () => ({ action: "ask", reason: "confirm bash" }),
+      tools: gate.wrap([bash]),
     });
-    const session = await createSession({ agent, store: createMemoryStore() });
+    const session = await createSession({
+      agent,
+      store: createMemoryStore(),
+      bindPermissionAsk: (ask) => gate.setAsk(ask),
+    });
     const events: ClientEvent[] = [];
     const client = await createClient({
       runtime: {

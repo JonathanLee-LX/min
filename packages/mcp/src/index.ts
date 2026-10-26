@@ -1,9 +1,4 @@
-import {
-  defineExtension,
-  type Extension,
-  type Tool,
-  type ToolResult,
-} from "@min/core";
+import { type Tool, type ToolResult } from "@min/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
@@ -37,17 +32,25 @@ interface ConnectedServer {
   close: () => Promise<void>;
 }
 
+export interface McpConnection {
+  name: "mcp";
+  /** Open the configured servers and return their tools. */
+  connect(): Promise<{ tools: Tool[]; dispose(): Promise<void> }>;
+}
+
 /**
- * Connect to one or more MCP servers and register their tools on the agent.
+ * Connect to one or more MCP servers and expose their tools.
+ * Call `connect()` before `createAgent`, and `dispose()` when the host shuts down.
  */
-export function mcp(options: McpExtensionOptions): Extension {
-  const connections: ConnectedServer[] = [];
+export function mcp(options: McpExtensionOptions): McpConnection {
   const prefix = options.prefixTools !== false;
 
-  return defineExtension({
+  return {
     name: "mcp",
 
-    async setup(api) {
+    async connect() {
+      const connections: ConnectedServer[] = [];
+      const tools: Tool[] = [];
       for (const server of options.servers) {
         const conn = await connectServer(server, {
           name: options.clientName ?? "min",
@@ -61,23 +64,27 @@ export function mcp(options: McpExtensionOptions): Extension {
             ? `${server.name}__${mcpTool.name}`
             : mcpTool.name;
 
-          const tool = mcpToolToMinTool({
-            name: toolName,
-            remoteName: mcpTool.name,
-            description: mcpTool.description ?? `MCP tool ${mcpTool.name}`,
-            inputSchema: mcpTool.inputSchema,
-            client: conn.client,
-          });
-          api.registerTool(tool);
+          tools.push(
+            mcpToolToMinTool({
+              name: toolName,
+              remoteName: mcpTool.name,
+              description: mcpTool.description ?? `MCP tool ${mcpTool.name}`,
+              inputSchema: mcpTool.inputSchema,
+              client: conn.client,
+            }),
+          );
         }
       }
-    },
 
-    async dispose() {
-      await Promise.all(connections.map((c) => c.close()));
-      connections.length = 0;
+      return {
+        tools,
+        async dispose() {
+          await Promise.all(connections.map((c) => c.close()));
+          connections.length = 0;
+        },
+      };
     },
-  });
+  };
 }
 
 async function connectServer(
