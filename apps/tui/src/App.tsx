@@ -5,7 +5,7 @@ import {
   type MinClient,
 } from "@min-agent/client";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 import {
@@ -26,6 +26,7 @@ import {
   type EditorState,
   type InputKey,
 } from "./editor.js";
+import { decodeInput } from "./keys.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
 import { wrapText } from "./text.js";
 import {
@@ -55,6 +56,7 @@ interface DisplayLine {
 export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { setRawMode, internal_eventEmitter } = useStdin();
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);
@@ -408,11 +410,22 @@ export function App({ args }: { args: TuiArgs }) {
     }
   };
 
-  const onInput = useCallback((input: string, key: InputKey) => {
-    handleInput.current(input, key);
-  }, []);
+  useEffect(() => {
+    setRawMode(true);
+    return () => setRawMode(false);
+  }, [setRawMode]);
 
-  useInput(onInput);
+  useEffect(() => {
+    const onChunk = (chunk: string | Buffer) => {
+      const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      const { input, key } = decodeInput(text);
+      handleInput.current(input, key);
+    };
+    internal_eventEmitter.on("input", onChunk);
+    return () => {
+      internal_eventEmitter.off("input", onChunk);
+    };
+  }, [internal_eventEmitter]);
 
   const columns = size.columns;
   const termRows = size.rows;
