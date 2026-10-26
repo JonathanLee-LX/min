@@ -15,7 +15,7 @@
     "min-web": "pnpm --filter=@min-agent/webui dev",
     "link:cli": "pnpm --filter=@min-agent/cli run build && pnpm --filter=@min-agent/cli exec pnpm link --global",
     "link:tui": "pnpm --filter=@min-agent/tui run build && pnpm --filter=@min-agent/tui exec pnpm link --global",
-    "publish:alpha": "pnpm build && pnpm -r --filter=@min-agent/* publish --access public --tag alpha"
+    "publish:alpha": "pnpm build && node scripts/release.mjs publish 0.1.0-alpha.0"
   },
   "engines": {
     "node": ">=20"

@@ -1,0 +1,79 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Pack and verify without uploading to npm
+        type: boolean
+        default: false
+      version:
+        description: Version without the leading v, required for a manual run (for example 0.1.0-alpha.0)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check package versions
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            raw="$INPUT_VERSION"
+          else
+            raw="${REF_NAME#v}"
+          fi
+          version="$(node scripts/release.mjs check "$raw")"
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          REPO_VISIBILITY: ${{ github.event.repository.visibility }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+        run: |
+          if [ "$DRY_RUN" != "true" ] && [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::Repository secret NPM_TOKEN is missing. Add a granular npm token that can publish @min-agent, then re-run this workflow. Keep the git tag."
+            exit 1
+          fi
+          if [ "$REPO_VISIBILITY" = "public" ]; then
+            export NPM_CONFIG_PROVENANCE=true
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            node scripts/release.mjs publish "$RELEASE_VERSION" --dry-run
+          else
+            node scripts/release.mjs publish "$RELEASE_VERSION"
+          fi

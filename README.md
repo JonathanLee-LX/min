@@ -35,7 +35,19 @@ min --help
 
 Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. Web and TUI use the same client contract as the CLI, with a thinner surface. There is no authentication.
 
-Package metadata does not set a `repository` URL yet. Add it when the public git remote exists, then publish with `pnpm publish:alpha` from a clean tree. That command builds first; pnpm rewrites `workspace:*` to `0.1.0-alpha.0` during publish.
+## Publishing
+
+GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run.
+
+1. Create a granular npm token that can publish the `@min-agent` scope. Save it as the repository secret `NPM_TOKEN`.
+2. Set every non-private package under `packages/` and `apps/` to the same version. Examples and demos stay private and are not published.
+3. Push the matching tag. For this alpha that is `v0.1.0-alpha.0`.
+
+The workflow rejects the release when any publishable version differs from the tag. It then installs from the lockfile, builds, typechecks, tests, and publishes in dependency order. pnpm rewrites `workspace:*` to the released version. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag.
+
+Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
+
+Wait to push `v0.1.0-alpha.0` until `NPM_TOKEN` exists. A real publish without that secret fails before anything is uploaded. `pnpm publish:alpha` is only a local fallback for this same alpha version. Package metadata still has no `repository` URL.
 
 ## Monorepo
 
