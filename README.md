@@ -35,7 +35,7 @@ min-web
 
 `[a]lways` writes the remembered pattern to `<cwd>/.min/permissions.json`. `--auto` remembers only for that process and does not write the file.
 
-Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, role-colored transcript rows, phase spinners, and Markdown assistant text. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
+Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, role-colored transcript rows, phase spinners, Markdown assistant text, and mermaid diagrams. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
 
 ## Publishing
 

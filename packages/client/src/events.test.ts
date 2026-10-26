@@ -39,8 +39,29 @@ describe("createEventTranslator", () => {
         name: "read_file",
         ok: true,
         preview: "ok body",
+        content: "ok body",
       },
     ]);
     expect(t.push({ type: "turn_start", turn: 1 })).toEqual([]);
+  });
+
+  it("keeps the full tool output and clips only the one-line preview", () => {
+    const t = createEventTranslator();
+    t.push({
+      type: "tool_call",
+      toolCall: { type: "tool_call", id: "c1", name: "bash", arguments: {} },
+    });
+    const body = `alpha\n${"b".repeat(400)}`;
+    const [event] = t.push({
+      type: "tool_result",
+      toolCallId: "c1",
+      content: body,
+      isError: false,
+    });
+    expect(event).toMatchObject({ type: "tool_end", content: body });
+    if (event?.type !== "tool_end") throw new Error("expected tool_end");
+    expect(event.preview.endsWith("...")).toBe(true);
+    expect(event.preview.length).toBeLessThanOrEqual(200);
+    expect(event.preview.includes("\n")).toBe(false);
   });
 });

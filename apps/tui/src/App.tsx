@@ -34,7 +34,7 @@ import { wrapText } from "./text.js";
 import {
   linesFromMessages,
   summarizeToolCall,
-  layoutViewport,
+  sliceViewport,
   type LogKind,
   type LogLine,
   type TranscriptMessage,
@@ -181,10 +181,10 @@ export function App({ args }: { args: TuiArgs }) {
             inflightTools.current.delete(event.toolCallId);
             const names = [...inflightTools.current.values()];
             setToolName(names.length > 0 ? names[names.length - 1]! : null);
-            const preview = event.preview.trim();
+            const body = event.content.trim();
             pushLine(
               event.ok ? "tool-result" : "tool-error",
-              preview || (event.ok ? "(no output)" : "(failed)"),
+              body || (event.ok ? "(no output)" : "(failed)"),
             );
             return;
           }
@@ -493,7 +493,7 @@ export function App({ args }: { args: TuiArgs }) {
   }
 
   viewRef.current = { total: rowCount, height: logHeight };
-  const layout = layoutViewport(painted, innerWidth, logHeight, scroll);
+  const layout = sliceViewport(painted, logHeight, scroll);
 
   if (error) {
     return (
@@ -527,27 +527,33 @@ export function App({ args }: { args: TuiArgs }) {
       </Text>
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
-        {layout.visible.map((row, index) => {
-          const tone = toneFor(row.source.kind);
-          if (row.source.kind === "gap") {
-            return <Text key={`${row.source.key}:${layout.hiddenAbove + index}`}> </Text>;
+        {layout.visible.map((row) => {
+          const tone = toneFor(row.kind);
+          if (row.kind === "gap") {
+            return (
+              <Box key={row.key} height={1} flexShrink={0}>
+                <Text> </Text>
+              </Box>
+            );
           }
           return (
-            <Text key={`${row.source.key}:${layout.hiddenAbove + index}`} wrap="truncate">
-              <Text bold={row.source.lead} color={tone.label} dimColor={tone.dimLabel}>
-                {row.source.gutter}
-              </Text>
-              {row.source.spans.map((span, spanIndex) => (
-                <Text
-                  key={spanIndex}
-                  bold={span.bold}
-                  color={tone.body}
-                  dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}
-                >
-                  {span.text}
+            <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
+              <Text wrap="truncate">
+                <Text bold={row.lead} color={tone.label} dimColor={tone.dimLabel}>
+                  {row.gutter}
                 </Text>
-              ))}
-            </Text>
+                {row.spans.map((span, spanIndex) => (
+                  <Text
+                    key={spanIndex}
+                    bold={span.bold}
+                    color={tone.body}
+                    dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}
+                  >
+                    {span.text}
+                  </Text>
+                ))}
+              </Text>
+            </Box>
           );
         })}
       </Box>

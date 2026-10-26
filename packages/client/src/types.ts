@@ -61,7 +61,10 @@ export type ClientEvent =
       toolCallId: string;
       name?: string;
       ok: boolean;
+      /** One-line preview for compact logs. */
       preview: string;
+      /** Full tool output, newlines included. */
+      content: string;
     }
   | { type: "follow_up"; texts: readonly string[] }
   | {

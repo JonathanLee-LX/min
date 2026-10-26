@@ -50,7 +50,7 @@ export function linesFromMessages(
         continue;
       }
       if (part.type === "tool_result") {
-        const text = brief(part.content, 1000);
+        const text = part.content.trim();
         lines.push({
           kind: part.isError ? "tool-error" : "tool-result",
           text: text || (part.isError ? "(failed)" : "(no output)"),
@@ -96,6 +96,33 @@ export function layoutViewport<T extends { text: string }>(
   const start = Math.max(0, end - rowHeight);
   return {
     visible: visual.slice(start, end),
+    scroll: clamped,
+    hiddenAbove: start,
+    hiddenBelow: clamped,
+    total,
+  };
+}
+
+/** Window over rows that are already one visual line each. */
+export function sliceViewport<T>(
+  rows: readonly T[],
+  height: number,
+  scroll: number,
+): {
+  visible: T[];
+  scroll: number;
+  hiddenAbove: number;
+  hiddenBelow: number;
+  total: number;
+} {
+  const rowHeight = Math.max(1, height);
+  const total = rows.length;
+  const maxScroll = Math.max(0, total - rowHeight);
+  const clamped = Math.min(Math.max(0, scroll), maxScroll);
+  const end = total - clamped;
+  const start = Math.max(0, end - rowHeight);
+  return {
+    visible: rows.slice(start, end),
     scroll: clamped,
     hiddenAbove: start,
     hiddenBelow: clamped,

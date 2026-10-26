@@ -38,6 +38,8 @@ export interface RenderBlock {
   lines: RenderSpan[][];
   lang?: string;
   level?: number;
+  /** A fence had its closing marker. Unclosed fences stay source text. */
+  closed?: boolean;
 }
 
 /** Return the blocks for this request, or call `next` to pass it on. */
@@ -93,9 +95,11 @@ function parseMarkdown(text: string): RenderBlock[] {
         body.push(rows[index] ?? "");
         index += 1;
       }
-      if (index < rows.length) index += 1;
+      const closed = index < rows.length && /^```\s*$/.test(rows[index] ?? "");
+      if (closed) index += 1;
       blocks.push({
         kind: "code",
+        closed,
         ...(lang ? { lang } : {}),
         lines: (body.length > 0 ? body : [""]).map((row) => [{ text: row, tone: "plain" }]),
       });

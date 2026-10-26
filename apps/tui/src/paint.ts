@@ -1,3 +1,4 @@
+import { renderMermaidLines } from "./mermaid.js";
 import {
   renderContent,
   type RenderBlock,
@@ -172,8 +173,15 @@ function paintBlocks(
       continue;
     }
     if (block.kind === "code") {
-      if (block.lang) push(paintSpans([{ text: block.lang, tone: "dim" }], false));
       const source = block.lines.map((spans) => spans.map((span) => span.text).join(""));
+      if (isMermaid(block.lang) && block.closed) {
+        const diagram = renderMermaidLines(source.join("\n"), bodyWidth);
+        if (diagram) {
+          pushDiagram(push, diagram);
+          continue;
+        }
+      }
+      if (block.lang) push(paintSpans([{ text: block.lang, tone: "dim" }], false));
       const codeLines = source.length > 0 ? source : [""];
       for (const codeLine of codeLines) {
         for (const wrapped of wrapText(codeLine.length > 0 ? codeLine : " ", bodyWidth)) {
@@ -193,6 +201,16 @@ function paintBlocks(
   }
   if (rows.length === 0) push(paintSpans([{ text: " ", tone: "plain" }], false));
   return rows;
+}
+
+function isMermaid(lang: string | undefined): boolean {
+  return lang?.trim().toLowerCase() === "mermaid";
+}
+
+function pushDiagram(push: (spans: PaintedSpan[]) => void, lines: readonly string[]): void {
+  for (const line of lines) {
+    push(paintSpans([{ text: line.length > 0 ? line : " ", tone: "plain" }], false));
+  }
 }
 
 function appendCaret(

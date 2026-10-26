@@ -31,6 +31,39 @@ describe("paintTranscript", () => {
     expect(layout.total).toBe(rows.length);
   });
 
+  it("keeps a long answer by wrapping instead of dropping the tail", () => {
+    const text = "a".repeat(100);
+    const rows = paintTranscript([{ key: "a", kind: "assistant", text }], 25);
+    expect(rows.map((row) => row.body).join("")).toBe(text);
+    for (const row of rows) expect(displayWidth(row.text)).toBeLessThanOrEqual(25);
+  });
+
+  it("draws a closed mermaid fence as a diagram", () => {
+    const rows = paintTranscript(
+      [
+        {
+          key: "m",
+          kind: "assistant",
+          text: "```mermaid\nflowchart LR\n  Client[Client] --> API[API]\n```",
+        },
+      ],
+      80,
+    );
+    const picture = rows.map((row) => row.body).join("\n");
+    expect(picture).toContain("Client");
+    expect(picture).toContain("API");
+    expect(picture).not.toContain("flowchart");
+    expect(/[┌┐└┘│]|[+][-]/.test(picture)).toBe(true);
+  });
+
+  it("leaves an unfinished mermaid fence as source", () => {
+    const rows = paintTranscript(
+      [{ key: "m", kind: "assistant", text: "```mermaid\nflowchart LR\n  A --> B", streaming: true }],
+      80,
+    );
+    expect(rows.map((row) => row.body).join("\n")).toContain("flowchart");
+  });
+
   it("opens a gap before a new turn", () => {
     const rows = paintTranscript(
       [

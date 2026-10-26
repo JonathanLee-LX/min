@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutViewport, linesFromMessages } from "./transcript.js";
+import { layoutViewport, linesFromMessages, sliceViewport } from "./transcript.js";
 
 describe("linesFromMessages", () => {
   it("skips system text and keeps user text intact", () => {
@@ -16,14 +16,13 @@ describe("linesFromMessages", () => {
       },
       {
         role: "tool",
-        content: [{ type: "tool_result", content: "x".repeat(1200), isError: true }],
+        content: [{ type: "tool_result", content: `x\n${"y".repeat(1200)}`, isError: true }],
       },
     ]);
     expect(lines.map((line) => line.kind)).toEqual(["user", "assistant", "tool", "tool-error"]);
     expect(lines[0]?.text).toBe(text);
     expect(lines[2]?.text).toBe("read_file  a.ts");
-    expect(lines[3]?.text.endsWith("...")).toBe(true);
-    expect(lines[3]!.text.length).toBeLessThanOrEqual(1000);
+    expect(lines[3]?.text).toBe(`x\n${"y".repeat(1200)}`);
   });
 });
 
@@ -50,6 +49,22 @@ describe("layoutViewport", () => {
     expect(older.visible.map((row) => row.text)).toEqual(["你好", "你好"]);
     expect(older.hiddenAbove).toBe(0);
     expect(older.hiddenBelow).toBe(1);
+  });
+
+  it("keeps every painted row available when the window is full", () => {
+    const rows = Array.from({ length: 40 }, (_, index) => ({ text: `line ${index}` }));
+    const pinned = sliceViewport(rows, 5, 0);
+    expect(pinned.visible.map((row) => row.text)).toEqual([
+      "line 35",
+      "line 36",
+      "line 37",
+      "line 38",
+      "line 39",
+    ]);
+    expect(pinned.hiddenAbove).toBe(35);
+    const older = sliceViewport(rows, 5, 35);
+    expect(older.visible[0]?.text).toBe("line 0");
+    expect(older.hiddenBelow).toBe(35);
   });
 
   it("clamps scroll past either end", () => {

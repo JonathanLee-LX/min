@@ -45,6 +45,7 @@ export function createEventTranslator(): EventTranslator {
               name: toolNames.get(event.toolCallId),
               ok: !event.isError,
               preview: clipped,
+              content: event.content,
             },
           ];
         }
