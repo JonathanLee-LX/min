@@ -146,6 +146,13 @@ export interface ClientOptions {
    */
   applyRootGrant?: boolean;
 
+  /**
+   * When true (default), `allow_session` writes the remembered pattern or
+   * root into `.min/permissions.json`. Set false for `--auto`, which should
+   * only remember for this process.
+   */
+  persistPermissionGrants?: boolean;
+
   /** Deny unanswered permission asks after this many ms. Default 120_000. */
   permissionTimeoutMs?: number;
 }

@@ -43,7 +43,8 @@ async function getClient(): Promise<MinClient> {
         noTools: process.env.MIN_NO_TOOLS === "1",
         allowBash:
           process.env.MIN_AUTO === "1" || process.env.MIN_YES === "1",
-        applyRootGrant: process.env.MIN_AUTO === "1",
+        applyRootGrant: true,
+        persistPermissionGrants: process.env.MIN_AUTO !== "1",
         autoApprovePermission:
           process.env.MIN_AUTO === "1"
             ? createAutoPermissionApprover({ mode: "auto" })

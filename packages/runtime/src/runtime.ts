@@ -22,6 +22,9 @@ import {
 } from "@min/skills";
 import {
   createPermissionGate,
+  loadPermissionRules,
+  permissionRulesPath,
+  savePermissionRules,
   workspaceTools,
   type PermissionAskResult,
   type WorkspacePermissionPolicy,
@@ -111,6 +114,7 @@ export async function createRuntime(
   const tools: Tool[] = [];
 
   if (!opts.noTools) {
+    const rulesFile = permissionRulesPath(opts.cwd);
     const workspace = workspaceTools({
       root: opts.cwd,
       addRoots: opts.addRoots,
@@ -118,6 +122,11 @@ export async function createRuntime(
       permissions: {
         write: opts.askWrite ? "ask" : "allow",
         bash: opts.allowBash ? "allow" : "ask",
+        trustedTools: ["recall_context", "load_skill"],
+        rules: loadPermissionRules(rulesFile),
+        onRulesChange(next) {
+          savePermissionRules(rulesFile, next);
+        },
       },
     });
     tools.push(...workspace.tools);

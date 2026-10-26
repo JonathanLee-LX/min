@@ -171,4 +171,55 @@ describe("createRuntime", () => {
     await plain.session.dispose();
     await plain.agent.dispose();
   });
+
+  it("trusts built-ins, asks for other tools, and reloads saved grants", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "min-rules-"));
+    const rt = await createRuntime({
+      cwd,
+      provider: mockProvider([{ text: "ok" }]),
+      noSessionStore: true,
+    });
+    const call = {
+      type: "tool_call" as const,
+      id: "1",
+      name: "bash",
+      arguments: { command: "curl evil" },
+    };
+    expect(rt.permissions?.handler({
+      toolCall: { ...call, name: "load_skill" },
+      messages: [],
+      turn: 1,
+    })).toEqual({ action: "allow" });
+    expect(
+      rt.permissions?.handler({
+        toolCall: { ...call, name: "mcp_fs", arguments: {} },
+        messages: [],
+        turn: 1,
+      }),
+    ).toMatchObject({ action: "ask" });
+    rt.permissions?.grantSession(call, { persist: true });
+    await rt.session.dispose();
+    await rt.agent.dispose();
+
+    const again = await createRuntime({
+      cwd,
+      provider: mockProvider([{ text: "ok" }]),
+      noSessionStore: true,
+    });
+    expect(
+      again.permissions?.handler({
+        toolCall: { ...call, arguments: { command: "curl other" } },
+        messages: [],
+        turn: 1,
+      }),
+    ).toEqual({ action: "allow" });
+    const wget = await again.permissions?.handler({
+      toolCall: { ...call, arguments: { command: "wget x" } },
+      messages: [],
+      turn: 1,
+    });
+    expect(wget?.action).toBe("ask");
+    await again.session.dispose();
+    await again.agent.dispose();
+  });
 });

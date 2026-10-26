@@ -1,11 +1,20 @@
 import type { ZodType } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import type { JsonSchema, ToolDefinition } from "./types.js";
+import type { JsonSchema, Message, ToolDefinition } from "./types.js";
 
 export interface ToolContext {
   signal?: AbortSignal;
   /** Opaque bag for extensions / callers. */
   extras?: Record<string, unknown>;
+  /** Set by the Runner for the model tool call being executed. */
+  toolCallId?: string;
+  /** 1-based model turn that issued this call. */
+  turn?: number;
+  /**
+   * Canonical messages so far, including the assistant message that issued
+   * the call. A shallow copy; not the projected model view.
+   */
+  messages?: readonly Message[];
 }
 
 export interface ToolResult {

@@ -158,14 +158,16 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 | write_file | allow | `--ask-write` to confirm |
 | bash | ask | Small allowlist (`git`, `ls`, `pnpm`, …) auto-passes |
 | path outside roots | ask | Approving adds a **tight session root** (`dirname` / dir itself) |
+| other tools | ask | `load_skill` and `recall_context` are trusted. MCP and other host tools ask |
 
-- Interactive ask: `[y]es / [n]o / [a]lways…`
+- Interactive ask: `[y]es` once, `[n]o`, `[a]lways` remembers the pattern (bash prefix, one path, one tool name, or the approved root) in `<cwd>/.min/permissions.json`
+- A remembered bash prefix matches later simple commands with the same first token. Commands with shell syntax (`&&`, `|`, redirects, quotes) are remembered exactly, and a prefix does not cover them
 - `-y` / `--yes` — auto-approve tool prompts **once** (not root expansion; needs `--allow-root-grant`)
-- `--auto` — full-auto for most work: bash allowed, skill/workspace asks answered as `allow_session`, sandbox root grants approved (`MIN_AUTO=1` same). Still scoped by the sandbox model; not a total security bypass.
+- `--auto` — full-auto for this process: bash allowed, asks answered as `allow_session`, sandbox root grants approved (`MIN_AUTO=1` same). Those grants are not written to the rules file. Still scoped by the sandbox model; not a total security bypass.
 - Seed roots: `--add-root <dir>` (repeatable)
 - One-shot without TTY: `ask` → deny unless flags allow
 - Denied tools return `tool_result` with `isError` — the run continues
-- Policy (`allow` / `deny` / `ask`, `grantRoot`) lives in `@min/tools` and is applied by wrapping `execute` before `createAgent`. Core never sees a permission decision.
+- Policy (`allow` / `deny` / `ask`, `grantRoot`) lives in `@min/tools` and is applied by wrapping `execute` before `createAgent`. The handler receives the real tool-call id, turn, and canonical messages. Core never sees a permission decision.
 
 ### Sessions and context budget (`@min/session`)
 

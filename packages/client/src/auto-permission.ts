@@ -6,8 +6,9 @@ import type { PermissionAnswer } from "./types.js";
  *
  * - `yes`  — approve tool prompts once; root expansion still denied unless
  *            `allowRootGrant` is set.
- * - `auto` — full-auto: approve as `allow_session` (tool + skill escapes stick
- *            for the session) and allow sandbox root grants.
+ * - `auto` — full-auto: approve as `allow_session` for this process and allow
+ *            sandbox root grants. Pair with `persistPermissionGrants: false`
+ *            so those grants are not written to `.min/permissions.json`.
  */
 export type PermissionAutoMode = "yes" | "auto";
 

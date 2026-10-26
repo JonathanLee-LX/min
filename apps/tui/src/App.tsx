@@ -56,7 +56,8 @@ export function App({ args }: { args: TuiArgs }) {
           noTools: args.noTools,
           allowBash: args.yes || args.auto,
           askWrite: false,
-          applyRootGrant: args.auto,
+          applyRootGrant: true,
+          persistPermissionGrants: !args.auto,
           autoApprovePermission: autoMode
             ? createAutoPermissionApprover({
                 mode: autoMode,
@@ -295,7 +296,7 @@ export function App({ args }: { args: TuiArgs }) {
       {pendingPerm ? (
         <Box marginTop={1} paddingX={1}>
           <Text color="yellow">
-            permission: {pendingPerm.reason}  [y/n/a]
+            permission: {pendingPerm.reason}  [y] once  [n] no  [a] remember
           </Text>
         </Box>
       ) : (

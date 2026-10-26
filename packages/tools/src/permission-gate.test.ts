@@ -2,6 +2,7 @@ import { createAgent, defineTool, mockProvider } from "@min/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createPermissionGate } from "./permission-protocol.js";
+import type { PermissionContext } from "./permission-protocol.js";
 
 describe("permission gate", () => {
   it("denies tool execution and continues the loop", async () => {
@@ -105,6 +106,46 @@ describe("permission gate", () => {
     const result = await agent.run("read outside");
     expect(roots).toEqual(["/tmp/granted-root"]);
     expect(JSON.stringify(result.messages)).toContain("ok:../x");
+  });
+
+  it("passes the runner call id, turn, and messages into the handler", async () => {
+    let seen: PermissionContext | undefined;
+    const gate = createPermissionGate((ctx) => {
+      seen = ctx;
+      return { action: "allow" };
+    });
+    const agent = await createAgent({
+      provider: mockProvider([
+        {
+          toolCalls: [
+            { id: "call-abc", name: "bash", arguments: { command: "pwd" } },
+          ],
+        },
+        { text: "ok" },
+      ]),
+      tools: gate.wrap([
+        defineTool({
+          name: "bash",
+          description: "run",
+          inputSchema: z.object({ command: z.string() }),
+          async execute() {
+            return { content: "ran" };
+          },
+        }),
+      ]),
+    });
+
+    await agent.run("go");
+    expect(seen?.toolCall).toMatchObject({
+      id: "call-abc",
+      name: "bash",
+      arguments: { command: "pwd" },
+    });
+    expect(seen?.turn).toBe(1);
+    expect(seen?.messages?.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
   });
 
   it("treats ask without an approver as deny", async () => {

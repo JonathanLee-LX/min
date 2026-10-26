@@ -80,7 +80,12 @@ export class Runner {
           const toolResult = await this.opts.tools.execute(
             call.name,
             call.arguments,
-            { signal },
+            {
+              signal,
+              toolCallId: call.id,
+              turn: turns,
+              messages: [...messages],
+            },
           );
 
           await emit({

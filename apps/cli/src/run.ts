@@ -48,6 +48,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     sessionExtensions: [contextBudgetLog()],
     // Interactive CLI applies grantRoot itself; auto/yes+root-grant use Client.
     applyRootGrant: args.auto || args.allowRootGrant,
+    persistPermissionGrants: !args.auto,
     autoApprovePermission: autoMode
       ? createAutoPermissionApprover({
           mode: autoMode,
@@ -135,7 +136,9 @@ export async function runTurn(
           const answer = await resolvePermissionInteractive(args, rl, event);
           // applyRootGrant is false on CLI so we control grantRoot here.
           if (answer !== "deny" && event.grantRoot) {
-            client.advanced.runtime.permissions?.grantRoot(event.grantRoot);
+            client.advanced.runtime.permissions?.grantRoot(event.grantRoot, {
+              persist: answer === "allow_session" && !args.auto,
+            });
           }
           client.respondPermission(event.id, answer);
         } catch {
@@ -218,7 +221,7 @@ async function promptPermission(
 ): Promise<PermissionAnswer> {
   console.log(`\n⚠ permission: ${reason}`);
   const line = await rl.question(
-    "Allow? [y]es / [n]o / [a]lways this tool (rest of session) > ",
+    "Allow? [y]es / [n]o / [a]lways remember this pattern > ",
   );
   return permissionAnswerFromLine(line);
 }
@@ -231,7 +234,7 @@ async function promptRootGrant(
   console.log(`\n⚠ session root grant: ${reason}`);
   console.log(`   add root: ${grantRoot}`);
   const line = await rl.question(
-    "Grant session root? [y]es / [n]o / [a]lways (root + this tool) > ",
+    "Grant session root? [y]es / [n]o / [a]lways remember this root > ",
   );
   return permissionAnswerFromLine(line);
 }

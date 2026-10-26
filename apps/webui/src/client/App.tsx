@@ -249,7 +249,7 @@ export default function App() {
                 variant="secondary"
                 onClick={() => void answerPerm("allow_session")}
               >
-                Always
+                Remember
               </Button>
               <Button
                 size="sm"

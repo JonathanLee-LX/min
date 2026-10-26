@@ -32,6 +32,7 @@ interface FactoryOpts {
   autoApprovePermission: ClientOptions["autoApprovePermission"];
   mapEvent?: ClientOptions["mapEvent"];
   applyRootGrant: boolean;
+  persistPermissionGrants: boolean;
   permissionTimeoutMs: number;
 }
 
@@ -156,11 +157,13 @@ export async function createClient(
 
   const applyAnswer = (req: PermissionRequest, answer: PermissionAnswer) => {
     if (answer === "allow" || answer === "allow_session") {
+      const persist =
+        answer === "allow_session" && factory.persistPermissionGrants;
       if (req.grantRoot && factory.applyRootGrant) {
-        runtime.permissions?.grantRoot(req.grantRoot);
+        runtime.permissions?.grantRoot(req.grantRoot, { persist });
       }
       if (answer === "allow_session") {
-        runtime.permissions?.grantSession(req.toolCall);
+        runtime.permissions?.grantSession(req.toolCall, { persist });
       }
     }
     return answer;
@@ -396,6 +399,7 @@ function resolveFactory(options: ClientOptions): FactoryOpts {
     autoApprovePermission: options.autoApprovePermission,
     mapEvent: options.mapEvent,
     applyRootGrant: options.applyRootGrant ?? true,
+    persistPermissionGrants: options.persistPermissionGrants !== false,
     permissionTimeoutMs: options.permissionTimeoutMs ?? 120_000,
   };
 }

@@ -74,14 +74,14 @@ function wrapTool(
           : {};
       const toolCall: ToolCallPart = {
         type: "tool_call",
-        id: "",
+        id: ctx.toolCallId ?? "",
         name: tool.name,
         arguments: args,
       };
       const decision = await handler({
         toolCall,
-        messages: [],
-        turn: 0,
+        messages: ctx.messages ?? [],
+        turn: ctx.turn ?? 0,
         signal: ctx.signal,
       });
 
