@@ -1,3 +1,8 @@
+export {
+  createAutoPermissionApprover,
+  type AutoPermissionRequest,
+  type PermissionAutoMode,
+} from "./auto-permission.js";
 export { createClient } from "./client.js";
 export {
   createEventTranslator,

@@ -49,4 +49,14 @@ describe("parseArgs", () => {
       /trim \| hmt/,
     );
   });
+
+  it("parses --auto and implies yes + bash + root-grant", () => {
+    expect(parseArgs(["--auto", "go"])).toMatchObject({
+      auto: true,
+      yes: true,
+      allowBash: true,
+      allowRootGrant: true,
+      prompt: "go",
+    });
+  });
 });

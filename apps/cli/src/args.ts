@@ -8,6 +8,11 @@ export interface CliArgs {
   noTools: boolean;
   /** Approve tool permission prompts (does NOT auto-expand sandbox roots). */
   yes: boolean;
+  /**
+   * Full-auto: allow bash, auto-approve prompts as allow_session,
+   * and approve sandbox root grants. Implies yes + allowBash + allowRootGrant.
+   */
+  auto: boolean;
   /** Force bash permission mode to allow. */
   allowBash: boolean;
   /** Force write_file permission mode to ask. */
@@ -49,6 +54,7 @@ export function parseArgs(argv: string[]): CliArgs {
     cwd: process.env.INIT_CWD ?? process.cwd(),
     noTools: false,
     yes: false,
+    auto: false,
     allowBash: false,
     askWrite: false,
     allowRootGrant: false,
@@ -72,6 +78,8 @@ export function parseArgs(argv: string[]): CliArgs {
       args.noTools = true;
     } else if (a === "-y" || a === "--yes") {
       args.yes = true;
+    } else if (a === "--auto") {
+      args.auto = true;
     } else if (a === "--allow-bash") {
       args.allowBash = true;
     } else if (a === "--ask-write") {
@@ -134,6 +142,15 @@ export function parseArgs(argv: string[]): CliArgs {
     args.prompt = positional.join(" ");
   }
 
+  if (envFlagTrue(process.env.MIN_AUTO)) {
+    args.auto = true;
+  }
+  if (args.auto) {
+    args.yes = true;
+    args.allowBash = true;
+    args.allowRootGrant = true;
+  }
+
   return args;
 }
 
@@ -152,7 +169,8 @@ Options:
   --add-root <dir>    seed an extra sandbox session root (repeatable)
   --skills <dir>      skills directory (optional)
   --no-tools          do not register workspace tools
-  -y, --yes           auto-approve tool prompts (NOT root expansion)
+  -y, --yes           auto-approve tool prompts once (NOT root expansion)
+  --auto              full-auto: bash allow + session grants + root grants
   --allow-bash        allow bash without prompting
   --ask-write         confirm write_file (default: allow)
   --allow-root-grant  allow non-interactive approval of sandbox root grants
@@ -186,10 +204,18 @@ Context:
 
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
+  MIN_AUTO=1          same as --auto
   MIN_MAX_CONTEXT_TOKENS
   MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid
 `;
 }
+
+function envFlagTrue(raw: string | undefined): boolean {
+  if (!raw) return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
 
 function parseStrategy(
   raw: string | undefined,

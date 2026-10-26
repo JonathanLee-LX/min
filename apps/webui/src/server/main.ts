@@ -1,4 +1,9 @@
-import { createClient, type ClientEvent, type MinClient } from "@min/client";
+import {
+  createAutoPermissionApprover,
+  createClient,
+  type ClientEvent,
+  type MinClient,
+} from "@min/client";
 import { resolveProvider } from "@min/runtime";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -34,11 +39,15 @@ async function getClient(): Promise<MinClient> {
         model: process.env.MODEL,
       }),
       noTools: process.env.MIN_NO_TOOLS === "1",
-      allowBash: process.env.MIN_YES === "1",
+      allowBash:
+        process.env.MIN_AUTO === "1" || process.env.MIN_YES === "1",
+      applyRootGrant: process.env.MIN_AUTO === "1",
       autoApprovePermission:
-        process.env.MIN_YES === "1"
-          ? true
-          : undefined /* interactive via /api/permission */,
+        process.env.MIN_AUTO === "1"
+          ? createAutoPermissionApprover({ mode: "auto" })
+          : process.env.MIN_YES === "1"
+            ? createAutoPermissionApprover({ mode: "yes" })
+            : undefined /* interactive via /api/permission */,
     }).then((c) => {
       c.subscribe((event) => broadcast(event));
       return c;

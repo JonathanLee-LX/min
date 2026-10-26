@@ -1,4 +1,5 @@
 import {
+  createAutoPermissionApprover,
   createClient,
   type ClientEvent,
   type MinClient,
@@ -43,6 +44,7 @@ export function App({ args }: { args: TuiArgs }) {
     let unsub: (() => void) | undefined;
     (async () => {
       try {
+        const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
         const c = await createClient({
           cwd: args.cwd,
           provider: resolveProvider({
@@ -51,9 +53,15 @@ export function App({ args }: { args: TuiArgs }) {
           }),
           sessionId: args.sessionId,
           noTools: args.noTools,
-          allowBash: args.yes,
+          allowBash: args.yes || args.auto,
           askWrite: false,
-          autoApprovePermission: args.yes ? true : undefined,
+          applyRootGrant: args.auto,
+          autoApprovePermission: autoMode
+            ? createAutoPermissionApprover({
+                mode: autoMode,
+                allowRootGrant: args.auto,
+              })
+            : undefined,
         });
         if (cancelled) {
           await c.dispose();

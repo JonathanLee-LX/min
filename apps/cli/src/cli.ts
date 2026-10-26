@@ -40,12 +40,16 @@ async function main(): Promise<void> {
     `session=${st.sessionId}  strategy=${cli.client.advanced.runtime.contextStrategy}  maxContextTokens=${args.maxContextTokens}`,
   );
   if (!args.noTools) {
-    const bashMode = args.allowBash || args.yes ? "allow" : "ask";
+    const bashMode = args.allowBash || args.yes || args.auto ? "allow" : "ask";
     const writeMode = args.askWrite ? "ask" : "allow";
-    console.error(`permissions: read=allow write=${writeMode} bash=${bashMode}`);
+    const mode = args.auto ? "auto" : args.yes ? "yes" : "ask";
+    console.error(
+      `permissions: mode=${mode} read=allow write=${writeMode} bash=${bashMode}`,
+    );
   }
 
-  const needsRl = args.repl || (!args.yes && process.stdin.isTTY);
+  const needsRl =
+    args.repl || (!(args.yes || args.auto) && process.stdin.isTTY);
   const rl = needsRl
     ? createInterface({
         input,

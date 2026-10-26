@@ -70,7 +70,8 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 | path outside roots | ask | Approving adds a **tight session root** (`dirname` / dir itself) |
 
 - Interactive ask: `[y]es / [n]o / [a]lways…`
-- `-y` auto-approves tool prompts but **not** root expansion (needs `--allow-root-grant` or interactive)
+- `-y` / `--yes` — auto-approve tool prompts **once** (not root expansion; needs `--allow-root-grant`)
+- `--auto` — full-auto for most work: bash allowed, skill/workspace asks answered as `allow_session`, sandbox root grants approved (`MIN_AUTO=1` same). Still scoped by the sandbox model; not a total security bypass.
 - Seed roots: `--add-root <dir>` (repeatable)
 - One-shot without TTY: `ask` → deny unless flags allow
 - Denied tools return `tool_result` with `isError` — the run continues

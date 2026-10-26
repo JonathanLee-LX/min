@@ -1,4 +1,5 @@
 import {
+  createAutoPermissionApprover,
   createClient,
   type MinClient,
   type PermissionAnswer,
@@ -20,6 +21,7 @@ export function sessionDirFor(args: CliArgs): string {
 }
 
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
+  const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
   const client = await createClient({
     cwd: args.cwd,
     provider: resolveProvider({
@@ -33,17 +35,18 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     skillsDir: args.skillsDir,
     addRoots: args.addRoots,
     askWrite: args.askWrite,
-    allowBash: args.allowBash || args.yes,
+    allowBash: args.allowBash || args.yes || args.auto,
     maxContextTokens: args.maxContextTokens,
     maxUserTurns: args.maxUserTurns,
     contextStrategy: args.contextStrategy,
     sessionExtensions: [contextBudgetLog()],
-    applyRootGrant: false, // CLI applies grantRoot after interactive confirm
-    autoApprovePermission: args.yes
-      ? (req) => {
-          if (req.grantRoot && !args.allowRootGrant) return "deny";
-          return "allow";
-        }
+    // Interactive CLI applies grantRoot itself; auto/yes+root-grant use Client.
+    applyRootGrant: args.auto || args.allowRootGrant,
+    autoApprovePermission: autoMode
+      ? createAutoPermissionApprover({
+          mode: autoMode,
+          allowRootGrant: args.allowRootGrant,
+        })
       : undefined,
   });
   return { client, args };
@@ -176,6 +179,7 @@ async function resolvePermissionInteractive(
   pauseRl: boolean,
   stopQueueListen?: () => void,
 ): Promise<PermissionAnswer> {
+  if (args.auto) return "allow_session";
   if (args.yes) {
     if (event.grantRoot && !args.allowRootGrant) return "deny";
     return "allow";

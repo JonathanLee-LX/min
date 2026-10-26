@@ -11,4 +11,8 @@ describe("tui parseArgs", () => {
       yes: true,
     });
   });
+
+  it("parses --auto and implies yes", () => {
+    expect(parseArgs(["--auto"])).toMatchObject({ auto: true, yes: true });
+  });
 });
