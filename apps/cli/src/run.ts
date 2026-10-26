@@ -83,13 +83,9 @@ export async function runTurn(
 ): Promise<void> {
   const { client, args } = cli;
   const printer = createEventPrinter();
-  const pauseRl = Boolean(rl && process.stdin.isTTY);
-  if (pauseRl) rl!.pause();
-
-  let stopQueueListen: (() => void) | undefined;
-  if (pauseRl) {
-    stopQueueListen = listenStdinQueue(client);
-  }
+  // `line` is not emitted while `question()` is waiting, so a permission
+  // answer is not also pushed onto the follow-up queue.
+  const stopQueueListen = rl ? attachFollowUpQueue(rl, client) : undefined;
 
   const unsub = client.subscribe((event) => {
     if (event.type === "assistant_delta") {
@@ -135,13 +131,7 @@ export async function runTurn(
     if (event.type === "permission") {
       void (async () => {
         try {
-          const answer = await resolvePermissionInteractive(
-            args,
-            rl,
-            event,
-            pauseRl,
-            stopQueueListen,
-          );
+          const answer = await resolvePermissionInteractive(args, rl, event);
           // applyRootGrant is false on CLI so we control grantRoot here.
           if (answer !== "deny" && event.grantRoot) {
             client.advanced.runtime.permissions?.grantRoot(event.grantRoot);
@@ -169,8 +159,34 @@ export async function runTurn(
   } finally {
     unsub();
     stopQueueListen?.();
-    if (pauseRl) rl!.resume();
   }
+}
+
+/** Follow-up lines typed during a run. No-op while a permission question is open. */
+export function attachFollowUpQueue(
+  rl: ReadlineInterface,
+  client: MinClient,
+): () => void {
+  const onLine = (line: string) => {
+    const text = line.trim();
+    if (!text || text.startsWith("/")) return;
+    try {
+      client.queue.push(text);
+    } catch {
+      // queue disabled
+    }
+  };
+  rl.on("line", onLine);
+  return () => {
+    rl.off("line", onLine);
+  };
+}
+
+export function permissionAnswerFromLine(line: string): PermissionAnswer {
+  const answer = line.trim().toLowerCase();
+  if (answer === "y" || answer === "yes") return "allow";
+  if (answer === "a" || answer === "always") return "allow_session";
+  return "deny";
 }
 
 async function resolvePermissionInteractive(
@@ -181,8 +197,6 @@ async function resolvePermissionInteractive(
     grantRoot?: string;
     toolCall: { name: string };
   },
-  pauseRl: boolean,
-  stopQueueListen?: () => void,
 ): Promise<PermissionAnswer> {
   if (args.auto) return "allow_session";
   if (args.yes) {
@@ -191,39 +205,10 @@ async function resolvePermissionInteractive(
   }
   if (!rl || !process.stdin.isTTY) return "deny";
 
-  stopQueueListen?.();
-  rl.resume();
-  try {
-    if (event.grantRoot) {
-      return promptRootGrant(rl, event.reason, event.grantRoot);
-    }
-    return promptPermission(rl, event.reason);
-  } finally {
-    if (pauseRl) rl.pause();
+  if (event.grantRoot) {
+    return promptRootGrant(rl, event.reason, event.grantRoot);
   }
-}
-
-function listenStdinQueue(client: MinClient): (() => void) | undefined {
-  if (!process.stdin.isTTY) return undefined;
-  let buf = "";
-  const onData = (chunk: string | Buffer) => {
-    buf += chunk.toString();
-    let nl: number;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).replace(/\r$/, "").trim();
-      buf = buf.slice(nl + 1);
-      if (!line || line.startsWith("/")) continue;
-      try {
-        client.queue.push(line);
-      } catch {
-        // queue disabled
-      }
-    }
-  };
-  process.stdin.on("data", onData);
-  return () => {
-    process.stdin.off("data", onData);
-  };
+  return promptPermission(rl, event.reason);
 }
 
 async function promptPermission(
@@ -231,17 +216,10 @@ async function promptPermission(
   reason: string,
 ): Promise<PermissionAnswer> {
   console.log(`\n⚠ permission: ${reason}`);
-  const line = (
-    await rl.question(
-      "Allow? [y]es / [n]o / [a]lways this tool (rest of session) > ",
-    )
-  )
-    .trim()
-    .toLowerCase();
-
-  if (line === "y" || line === "yes") return "allow";
-  if (line === "a" || line === "always") return "allow_session";
-  return "deny";
+  const line = await rl.question(
+    "Allow? [y]es / [n]o / [a]lways this tool (rest of session) > ",
+  );
+  return permissionAnswerFromLine(line);
 }
 
 async function promptRootGrant(
@@ -251,15 +229,8 @@ async function promptRootGrant(
 ): Promise<PermissionAnswer> {
   console.log(`\n⚠ session root grant: ${reason}`);
   console.log(`   add root: ${grantRoot}`);
-  const line = (
-    await rl.question(
-      "Grant session root? [y]es / [n]o / [a]lways (root + this tool) > ",
-    )
-  )
-    .trim()
-    .toLowerCase();
-
-  if (line === "y" || line === "yes") return "allow";
-  if (line === "a" || line === "always") return "allow_session";
-  return "deny";
+  const line = await rl.question(
+    "Grant session root? [y]es / [n]o / [a]lways (root + this tool) > ",
+  );
+  return permissionAnswerFromLine(line);
 }

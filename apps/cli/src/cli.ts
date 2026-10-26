@@ -50,11 +50,13 @@ async function main(): Promise<void> {
 
   const needsRl =
     args.repl || (!(args.yes || args.auto) && process.stdin.isTTY);
+  // Cooked mode. A TTY readline (raw mode) plus the old stdin "data"
+  // listener left the permission question on screen but dropped keystrokes.
   const rl = needsRl
     ? createInterface({
         input,
         output,
-        terminal: Boolean(process.stdin.isTTY),
+        terminal: false,
       })
     : undefined;
 
