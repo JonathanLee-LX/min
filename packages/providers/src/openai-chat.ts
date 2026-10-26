@@ -3,7 +3,7 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
-import type { ModelProvider } from "../provider.js";
+import type { ModelProvider } from "@min/core";
 import type {
   CompletionChunk,
   CompletionRequest,
@@ -11,7 +11,7 @@ import type {
   ContentPart,
   Message,
   ToolDefinition,
-} from "../types.js";
+} from "@min/core";
 
 export interface OpenAIChatProviderOptions {
   apiKey?: string;

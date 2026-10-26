@@ -8,14 +8,12 @@
  *   PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
  */
 import {
-  anthropicProvider,
   createAgent,
-  deepseekProvider,
   defineTool,
   mockProvider,
-  openaiProvider,
   type ModelProvider,
 } from "@min/core";
+import { createProvider } from "@min/providers";
 import { skills } from "@min/skills";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,43 +33,22 @@ const echo = defineTool({
   },
 });
 
-function resolveProvider(): ModelProvider {
+function resolveExampleProvider(): ModelProvider {
   const kind = process.env.PROVIDER ?? "mock";
-  if (kind === "anthropic") {
-    return anthropicProvider({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
-    });
+  if (kind === "mock") {
+    return mockProvider([
+      {
+        text: "I'll echo that.",
+        toolCalls: [{ name: "echo", arguments: { message: "hello from min" } }],
+      },
+      { text: "Done. The echo tool returned: hello from min" },
+    ]);
   }
-  if (kind === "openai") {
-    return openaiProvider({
-      model: process.env.OPENAI_MODEL ?? "gpt-4.1",
-    });
-  }
-  if (kind === "deepseek") {
-    // Default: Responses API. Set DEEPSEEK_API=chat for Chat Completions.
-    const api =
-      process.env.DEEPSEEK_API === "chat"
-        ? ("chat" as const)
-        : ("responses" as const);
-    return deepseekProvider({
-      api,
-      model:
-        process.env.DEEPSEEK_MODEL ??
-        (api === "chat" ? "deepseek-chat" : "deepseek-flash"),
-    });
-  }
-
-  return mockProvider([
-    {
-      text: "I'll echo that.",
-      toolCalls: [{ name: "echo", arguments: { message: "hello from min" } }],
-    },
-    { text: "Done. The echo tool returned: hello from min" },
-  ]);
+  return createProvider(kind);
 }
 
 const agent = await createAgent({
-  provider: resolveProvider(),
+  provider: resolveExampleProvider(),
   tools: [echo],
   extensions: [skills({ dirs: [skillsDir] })],
   system: "You are min, a minimal agent harness. Prefer tools when useful.",

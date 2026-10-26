@@ -1,5 +1,5 @@
 import type OpenAI from "openai";
-import type { ModelProvider } from "../provider.js";
+import type { ModelProvider } from "@min/core";
 import { openaiChatProvider } from "./openai-chat.js";
 import { openaiProvider } from "./openai.js";
 

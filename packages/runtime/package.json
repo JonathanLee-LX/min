@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@min/core": "workspace:*",
+    "@min/providers": "workspace:*",
     "@min/session": "workspace:*",
     "@min/skills": "workspace:*",
     "@min/tools": "workspace:*"

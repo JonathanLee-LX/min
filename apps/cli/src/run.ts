@@ -4,7 +4,11 @@ import {
   type MinClient,
   type PermissionAnswer,
 } from "@min/client";
-import { resolveProvider, sessionDirFor as appSessionDir } from "@min/runtime";
+import {
+  loadProviderExtensions,
+  resolveProvider,
+  sessionDirFor as appSessionDir,
+} from "@min/runtime";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { createEventPrinter } from "./events.js";
@@ -21,6 +25,7 @@ export function sessionDirFor(args: CliArgs): string {
 }
 
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
+  await loadProviderExtensions();
   const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
   const client = await createClient({
     cwd: args.cwd,

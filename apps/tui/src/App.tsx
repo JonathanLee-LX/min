@@ -4,7 +4,7 @@ import {
   type ClientEvent,
   type MinClient,
 } from "@min/client";
-import { resolveProvider } from "@min/runtime";
+import { loadProviderExtensions, resolveProvider } from "@min/runtime";
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
@@ -44,6 +44,7 @@ export function App({ args }: { args: TuiArgs }) {
     let unsub: (() => void) | undefined;
     (async () => {
       try {
+        await loadProviderExtensions();
         const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
         const c = await createClient({
           cwd: args.cwd,

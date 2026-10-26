@@ -205,6 +205,7 @@ Context:
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
   MIN_AUTO=1          same as --auto
+  MIN_PROVIDER_MODULE extra module(s) that call registerProvider
   MIN_MAX_CONTEXT_TOKENS
   MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid
 `;

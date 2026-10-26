@@ -6,11 +6,8 @@
  *
  * Both scenarios register @min/tools so the model can read the repo.
  */
-import {
-  createAgent,
-  deepseekProvider,
-  type ModelProvider,
-} from "@min/core";
+import { createAgent, type ModelProvider } from "@min/core";
+import { deepseekProvider } from "@min/providers";
 import {
   createInputQueue,
   createSession,

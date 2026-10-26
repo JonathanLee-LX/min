@@ -5,8 +5,9 @@ import type {
 } from "./types.js";
 
 /**
- * Model backend. Adapters translate the internal message model
- * to Anthropic Messages / OpenAI Responses (or anything else).
+ * Model backend. Core only defines this contract and {@link mockProvider}.
+ * Built-in vendor adapters live in `@min/providers`; any object that
+ * implements this interface can be passed to `createAgent`.
  */
 export interface ModelProvider {
   readonly id: string;

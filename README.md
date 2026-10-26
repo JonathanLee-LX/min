@@ -12,7 +12,8 @@ A minimal, extensible TypeScript **agent harness**. Core packages, `@min/client`
 
 ```text
 packages/
-  core/      @min/core     harness (Runner, tools, providers, extensions)
+  core/      @min/core     harness (Runner, tools, hooks, ModelProvider contract)
+  providers/ @min/providers built-in providers + registerProvider extension
   mcp/       @min/mcp      MCP client extension
   skills/    @min/skills   Agent Skills (SKILL.md) + allowed-tools gate
   tools/     @min/tools    sandboxed read/write/glob/bash
@@ -54,7 +55,19 @@ PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
 DEEPSEEK_API_KEY=... pnpm min -- "summarize README.md"
 ```
 
-DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.
+DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider` in `@min/providers`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.
+
+Built-in ids: `mock`, `openai`, `openai-chat`, `anthropic`, `deepseek`. Add another without editing `@min/core`:
+
+```ts
+import { registerProvider } from "@min/providers";
+import type { ModelProvider } from "@min/core";
+
+const groq: ModelProvider = { id: "groq", async complete(req) { /* ... */ return { message, stopReason: "end" }; } };
+registerProvider("groq", () => groq);
+```
+
+`MIN_PROVIDER_MODULE` (comma-separated package or file path) is loaded by the CLI, TUI, and Web before provider lookup. The module should call `registerProvider`. Passing a `ModelProvider` straight into `createAgent` / `createRuntime` also works and skips the registry.
 
 ### Workspace tools (`@min/tools`)
 
@@ -155,14 +168,15 @@ The CLI ships one pack (`cli.context-budget-log`) the same way — observability
 ## Usage
 
 ```ts
-import { createAgent, defineTool, anthropicProvider } from "@min/core";
+import { createAgent, defineTool } from "@min/core";
+import { anthropicProvider } from "@min/providers";
 import { mcp } from "@min/mcp";
 import { skills } from "@min/skills";
 import { z } from "zod";
 
 const agent = await createAgent({
   provider: anthropicProvider({ model: "claude-sonnet-4-5" }),
-  // or: openaiProvider({ model: "gpt-4.1" })
+  // or: import { openaiProvider } from "@min/providers"
   tools: [
     defineTool({
       name: "echo",

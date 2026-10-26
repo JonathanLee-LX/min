@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "node20",
-  external: ["@anthropic-ai/sdk", "openai", "zod", "zod-to-json-schema"],
+  external: ["zod", "zod-to-json-schema"],
 });

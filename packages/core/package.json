@@ -1,7 +1,7 @@
 {
   "name": "@min/core",
   "version": "0.1.0",
-  "description": "Minimal TypeScript agent harness — loop, tools, providers, extensions",
+  "description": "Minimal TypeScript agent harness — loop, tools, hooks, and the ModelProvider contract",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,22 +24,8 @@
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.5"
   },
-  "peerDependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "openai": "^4.90.0"
-  },
-  "peerDependenciesMeta": {
-    "@anthropic-ai/sdk": {
-      "optional": true
-    },
-    "openai": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@types/node": "^22.14.0",
-    "openai": "^4.90.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"

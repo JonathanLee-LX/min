@@ -8,15 +8,14 @@ import type {
   ResponseOutputItem,
   Tool,
 } from "openai/resources/responses/responses";
-import type { ModelProvider } from "../provider.js";
+import type { ModelProvider } from "@min/core";
 import type {
   CompletionChunk,
   CompletionRequest,
   CompletionResult,
   ContentPart,
-  Message,
   ToolDefinition,
-} from "../types.js";
+} from "@min/core";
 
 export interface OpenAIProviderOptions {
   apiKey?: string;
@@ -289,6 +288,3 @@ function fromResponsesOutput(response: Response): CompletionResult {
     },
   };
 }
-
-// Silence unused Message import warning path for documentation
-export type { Message };

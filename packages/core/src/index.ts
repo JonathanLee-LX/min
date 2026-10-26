@@ -58,20 +58,3 @@ export type {
   ToolDefinition,
   ToolResultPart,
 } from "./types.js";
-
-export {
-  anthropicProvider,
-  type AnthropicProviderOptions,
-} from "./providers/anthropic.js";
-export {
-  openaiProvider,
-  type OpenAIProviderOptions,
-} from "./providers/openai.js";
-export {
-  openaiChatProvider,
-  type OpenAIChatProviderOptions,
-} from "./providers/openai-chat.js";
-export {
-  deepseekProvider,
-  type DeepSeekProviderOptions,
-} from "./providers/deepseek.js";

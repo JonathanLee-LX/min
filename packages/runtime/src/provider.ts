@@ -1,10 +1,5 @@
-import {
-  anthropicProvider,
-  deepseekProvider,
-  mockProvider,
-  openaiProvider,
-  type ModelProvider,
-} from "@min/core";
+import type { ModelProvider } from "@min/core";
+import { createProvider, importProviderModules } from "@min/providers";
 
 export function resolveProvider(opts: {
   provider?: string;
@@ -21,41 +16,14 @@ export function resolveProvider(opts: {
           ? "anthropic"
           : "mock");
 
-  if (kind === "deepseek") {
-    const api =
-      process.env.DEEPSEEK_API === "chat"
-        ? ("chat" as const)
-        : ("responses" as const);
-    return deepseekProvider({
-      api,
-      model:
-        opts.model ??
-        process.env.DEEPSEEK_MODEL ??
-        (api === "chat" ? "deepseek-chat" : "deepseek-flash"),
-    });
-  }
+  return createProvider(kind, { model: opts.model });
+}
 
-  if (kind === "openai") {
-    return openaiProvider({
-      model: opts.model ?? process.env.OPENAI_MODEL ?? "gpt-4.1",
-    });
-  }
-
-  if (kind === "anthropic") {
-    return anthropicProvider({
-      model: opts.model ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
-    });
-  }
-
-  if (kind === "mock") {
-    return mockProvider([
-      {
-        text: "I'll list the workspace.",
-        toolCalls: [{ name: "glob", arguments: { dir: ".", limit: 20 } }],
-      },
-      { text: "Done (mock provider). Set DEEPSEEK_API_KEY for a real model." },
-    ]);
-  }
-
-  throw new Error(`Unknown provider: ${kind}`);
+/**
+ * Load `MIN_PROVIDER_MODULE` (comma-separated package names or file paths).
+ * Each module should call `registerProvider`. Call this before `resolveProvider`
+ * when a host wants ids that are not built in.
+ */
+export async function loadProviderExtensions(): Promise<void> {
+  await importProviderModules();
 }

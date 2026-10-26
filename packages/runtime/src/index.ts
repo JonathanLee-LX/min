@@ -1,4 +1,4 @@
-export { resolveProvider } from "./provider.js";
+export { loadProviderExtensions, resolveProvider } from "./provider.js";
 export {
   BASE_SYSTEM,
   createRuntime,
