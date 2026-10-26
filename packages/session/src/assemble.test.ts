@@ -5,7 +5,7 @@ import {
   toolMessage,
   toolResultPart,
   userMessage,
-} from "@min/core";
+} from "@min-agent/core";
 import { describe, expect, it } from "vitest";
 import { assembleContext, splitUserTurns } from "./assemble.js";
 import { createContextStash, parseHiddenIds } from "./stash.js";

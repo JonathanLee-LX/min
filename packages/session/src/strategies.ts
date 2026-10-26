@@ -1,4 +1,4 @@
-import type { ModelProvider } from "@min/core";
+import type { ModelProvider } from "@min-agent/core";
 import {
   assembleContext,
   type ContextBudget,

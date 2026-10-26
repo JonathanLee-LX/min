@@ -12,5 +12,5 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
-  external: ["@min/client", "@min/runtime"],
+  external: ["@min-agent/client", "@min-agent/runtime"],
 });

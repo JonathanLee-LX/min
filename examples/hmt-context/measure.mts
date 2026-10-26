@@ -13,13 +13,13 @@ import {
   toolResultPart,
   userMessage,
   type Message,
-} from "@min/core";
+} from "@min-agent/core";
 import {
   assembleContext,
   assembleTrimContext,
   createContextStash,
   estimateMessagesTokens,
-} from "@min/session";
+} from "@min-agent/session";
 
 interface ScenarioRow {
   id: string;

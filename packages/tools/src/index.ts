@@ -1,4 +1,4 @@
-import type { Tool } from "@min/core";
+import type { Tool } from "@min-agent/core";
 import type { Sandbox } from "./sandbox.js";
 import {
   createWorkspacePermissionPolicy,

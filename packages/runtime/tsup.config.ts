@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "node20",
-  external: ["@min/core", "@min/providers", "@min/session", "@min/skills", "@min/tools"],
+  external: ["@min-agent/core", "@min-agent/providers", "@min-agent/session", "@min-agent/skills", "@min-agent/tools"],
 });

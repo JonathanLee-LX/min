@@ -1,4 +1,4 @@
-import type { RunEvent } from "@min/core";
+import type { RunEvent } from "@min-agent/core";
 
 export interface EventPrinter {
   onEvent: (event: RunEvent) => void;

@@ -2,10 +2,10 @@ import {
   createAgent,
   defineTool,
   mockProvider,
-} from "@min/core";
-import { createRuntime } from "@min/runtime";
-import { createMemoryStore, createSession } from "@min/session";
-import { createPermissionGate } from "@min/tools";
+} from "@min-agent/core";
+import { createRuntime } from "@min-agent/runtime";
+import { createMemoryStore, createSession } from "@min-agent/session";
+import { createPermissionGate } from "@min-agent/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createClient } from "./client.js";

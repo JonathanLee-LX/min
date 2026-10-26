@@ -1,5 +1,5 @@
 {
-  "name": "@min/example-hmt-context",
+  "name": "@min-agent/example-hmt-context",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,9 +15,9 @@
     "test": "echo \"skip\""
   },
   "dependencies": {
-    "@min/core": "workspace:*",
-    "@min/runtime": "workspace:*",
-    "@min/session": "workspace:*"
+    "@min-agent/core": "workspace:*",
+    "@min-agent/runtime": "workspace:*",
+    "@min-agent/session": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

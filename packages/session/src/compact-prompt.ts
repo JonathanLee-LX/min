@@ -1,4 +1,4 @@
-import type { Message } from "@min/core";
+import type { Message } from "@min-agent/core";
 
 /** Flatten messages to a readable transcript for summarization. */
 export function messageTextApprox(messages: Message[]): string {

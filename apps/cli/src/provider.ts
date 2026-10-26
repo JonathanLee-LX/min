@@ -1,1 +1,1 @@
-export { resolveProvider } from "@min/runtime";
+export { resolveProvider } from "@min-agent/runtime";

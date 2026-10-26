@@ -1,4 +1,4 @@
-import type { Message, RunResult, ToolDefinition } from "@min/core";
+import type { Message, RunResult, ToolDefinition } from "@min-agent/core";
 import type {
   AssembleInput,
   AssembleResult,
@@ -47,7 +47,7 @@ export interface SessionHooks {
   ) => void | Promise<void>;
   /**
    * Fired when the session drains follow-ups from the input queue
-   * before starting another agent pass (does not modify `@min/core`).
+   * before starting another agent pass (does not modify `@min-agent/core`).
    */
   onIncoming?: (texts: string[]) => void | Promise<void>;
   /**

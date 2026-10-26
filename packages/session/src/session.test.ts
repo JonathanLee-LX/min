@@ -8,7 +8,7 @@ import {
   toolMessage,
   toolResultPart,
   userMessage,
-} from "@min/core";
+} from "@min-agent/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createInputQueue } from "./input-queue.js";

@@ -1,4 +1,4 @@
-import { createAgent, mockProvider, userMessage } from "@min/core";
+import { createAgent, mockProvider, userMessage } from "@min-agent/core";
 import { describe, expect, it, vi } from "vitest";
 import { defineSessionExtension } from "./extension.js";
 import { createSession } from "./session.js";

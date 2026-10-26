@@ -5,7 +5,7 @@ import {
   type RunInput,
   type RunResult,
   type ToolCallPart,
-} from "@min/core";
+} from "@min-agent/core";
 import type { AssembleResult, ContextBudget } from "./assemble.js";
 import {
   compactHistoryMessages,
@@ -72,7 +72,7 @@ export interface CreateSessionOptions {
   /**
    * Follow-up queue for interjections during / after a run.
    * Defaults to enqueue + 1.5s dense-latest window.
-   * Pass `false` to disable. Does not modify `@min/core`.
+   * Pass `false` to disable. Does not modify `@min-agent/core`.
    */
   inputQueue?: InputQueue | InputQueueOptions | false;
 }

@@ -6,7 +6,7 @@ import type {
 
 /**
  * Model backend. Core only defines this contract and {@link mockProvider}.
- * Built-in vendor adapters live in `@min/providers`; any object that
+ * Built-in vendor adapters live in `@min-agent/providers`; any object that
  * implements this interface can be passed to `createAgent`.
  *
  * Hosts that need a different message view wrap `complete` / `stream`

@@ -1,4 +1,4 @@
-import { createAgent, type ModelProvider } from "@min/core";
+import { createAgent, type ModelProvider } from "@min-agent/core";
 import { describe, expect, it } from "vitest";
 import "./builtins.js";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./registry.js";
 
 describe("provider registry", () => {
-  it("ships common providers without going through @min/core adapters", () => {
+  it("ships common providers without going through @min-agent/core adapters", () => {
     for (const id of ["mock", "openai", "openai-chat", "anthropic", "deepseek"]) {
       expect(hasProvider(id)).toBe(true);
     }

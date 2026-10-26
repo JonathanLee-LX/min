@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { mockProvider, type RunEvent } from "@min/core";
+import { mockProvider, type RunEvent } from "@min-agent/core";
 import { describe, expect, it } from "vitest";
 import { createRuntime } from "./runtime.js";
 

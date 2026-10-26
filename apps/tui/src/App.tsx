@@ -3,8 +3,8 @@ import {
   createClient,
   type ClientEvent,
   type MinClient,
-} from "@min/client";
-import { loadProviderExtensions, resolveProvider } from "@min/runtime";
+} from "@min-agent/client";
+import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { Box, Text, useApp, useInput } from "ink";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";

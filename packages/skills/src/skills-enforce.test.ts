@@ -1,5 +1,5 @@
-import { createAgent, defineTool, mockProvider } from "@min/core";
-import { createPermissionGate } from "@min/tools";
+import { createAgent, defineTool, mockProvider } from "@min-agent/core";
+import { createPermissionGate } from "@min-agent/tools";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createAllowedToolsGate, skills } from "./index.js";

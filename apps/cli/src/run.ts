@@ -3,12 +3,12 @@ import {
   createClient,
   type MinClient,
   type PermissionAnswer,
-} from "@min/client";
+} from "@min-agent/client";
 import {
   loadProviderExtensions,
   resolveProvider,
   sessionDirFor as appSessionDir,
-} from "@min/runtime";
+} from "@min-agent/runtime";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import type { CliArgs } from "./args.js";
 import { createEventPrinter } from "./events.js";
@@ -59,7 +59,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   return { client, args };
 }
 
-/** List sessions through @min/client (same store Runtime would use). */
+/** List sessions through @min-agent/client (same store Runtime would use). */
 export async function listSessions(args: CliArgs): Promise<void> {
   const cli = await createCliClient({ ...args, noTools: true });
   try {

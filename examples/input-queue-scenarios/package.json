@@ -1,5 +1,5 @@
 {
-  "name": "@min/example-input-queue-scenarios",
+  "name": "@min-agent/example-input-queue-scenarios",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,10 +10,10 @@
     "test": "echo \"skip\""
   },
   "dependencies": {
-    "@min/core": "workspace:*",
-    "@min/providers": "workspace:*",
-    "@min/session": "workspace:*",
-    "@min/tools": "workspace:*"
+    "@min-agent/core": "workspace:*",
+    "@min-agent/providers": "workspace:*",
+    "@min-agent/session": "workspace:*",
+    "@min-agent/tools": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

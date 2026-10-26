@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "node20",
-  external: ["@min/core", "@modelcontextprotocol/sdk", "zod"],
+  external: ["@min-agent/core", "@modelcontextprotocol/sdk", "zod"],
 });

@@ -12,9 +12,9 @@ import {
   defineTool,
   mockProvider,
   type ModelProvider,
-} from "@min/core";
-import { createProvider } from "@min/providers";
-import { skills } from "@min/skills";
+} from "@min-agent/core";
+import { createProvider } from "@min-agent/providers";
+import { skills } from "@min-agent/skills";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";

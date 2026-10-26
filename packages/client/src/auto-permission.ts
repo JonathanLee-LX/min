@@ -1,4 +1,4 @@
-import type { ToolCallPart } from "@min/core";
+import type { ToolCallPart } from "@min-agent/core";
 import type { PermissionAnswer } from "./types.js";
 
 /**

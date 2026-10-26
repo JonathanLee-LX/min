@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defineTool, type Tool } from "@min/core";
+import { defineTool, type Tool } from "@min-agent/core";
 import { z } from "zod";
 import { createSandbox, SandboxError, type Sandbox } from "./sandbox.js";
 

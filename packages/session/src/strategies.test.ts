@@ -7,7 +7,7 @@ import {
   toolMessage,
   toolResultPart,
   userMessage,
-} from "@min/core";
+} from "@min-agent/core";
 import { describe, expect, it } from "vitest";
 import { createSession } from "./session.js";
 import { hmtContextExtension, trimContextExtension } from "./strategies.js";

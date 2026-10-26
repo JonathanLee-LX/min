@@ -4,7 +4,7 @@ import {
   type ModelProvider,
   type RunEvent,
   type Tool,
-} from "@min/core";
+} from "@min-agent/core";
 import {
   createFsStore,
   createSession,
@@ -14,12 +14,12 @@ import {
   type ContextStrategyId,
   type Session,
   type SessionStore,
-} from "@min/session";
+} from "@min-agent/session";
 import {
   createAllowedToolsGate,
   skills,
   type AllowedToolsGate,
-} from "@min/skills";
+} from "@min-agent/skills";
 import {
   createPermissionGate,
   loadPermissionRules,
@@ -28,7 +28,7 @@ import {
   workspaceTools,
   type PermissionAskResult,
   type WorkspacePermissionPolicy,
-} from "@min/tools";
+} from "@min-agent/tools";
 import { access } from "node:fs/promises";
 import path from "node:path";
 

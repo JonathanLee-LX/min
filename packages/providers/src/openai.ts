@@ -8,14 +8,14 @@ import type {
   ResponseOutputItem,
   Tool,
 } from "openai/resources/responses/responses";
-import type { ModelProvider } from "@min/core";
+import type { ModelProvider } from "@min-agent/core";
 import type {
   CompletionChunk,
   CompletionRequest,
   CompletionResult,
   ContentPart,
   ToolDefinition,
-} from "@min/core";
+} from "@min-agent/core";
 
 export interface OpenAIProviderOptions {
   apiKey?: string;

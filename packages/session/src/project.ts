@@ -1,6 +1,6 @@
-import type { Message, ModelProvider } from "@min/core";
+import type { Message, ModelProvider } from "@min-agent/core";
 
-const SLOT = Symbol.for("@min/session.projection");
+const SLOT = Symbol.for("@min-agent/session.projection");
 
 export type MessageProjector = (
   messages: readonly Message[],

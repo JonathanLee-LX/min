@@ -1,6 +1,10 @@
 {
-  "name": "@min/session",
-  "version": "0.1.0",
+  "name": "@min-agent/session",
+  "version": "0.1.0-alpha.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Session and context budget management for the min agent harness",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +24,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/core": "workspace:*",
+    "@min-agent/core": "workspace:*",
     "zod": "^3.24.2"
   },
   "devDependencies": {

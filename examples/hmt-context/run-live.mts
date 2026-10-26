@@ -3,7 +3,7 @@
  *
  * Usage (from repo root):
  *   set -a && source .env && set +a
- *   pnpm --filter @min/example-hmt-context exec tsx run-live.mts
+ *   pnpm --filter @min-agent/example-hmt-context exec tsx run-live.mts
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -18,15 +18,15 @@ import {
   userMessage,
   type Message,
   type RunEvent,
-} from "@min/core";
-import { resolveProvider } from "@min/runtime";
+} from "@min-agent/core";
+import { resolveProvider } from "@min-agent/runtime";
 import {
   createSession,
   estimateMessagesTokens,
   hmtContextExtension,
   parseHiddenIds,
   recallContextExtension,
-} from "@min/session";
+} from "@min-agent/session";
 
 const MARKER = "NEEDLE_42_SECRET";
 

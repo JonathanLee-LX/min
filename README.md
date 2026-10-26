@@ -1,6 +1,6 @@
 # min
 
-A minimal, extensible TypeScript **agent harness**. Core packages, `@min/client` facade, CLI / Ink TUI / Web (shadcn B/S) — MVP slice is runnable end-to-end.
+A minimal, extensible TypeScript **agent harness**. Core packages, `@min-agent/client` facade, CLI / Ink TUI / Web (shadcn B/S) — MVP slice is runnable end-to-end.
 
 ## Why min
 
@@ -8,22 +8,51 @@ A minimal, extensible TypeScript **agent harness**. Core packages, `@min/client`
 - **Wide edge**: Skills, MCP, and workspace tools are composed by the host and passed into `createAgent`. The runner does not own a plugin bus.
 - **Dual protocols**: Anthropic Messages and OpenAI Responses adapters — vendor formats never leak into the loop.
 
+## 0.1.0-alpha.0
+
+First alpha, published under the `@min-agent` scope with the dist-tag `alpha`. Examples and demos stay private.
+
+```bash
+npm install -g @min-agent/cli@alpha
+min --help
+```
+
+| Package | Role |
+|---------|------|
+| `@min-agent/cli` | `min` command |
+| `@min-agent/tui` | `min-tui` |
+| `@min-agent/webui` | `min-web` |
+| `@min-agent/client` | UI facade |
+| `@min-agent/runtime` | Host composition |
+| `@min-agent/core` | Model loop |
+| `@min-agent/providers` | Built-in providers |
+| `@min-agent/tools` | Workspace tools and permission gate |
+| `@min-agent/skills` | Agent Skills |
+| `@min-agent/session` | History, projection, queue |
+| `@min-agent/mcp` | Optional MCP client |
+
+`[a]lways` writes the remembered pattern to `<cwd>/.min/permissions.json`. `--auto` remembers only for that process and does not write the file.
+
+Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. Web and TUI use the same client contract as the CLI, with a thinner surface. There is no authentication.
+
+Package metadata does not set a `repository` URL yet. Add it when the public git remote exists, then publish with `pnpm publish:alpha` from a clean tree. That command builds first; pnpm rewrites `workspace:*` to `0.1.0-alpha.0` during publish.
+
 ## Monorepo
 
 ```text
 packages/
-  core/      @min/core     loop (Runner, tools, ModelProvider contract)
-  providers/ @min/providers built-in providers + registerProvider extension
-  mcp/       @min/mcp      MCP client extension
-  skills/    @min/skills   Agent Skills (SKILL.md) + allowed-tools gate
-  tools/     @min/tools    sandboxed read/write/glob/bash
-  session/   @min/session  conversation sessions + context budget + input queue
-  runtime/   @min/runtime  shared composition layer for CLI / TUI
-  client/    @min/client   UI facade: send / subscribe / queue / permission
+  core/      @min-agent/core     loop (Runner, tools, ModelProvider contract)
+  providers/ @min-agent/providers built-in providers + registerProvider extension
+  mcp/       @min-agent/mcp      MCP client extension
+  skills/    @min-agent/skills   Agent Skills (SKILL.md) + allowed-tools gate
+  tools/     @min-agent/tools    sandboxed read/write/glob/bash
+  session/   @min-agent/session  conversation sessions + context budget + input queue
+  runtime/   @min-agent/runtime  shared composition layer for CLI / TUI
+  client/    @min-agent/client   UI facade: send / subscribe / queue / permission
 apps/
-  cli/       @min/cli      one-shot + REPL (via @min/client)
-  tui/       @min/tui      Ink terminal UI (via @min/client)
-  webui/     @min/webui    B/S Web UI — Node server + Vite/React/shadcn
+  cli/       @min-agent/cli      one-shot + REPL (via @min-agent/client)
+  tui/       @min-agent/tui      Ink terminal UI (via @min-agent/client)
+  webui/     @min-agent/webui    B/S Web UI — Node server + Vite/React/shadcn
 examples/
   basic/                   Offline mock example (+ optional live providers)
   input-queue-scenarios/   supplement / redirect queue demos
@@ -31,29 +60,29 @@ examples/
 
 ## Architecture
 
-`@min/core` is the model round-trip and the tool loop. Permissions, skills, workspace policy, and the projected model view are composed by the host and never enter the runner as concepts.
+`@min-agent/core` is the model round-trip and the tool loop. Permissions, skills, workspace policy, and the projected model view are composed by the host and never enter the runner as concepts.
 
 ```mermaid
 flowchart TB
   subgraph apps [Apps]
-    CLI["@min/cli"]
-    TUI["@min/tui"]
-    Web["@min/webui"]
+    CLI["@min-agent/cli"]
+    TUI["@min-agent/tui"]
+    Web["@min-agent/webui"]
   end
 
-  Client["@min/client<br/>send / subscribe / queue / PermissionBridge"]
-  Runtime["@min/runtime createRuntime"]
+  Client["@min-agent/client<br/>send / subscribe / queue / PermissionBridge"]
+  Runtime["@min-agent/runtime createRuntime"]
 
   subgraph host [Composed before createAgent]
-    Tools["@min/tools<br/>workspace tools + createPermissionGate"]
-    Skills["@min/skills<br/>load_skill + allowed-tools pre-approval"]
-    Recall["@min/session recall_context"]
-    MCP["@min/mcp connect<br/>optional, not in createRuntime"]
+    Tools["@min-agent/tools<br/>workspace tools + createPermissionGate"]
+    Skills["@min-agent/skills<br/>load_skill + allowed-tools pre-approval"]
+    Recall["@min-agent/session recall_context"]
+    MCP["@min-agent/mcp connect<br/>optional, not in createRuntime"]
   end
 
-  Session["@min/session<br/>canonical history, assembler, projection wrapper, ask slot"]
-  Core["@min/core Runner<br/>complete, execute, append tool message"]
-  Providers["@min/providers<br/>mock, openai, openai-chat, anthropic, deepseek"]
+  Session["@min-agent/session<br/>canonical history, assembler, projection wrapper, ask slot"]
+  Core["@min-agent/core Runner<br/>complete, execute, append tool message"]
+  Providers["@min-agent/providers<br/>mock, openai, openai-chat, anthropic, deepseek"]
 
   CLI --> Client
   TUI --> Client
@@ -78,9 +107,9 @@ One user turn:
 ```mermaid
 sequenceDiagram
   participant UI as CLI / TUI / Web
-  participant Client as @min/client
-  participant Session as @min/session
-  participant Runner as @min/core Runner
+  participant Client as @min-agent/client
+  participant Session as @min-agent/session
+  participant Runner as @min-agent/core Runner
   participant Gate as permission gate
   participant Model as ModelProvider
 
@@ -132,13 +161,13 @@ PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
 DEEPSEEK_API_KEY=... pnpm min -- "summarize README.md"
 ```
 
-DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider` in `@min/providers`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.
+DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider` in `@min-agent/providers`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.
 
-Built-in ids: `mock`, `openai`, `openai-chat`, `anthropic`, `deepseek`. Add another without editing `@min/core`:
+Built-in ids: `mock`, `openai`, `openai-chat`, `anthropic`, `deepseek`. Add another without editing `@min-agent/core`:
 
 ```ts
-import { registerProvider } from "@min/providers";
-import type { ModelProvider } from "@min/core";
+import { registerProvider } from "@min-agent/providers";
+import type { ModelProvider } from "@min-agent/core";
 
 const groq: ModelProvider = { id: "groq", async complete(req) { /* ... */ return { message, stopReason: "end" }; } };
 registerProvider("groq", () => groq);
@@ -146,7 +175,7 @@ registerProvider("groq", () => groq);
 
 `MIN_PROVIDER_MODULE` (comma-separated package or file path) is loaded by the CLI, TUI, and Web before provider lookup. The module should call `registerProvider`. Passing a `ModelProvider` straight into `createAgent` / `createRuntime` also works and skips the registry.
 
-### Workspace tools (`@min/tools`)
+### Workspace tools (`@min-agent/tools`)
 
 Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, `bash`, all scoped to `--cwd`.
 
@@ -167,9 +196,9 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 - Seed roots: `--add-root <dir>` (repeatable)
 - One-shot without TTY: `ask` → deny unless flags allow
 - Denied tools return `tool_result` with `isError` — the run continues
-- Policy (`allow` / `deny` / `ask`, `grantRoot`) lives in `@min/tools` and is applied by wrapping `execute` before `createAgent`. The handler receives the real tool-call id, turn, and canonical messages. Core never sees a permission decision.
+- Policy (`allow` / `deny` / `ask`, `grantRoot`) lives in `@min-agent/tools` and is applied by wrapping `execute` before `createAgent`. The handler receives the real tool-call id, turn, and canonical messages. Core never sees a permission decision.
 
-### Sessions and context budget (`@min/session`)
+### Sessions and context budget (`@min-agent/session`)
 
 - Canonical history is kept in a `Session` (optionally under `<cwd>/.min/sessions`).
 - Model view is built by a **pluggable `ContextAssembler`** (SessionExtension). Strategies are swappable for eval:
@@ -189,7 +218,7 @@ On-demand (not a continuous strategy): `session.compact()` / Client `compact()` 
 - Canonical session / Runner history stays full (including fat tool bodies).
 - Before every model `complete` inside a tool loop, Session re-runs the assembler inside a `ModelProvider` wrapper and sends only the projected view. Canonical history stays on the Runner.
 - That closes the gap where a single user-turn coding run never got a second assemble (hybrid used to look idle until the next `session.run`).
-- Multi-turn fold/stash/recall check: `pnpm --filter @min/example-hmt-context exec tsx verify-multiturn.mts`
+- Multi-turn fold/stash/recall check: `pnpm --filter @min-agent/example-hmt-context exec tsx verify-multiturn.mts`
 
 - Stash markers look like `…[hidden:tool_<id> · recall_context]…` when a stash strategy is on.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
@@ -207,11 +236,11 @@ Session stays a thin kernel; extend via composition:
 | `SessionExtension` | Package assembler + hooks (`defineSessionExtension`) |
 
 Kernel responsibilities only: identity, canonical history, `run`/`compact`/`reset`/`export`, store I/O.
-Follow-up **input queue** (`createInputQueue`) lives in `@min/session` only: default `enqueue`, with a 1.5s `dense-latest` window for rapid supplements. Drained **after** each `agent.run` returns — `@min/core` is unchanged.
+Follow-up **input queue** (`createInputQueue`) lives in `@min-agent/session` only: default `enqueue`, with a 1.5s `dense-latest` window for rapid supplements. Drained **after** each `agent.run` returns — `@min-agent/core` is unchanged.
 Everything else plugs in:
 
 ```ts
-import { createSession, defineSessionExtension, createBudgetAssembler } from "@min/session";
+import { createSession, defineSessionExtension, createBudgetAssembler } from "@min-agent/session";
 
 const compact = defineSessionExtension({
   name: "compact-log",
@@ -247,10 +276,10 @@ The CLI ships one pack (`cli.context-budget-log`) the same way — observability
 ## Usage
 
 ```ts
-import { createAgent, defineTool } from "@min/core";
-import { anthropicProvider } from "@min/providers";
-import { mcp } from "@min/mcp";
-import { skills } from "@min/skills";
+import { createAgent, defineTool } from "@min-agent/core";
+import { anthropicProvider } from "@min-agent/providers";
+import { mcp } from "@min-agent/mcp";
+import { skills } from "@min-agent/skills";
 import { z } from "zod";
 
 const systemParts = ["You are min."];
@@ -285,7 +314,7 @@ await filesystem.dispose();
 ### Adding a tool from the host
 
 ```ts
-import { createAgent, defineTool, type ModelProvider } from "@min/core";
+import { createAgent, defineTool, type ModelProvider } from "@min-agent/core";
 import { z } from "zod";
 
 const ping = defineTool({
@@ -332,4 +361,4 @@ Follows the [Agent Skills](https://agentskills.io/specification) format. Metadat
 | `Runner` | Tool-use loop: complete, execute tools, append tool results |
 | Host composition | Skills, MCP, workspace tools, and permission gates are assembled before `createAgent` |
 
-Phase 2 will add interactive surfaces under `apps/` without changing the harness contract.
+CLI, TUI, and Web are the interactive surfaces. They sit on `@min-agent/client` and do not change the harness contract.

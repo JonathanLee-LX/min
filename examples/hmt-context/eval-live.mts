@@ -2,7 +2,7 @@
  * Live A/B of context strategies on one real workspace task (DeepSeek).
  *
  *   set -a && source ../../.env && set +a
- *   pnpm --filter @min/example-hmt-context exec tsx eval-live.mts
+ *   pnpm --filter @min-agent/example-hmt-context exec tsx eval-live.mts
  */
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
@@ -10,13 +10,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import type { RunEvent } from "@min/core";
-import { createRuntime, resolveProvider } from "@min/runtime";
+import type { RunEvent } from "@min-agent/core";
+import { createRuntime, resolveProvider } from "@min-agent/runtime";
 import {
   CONTEXT_STRATEGY_IDS,
   estimateMessagesTokens,
   type ContextStrategyId,
-} from "@min/session";
+} from "@min-agent/session";
 
 const SECRET = "NEEDLE_7f3c91";
 const PREFIX = "ACME";

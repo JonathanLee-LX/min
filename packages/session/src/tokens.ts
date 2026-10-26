@@ -1,4 +1,4 @@
-import type { Message, ToolDefinition } from "@min/core";
+import type { Message, ToolDefinition } from "@min-agent/core";
 
 /**
  * Pluggable token estimator for context budgeting.

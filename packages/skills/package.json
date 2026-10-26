@@ -1,6 +1,10 @@
 {
-  "name": "@min/skills",
-  "version": "0.1.0",
+  "name": "@min-agent/skills",
+  "version": "0.1.0-alpha.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Agent Skills (SKILL.md) extension for the min agent harness",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,8 +24,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/core": "workspace:*",
-    "@min/tools": "workspace:*",
+    "@min-agent/core": "workspace:*",
+    "@min-agent/tools": "workspace:*",
     "gray-matter": "^4.0.3",
     "zod": "^3.24.2"
   },

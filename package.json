@@ -5,16 +5,17 @@
   "description": "min — a minimal, extensible TypeScript agent harness",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
-    "build": "pnpm -r --filter=@min/* run build",
-    "test": "pnpm -r --filter=@min/* run test",
-    "typecheck": "pnpm -r --filter=@min/* run typecheck",
-    "example": "pnpm --filter=@min/example-basic start",
-    "example:queue": "pnpm --filter=@min/example-input-queue-scenarios start",
-    "min": "pnpm --filter=@min/cli exec tsx src/cli.ts",
-    "min-tui": "pnpm --filter=@min/tui exec tsx src/tui.tsx",
-    "min-web": "pnpm --filter=@min/webui dev",
-    "link:cli": "pnpm --filter=@min/cli run build && pnpm --filter=@min/cli exec pnpm link --global",
-    "link:tui": "pnpm --filter=@min/tui run build && pnpm --filter=@min/tui exec pnpm link --global"
+    "build": "pnpm -r --filter=@min-agent/* run build",
+    "test": "pnpm -r --filter=@min-agent/* run test",
+    "typecheck": "pnpm -r --filter=@min-agent/* run typecheck",
+    "example": "pnpm --filter=@min-agent/example-basic start",
+    "example:queue": "pnpm --filter=@min-agent/example-input-queue-scenarios start",
+    "min": "pnpm --filter=@min-agent/cli exec tsx src/cli.ts",
+    "min-tui": "pnpm --filter=@min-agent/tui exec tsx src/tui.tsx",
+    "min-web": "pnpm --filter=@min-agent/webui dev",
+    "link:cli": "pnpm --filter=@min-agent/cli run build && pnpm --filter=@min-agent/cli exec pnpm link --global",
+    "link:tui": "pnpm --filter=@min-agent/tui run build && pnpm --filter=@min-agent/tui exec pnpm link --global",
+    "publish:alpha": "pnpm build && pnpm -r --filter=@min-agent/* publish --access public --tag alpha"
   },
   "engines": {
     "node": ">=20"

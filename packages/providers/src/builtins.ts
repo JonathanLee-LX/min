@@ -1,4 +1,4 @@
-import { mockProvider } from "@min/core";
+import { mockProvider } from "@min-agent/core";
 import { anthropicProvider } from "./anthropic.js";
 import { deepseekProvider } from "./deepseek.js";
 import { openaiChatProvider } from "./openai-chat.js";

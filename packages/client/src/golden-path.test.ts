@@ -2,9 +2,9 @@ import {
   createAgent,
   defineTool,
   mockProvider,
-} from "@min/core";
-import { createMemoryStore, createSession } from "@min/session";
-import { createPermissionGate } from "@min/tools";
+} from "@min-agent/core";
+import { createMemoryStore, createSession } from "@min-agent/session";
+import { createPermissionGate } from "@min-agent/tools";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

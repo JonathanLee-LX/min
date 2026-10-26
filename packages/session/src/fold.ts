@@ -1,4 +1,4 @@
-import type { ContentPart, Message, ToolResultPart } from "@min/core";
+import type { ContentPart, Message, ToolResultPart } from "@min-agent/core";
 import {
   hiddenMarker,
   type ContextStash,

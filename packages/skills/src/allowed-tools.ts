@@ -1,4 +1,4 @@
-import type { PermissionHandler } from "@min/tools";
+import type { PermissionHandler } from "@min-agent/tools";
 import type { Skill } from "./types.js";
 
 /**

@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
-import type { Message } from "@min/core";
+import type { Message } from "@min-agent/core";
 
 export interface SessionMeta {
   id: string;

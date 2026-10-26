@@ -1,7 +1,10 @@
 {
-  "name": "@min/client",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@min-agent/client",
+  "version": "0.1.0-alpha.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "UI-facing facade for min: send / subscribe / queue / permission / session",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,12 +24,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/core": "workspace:*",
-    "@min/runtime": "workspace:*",
-    "@min/session": "workspace:*"
+    "@min-agent/core": "workspace:*",
+    "@min-agent/runtime": "workspace:*",
+    "@min-agent/session": "workspace:*"
   },
   "devDependencies": {
-    "@min/tools": "workspace:*",
+    "@min-agent/tools": "workspace:*",
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",

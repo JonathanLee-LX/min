@@ -3,7 +3,7 @@ import {
   textPart,
   type Message,
   type ModelProvider,
-} from "@min/core";
+} from "@min-agent/core";
 import { splitUserTurns } from "./assemble.js";
 import { messageTextApprox } from "./compact-prompt.js";
 

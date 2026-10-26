@@ -1,4 +1,4 @@
-import type { Message, Tool, ToolCallPart, ToolContext, ToolResult } from "@min/core";
+import type { Message, Tool, ToolCallPart, ToolContext, ToolResult } from "@min-agent/core";
 
 export type PermissionAskResult = "allow" | "deny" | "allow_session";
 

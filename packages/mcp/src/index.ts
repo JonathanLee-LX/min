@@ -1,4 +1,4 @@
-import { type Tool, type ToolResult } from "@min/core";
+import { type Tool, type ToolResult } from "@min-agent/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";

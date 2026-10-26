@@ -1,4 +1,4 @@
-import type { ModelProvider } from "@min/core";
+import type { ModelProvider } from "@min-agent/core";
 
 /**
  * Options passed to a registered provider factory.
@@ -17,7 +17,7 @@ export type ProviderFactory = (opts: ProviderOptions) => ModelProvider;
 
 const factories = new Map<string, ProviderFactory>();
 
-/** Register or replace a provider by id. Does not modify @min/core. */
+/** Register or replace a provider by id. Does not modify @min-agent/core. */
 export function registerProvider(id: string, factory: ProviderFactory): void {
   const name = id.trim();
   if (!name) throw new Error("Provider id is required");

@@ -7,14 +7,14 @@ import type {
   ToolResultBlockParam,
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
-import type { ModelProvider } from "@min/core";
+import type { ModelProvider } from "@min-agent/core";
 import type {
   CompletionRequest,
   CompletionResult,
   ContentPart,
   Message,
   ToolDefinition,
-} from "@min/core";
+} from "@min-agent/core";
 
 export interface AnthropicProviderOptions {
   apiKey?: string;

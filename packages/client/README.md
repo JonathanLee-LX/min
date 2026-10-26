@@ -1,4 +1,4 @@
-# `@min/client`
+# `@min-agent/client`
 
 中间体验层：抹平 CLI / TUI / WebUI 的使用方式，隐藏 Session / Core 细节，让界面与引擎解耦。
 
@@ -22,11 +22,11 @@ Client 翻译与编排，**不是**第二套引擎，也不做 Ink/DOM。
 ```text
 CLI · TUI · WebUI     ← 渲染 / 输入 only
         ↓
-@min/client           ← 体验契约（本包）
+@min-agent/client           ← 体验契约（本包）
         ↓
-@min/runtime          ← 组合根（怎么装起来）
+@min-agent/runtime          ← 组合根（怎么装起来）
         ↓
-@min/core · session · tools · skills
+@min-agent/core · session · tools · skills
 ```
 
 ## 解耦验收
@@ -39,8 +39,8 @@ CLI · TUI · WebUI     ← 渲染 / 输入 only
 ## Quick use
 
 ```ts
-import { createClient } from "@min/client";
-import { resolveProvider } from "@min/runtime";
+import { createClient } from "@min-agent/client";
+import { resolveProvider } from "@min-agent/runtime";
 
 const client = await createClient({
   cwd: process.cwd(),

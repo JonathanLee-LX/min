@@ -3,8 +3,8 @@ import {
   createClient,
   type ClientEvent,
   type MinClient,
-} from "@min/client";
-import { loadProviderExtensions, resolveProvider } from "@min/runtime";
+} from "@min-agent/client";
+import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -241,7 +241,7 @@ async function handler(
       if (served) return;
       sendJson(res, 404, {
         error: "not found",
-        hint: "Run pnpm --filter=@min/webui build, or use vite dev proxy",
+        hint: "Run pnpm --filter=@min-agent/webui build, or use vite dev proxy",
       });
       return;
     }

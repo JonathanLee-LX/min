@@ -1,5 +1,5 @@
-import type { Message, ToolDefinition } from "@min/core";
-import { assistantMessage, textPart } from "@min/core";
+import type { Message, ToolDefinition } from "@min-agent/core";
+import { assistantMessage, textPart } from "@min-agent/core";
 import {
   foldMessagesForView,
   indexToolNames,

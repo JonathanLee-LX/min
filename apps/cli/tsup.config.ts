@@ -13,12 +13,12 @@ export default defineConfig({
     js: "#!/usr/bin/env node",
   },
   external: [
-    "@min/client",
-    "@min/runtime",
-    "@min/core",
-    "@min/session",
-    "@min/skills",
-    "@min/tools",
+    "@min-agent/client",
+    "@min-agent/runtime",
+    "@min-agent/core",
+    "@min-agent/session",
+    "@min-agent/skills",
+    "@min-agent/tools",
     "zod",
   ],
 });

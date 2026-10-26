@@ -1,4 +1,4 @@
-import { createAgent, defineTool, mockProvider } from "@min/core";
+import { createAgent, defineTool, mockProvider } from "@min-agent/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createPermissionGate } from "./permission-protocol.js";

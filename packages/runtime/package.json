@@ -1,7 +1,10 @@
 {
-  "name": "@min/runtime",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@min-agent/runtime",
+  "version": "0.1.0-alpha.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Shared runtime composition layer for min CLI / TUI",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,11 +24,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/core": "workspace:*",
-    "@min/providers": "workspace:*",
-    "@min/session": "workspace:*",
-    "@min/skills": "workspace:*",
-    "@min/tools": "workspace:*"
+    "@min-agent/core": "workspace:*",
+    "@min-agent/providers": "workspace:*",
+    "@min-agent/session": "workspace:*",
+    "@min-agent/skills": "workspace:*",
+    "@min-agent/tools": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

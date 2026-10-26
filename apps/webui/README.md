@@ -1,4 +1,4 @@
-# `@min/webui`
+# `@min-agent/webui`
 
 Browser UI for min (B/S). Uses **shadcn/ui**-style React primitives + Tailwind.
 
@@ -8,9 +8,9 @@ Browser UI for min (B/S). Uses **shadcn/ui**-style React primitives + Tailwind.
 Browser (Vite/React/shadcn)
     │  HTTP send/queue/permission + SSE /events
     ▼
-Node server process  ← holds @min/client (MinClient)
+Node server process  ← holds @min-agent/client (MinClient)
     ▼
-@min/runtime → session / core / tools
+@min-agent/runtime → session / core / tools
 ```
 
 **Isolation (current):** the browser never loads MinClient or API keys. The HTTP
@@ -23,7 +23,7 @@ HTTP contract if you need crash isolation or multi-tenant workers.
 
 ```bash
 # terminal A+B via concurrently
-pnpm --filter=@min/webui dev
+pnpm --filter=@min-agent/webui dev
 # API  http://127.0.0.1:43127
 # Vite http://127.0.0.1:43128  (proxies /api and /events)
 ```
@@ -40,8 +40,8 @@ Env: same as CLI (`DEEPSEEK_API_KEY`, `PROVIDER`, …). Optional:
 ## Production
 
 ```bash
-pnpm --filter=@min/webui build
-pnpm --filter=@min/webui start   # serves API + dist/web on MIN_WEB_PORT
+pnpm --filter=@min-agent/webui build
+pnpm --filter=@min-agent/webui start   # serves API + dist/web on MIN_WEB_PORT
 ```
 
 ## UI notes

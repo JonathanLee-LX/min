@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "node20",
-  external: ["@min/core", "@min/runtime", "@min/session"],
+  external: ["@min-agent/core", "@min-agent/runtime", "@min-agent/session"],
 });

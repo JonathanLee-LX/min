@@ -1,4 +1,4 @@
-import { defineSessionExtension, type SessionExtension } from "@min/session";
+import { defineSessionExtension, type SessionExtension } from "@min-agent/session";
 
 function formatAssembleLine(
   assemble: {

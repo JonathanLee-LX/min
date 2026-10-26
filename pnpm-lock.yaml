@@ -14,22 +14,22 @@ importers:
 
   apps/cli:
     dependencies:
-      '@min/client':
+      '@min-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@min/runtime':
+      '@min-agent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@min/session':
+      '@min-agent/session':
         specifier: workspace:*
         version: link:../../packages/session
-      '@min/skills':
+      '@min-agent/skills':
         specifier: workspace:*
         version: link:../../packages/skills
-      '@min/tools':
+      '@min-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools
       zod:
@@ -54,10 +54,10 @@ importers:
 
   apps/tui:
     dependencies:
-      '@min/client':
+      '@min-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@min/runtime':
+      '@min-agent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
       ink:
@@ -88,10 +88,10 @@ importers:
 
   apps/webui:
     dependencies:
-      '@min/client':
+      '@min-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@min/runtime':
+      '@min-agent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
       '@radix-ui/react-scroll-area':
@@ -174,13 +174,13 @@ importers:
 
   examples/basic:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@min/providers':
+      '@min-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      '@min/skills':
+      '@min-agent/skills':
         specifier: workspace:*
         version: link:../../packages/skills
       zod:
@@ -199,13 +199,13 @@ importers:
 
   examples/hmt-context:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@min/runtime':
+      '@min-agent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
-      '@min/session':
+      '@min-agent/session':
         specifier: workspace:*
         version: link:../../packages/session
     devDependencies:
@@ -218,16 +218,16 @@ importers:
 
   examples/input-queue-scenarios:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@min/providers':
+      '@min-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      '@min/session':
+      '@min-agent/session':
         specifier: workspace:*
         version: link:../../packages/session
-      '@min/tools':
+      '@min-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools
     devDependencies:
@@ -240,17 +240,17 @@ importers:
 
   packages/client:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
-      '@min/runtime':
+      '@min-agent/runtime':
         specifier: workspace:*
         version: link:../runtime
-      '@min/session':
+      '@min-agent/session':
         specifier: workspace:*
         version: link:../session
     devDependencies:
-      '@min/tools':
+      '@min-agent/tools':
         specifier: workspace:*
         version: link:../tools
       '@types/node':
@@ -293,7 +293,7 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
       '@modelcontextprotocol/sdk':
@@ -321,7 +321,7 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
         version: 0.39.0
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
       openai:
@@ -343,19 +343,19 @@ importers:
 
   packages/runtime:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
-      '@min/providers':
+      '@min-agent/providers':
         specifier: workspace:*
         version: link:../providers
-      '@min/session':
+      '@min-agent/session':
         specifier: workspace:*
         version: link:../session
-      '@min/skills':
+      '@min-agent/skills':
         specifier: workspace:*
         version: link:../skills
-      '@min/tools':
+      '@min-agent/tools':
         specifier: workspace:*
         version: link:../tools
     devDependencies:
@@ -374,7 +374,7 @@ importers:
 
   packages/session:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
       zod:
@@ -396,10 +396,10 @@ importers:
 
   packages/skills:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
-      '@min/tools':
+      '@min-agent/tools':
         specifier: workspace:*
         version: link:../tools
       gray-matter:
@@ -424,7 +424,7 @@ importers:
 
   packages/tools:
     dependencies:
-      '@min/core':
+      '@min-agent/core':
         specifier: workspace:*
         version: link:../core
       zod:

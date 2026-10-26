@@ -1,5 +1,5 @@
-import type { ModelProvider } from "@min/core";
-import { createProvider, importProviderModules } from "@min/providers";
+import type { ModelProvider } from "@min-agent/core";
+import { createProvider, importProviderModules } from "@min-agent/providers";
 
 export function resolveProvider(opts: {
   provider?: string;

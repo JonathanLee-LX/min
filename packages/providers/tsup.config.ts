@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "node20",
-  external: ["@min/core", "@anthropic-ai/sdk", "openai"],
+  external: ["@min-agent/core", "@anthropic-ai/sdk", "openai"],
 });

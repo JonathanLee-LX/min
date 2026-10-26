@@ -1,10 +1,10 @@
-import type { RunEvent, ToolCallPart } from "@min/core";
+import type { RunEvent, ToolCallPart } from "@min-agent/core";
 import {
   createRuntime,
   type Runtime,
   type RuntimeOptions,
-} from "@min/runtime";
-import { defineSessionExtension } from "@min/session";
+} from "@min-agent/runtime";
+import { defineSessionExtension } from "@min-agent/session";
 import { createEventTranslator, isAbortError } from "./events.js";
 import { createPermissionBridge } from "./permission-bridge.js";
 import type {

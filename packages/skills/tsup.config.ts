@@ -9,5 +9,5 @@ export default defineConfig({
   splitting: false,
   treeshake: true,
   target: "node20",
-  external: ["@min/core", "@min/tools", "gray-matter", "zod"],
+  external: ["@min-agent/core", "@min-agent/tools", "gray-matter", "zod"],
 });

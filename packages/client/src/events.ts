@@ -1,4 +1,4 @@
-import type { RunEvent } from "@min/core";
+import type { RunEvent } from "@min-agent/core";
 import type { ClientEvent } from "./types.js";
 
 export interface EventTranslator {

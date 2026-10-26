@@ -6,7 +6,7 @@ import {
   toolMessage,
   toolResultPart,
   userMessage,
-} from "@min/core";
+} from "@min-agent/core";
 import { describe, expect, it } from "vitest";
 import { compactHistoryMessages } from "./assemble-compact.js";
 import { assembleHybridContext } from "./assemble-hybrid.js";

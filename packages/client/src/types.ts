@@ -1,6 +1,6 @@
-import type { Message, ToolCallPart } from "@min/core";
-import type { Runtime, RuntimeOptions } from "@min/runtime";
-import type { InputQueueMode, SessionMeta } from "@min/session";
+import type { Message, ToolCallPart } from "@min-agent/core";
+import type { Runtime, RuntimeOptions } from "@min-agent/runtime";
+import type { InputQueueMode, SessionMeta } from "@min-agent/session";
 
 /** Client lifecycle / interaction status exposed to UIs. */
 export type ClientStatus = "idle" | "running" | "asking";

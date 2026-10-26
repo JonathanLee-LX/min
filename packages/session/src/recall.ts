@@ -1,4 +1,4 @@
-import { defineTool, type Tool } from "@min/core";
+import { defineTool, type Tool } from "@min-agent/core";
 import { z } from "zod";
 import type { ContextStash } from "./stash.js";
 

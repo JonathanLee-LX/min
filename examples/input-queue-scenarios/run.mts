@@ -1,19 +1,19 @@
 /**
- * Realistic input-queue scenarios (session-layer only; @min/core untouched).
+ * Realistic input-queue scenarios (session-layer only; @min-agent/core untouched).
  *
  * A) Task in progress + successive information supplements (enqueue)
  * B) Task direction set, then rapidly revised (dense-latest keeps newest)
  *
- * Both scenarios register @min/tools so the model can read the repo.
+ * Both scenarios register @min-agent/tools so the model can read the repo.
  */
-import { createAgent, type ModelProvider } from "@min/core";
-import { deepseekProvider } from "@min/providers";
+import { createAgent, type ModelProvider } from "@min-agent/core";
+import { deepseekProvider } from "@min-agent/providers";
 import {
   createInputQueue,
   createSession,
   defineSessionExtension,
-} from "@min/session";
-import { workspaceTools } from "@min/tools";
+} from "@min-agent/session";
+import { workspaceTools } from "@min-agent/tools";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -226,7 +226,7 @@ async function scenarioRedirect() {
   await agent.dispose();
 }
 
-banner("input-queue scenarios (+ @min/tools)");
+banner("input-queue scenarios (+ @min-agent/tools)");
 await scenarioSupplement();
 await scenarioRedirect();
 banner("done");

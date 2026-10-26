@@ -1,7 +1,10 @@
 {
-  "name": "@min/cli",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@min-agent/cli",
+  "version": "0.1.0-alpha.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Minimal CLI for the min agent harness",
   "type": "module",
   "bin": {
@@ -18,12 +21,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/client": "workspace:*",
-    "@min/runtime": "workspace:*",
-    "@min/core": "workspace:*",
-    "@min/session": "workspace:*",
-    "@min/skills": "workspace:*",
-    "@min/tools": "workspace:*",
+    "@min-agent/client": "workspace:*",
+    "@min-agent/runtime": "workspace:*",
+    "@min-agent/core": "workspace:*",
+    "@min-agent/session": "workspace:*",
+    "@min-agent/skills": "workspace:*",
+    "@min-agent/tools": "workspace:*",
     "zod": "^3.24.2"
   },
 

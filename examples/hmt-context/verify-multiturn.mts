@@ -31,10 +31,10 @@
  *   B3  final ask for the needle → recall_context used OR answer contains needle
  *
  * Run:
- *   pnpm --filter @min/example-hmt-context exec tsx verify-multiturn.mts
+ *   pnpm --filter @min-agent/example-hmt-context exec tsx verify-multiturn.mts
  *   # live:
  *   set -a && source ../../.env && set +a
- *   LIVE=1 pnpm --filter @min/example-hmt-context exec tsx verify-multiturn.mts
+ *   LIVE=1 pnpm --filter @min-agent/example-hmt-context exec tsx verify-multiturn.mts
  */
 import {
   assistantMessage,
@@ -47,8 +47,8 @@ import {
   userMessage,
   type Message,
   type RunEvent,
-} from "@min/core";
-import { createRuntime, resolveProvider } from "@min/runtime";
+} from "@min-agent/core";
+import { createRuntime, resolveProvider } from "@min-agent/runtime";
 import {
   assembleHybridContext,
   assembleTrimContext,
@@ -57,7 +57,7 @@ import {
   estimateMessagesTokens,
   parseHiddenIds,
   type AssembleResult,
-} from "@min/session";
+} from "@min-agent/session";
 import {
   mkdirSync,
   mkdtempSync,
@@ -462,7 +462,7 @@ async function runSessionAssembleCadence(): Promise<Check[]> {
   });
 
   const { createSession, hybridContextExtension, recallContextExtension } =
-    await import("@min/session");
+    await import("@min-agent/session");
 
   const hybrid = hybridContextExtension({
     budget: { maxContextTokens: 6_000 },

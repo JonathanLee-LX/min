@@ -17,7 +17,7 @@ import {
   toolResultPart,
   userMessage,
   type Message,
-} from "@min/core";
+} from "@min-agent/core";
 import {
   assembleContext,
   createContextStash,
@@ -25,7 +25,7 @@ import {
   estimateMessagesTokens,
   parseHiddenIds,
   recallContextExtension,
-} from "@min/session";
+} from "@min-agent/session";
 
 const MARKER = "NEEDLE_42_SECRET";
 

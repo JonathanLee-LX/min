@@ -1,12 +1,18 @@
 {
-  "name": "@min/webui",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@min-agent/webui",
+  "version": "0.1.0-alpha.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "B/S Web UI for min — Node server (MinClient) + Vite/React/shadcn",
   "type": "module",
   "bin": {
     "min-web": "./dist/server.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "concurrently -k \"pnpm dev:server\" \"pnpm dev:web\"",
     "dev:server": "tsx watch src/server/main.ts",
@@ -19,8 +25,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@min/client": "workspace:*",
-    "@min/runtime": "workspace:*",
+    "@min-agent/client": "workspace:*",
+    "@min-agent/runtime": "workspace:*",
     "@radix-ui/react-scroll-area": "^1.2.3",
     "@radix-ui/react-slot": "^1.1.2",
     "class-variance-authority": "^0.7.1",

@@ -3,7 +3,7 @@
  * buries needles under more fat tool IO, tracks leak/view/recall.
  *
  *   set -a && source ../../.env && set +a
- *   pnpm --filter @min/example-hmt-context exec tsx eval-hard.mts
+ *   pnpm --filter @min-agent/example-hmt-context exec tsx eval-hard.mts
  */
 import {
   mkdirSync,
@@ -15,14 +15,14 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Message, RunEvent } from "@min/core";
-import { createRuntime, resolveProvider } from "@min/runtime";
+import type { Message, RunEvent } from "@min-agent/core";
+import { createRuntime, resolveProvider } from "@min-agent/runtime";
 import {
   CONTEXT_STRATEGY_IDS,
   estimateMessagesTokens,
   parseHiddenIds,
   type ContextStrategyId,
-} from "@min/session";
+} from "@min-agent/session";
 
 const SECRET = "NEEDLE_HARD_9c2e";
 const DISTRACTOR = "NEEDLE_FAKE_0000";

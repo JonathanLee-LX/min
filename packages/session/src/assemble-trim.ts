@@ -1,4 +1,4 @@
-import type { Message } from "@min/core";
+import type { Message } from "@min-agent/core";
 import {
   splitUserTurns,
   type AssembleInput,
