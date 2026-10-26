@@ -226,7 +226,7 @@ skills/
 
 Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via the `load_skill` tool (progressive disclosure).
 
-Skills may declare `allowed-tools` to tighten the session allowlist after load. Tools outside that list are not hard-denied: the host **asks** the user. Choose once (`y`) or always for this session (`a`) to escape; `allow_session` calls `allowedToolsGate.grantSession`.
+`allowed-tools` follows the Agent Skills spec: a space-separated list of tools pre-approved to run after the skill loads. Other tools stay available under the normal permission policy. Sandbox root grants are unchanged.
 
 ## Design notes
 

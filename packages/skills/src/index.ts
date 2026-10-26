@@ -33,12 +33,12 @@ export interface SkillsExtensionOptions {
   /** Tool name for loading a skill body. Default: load_skill */
   loadToolName?: string;
   /**
-   * Shared allowlist gate. When omitted, a gate is created and attached
+   * Shared pre-approval gate. When omitted, one is created and attached
    * on the extension as `.allowedToolsGate` for the host to compose.
    */
   allowedToolsGate?: AllowedToolsGate;
   /**
-   * When true (default), activate allowed-tools on successful load_skill.
+   * When true (default), pre-approve `allowed-tools` on successful load_skill.
    */
   enforceAllowedTools?: boolean;
 }
@@ -60,8 +60,7 @@ export function skills(options: SkillsExtensionOptions = {}): SkillsExtension {
   const loadToolName = options.loadToolName ?? "load_skill";
   const enforceAllowedTools = options.enforceAllowedTools !== false;
   const allowedToolsGate =
-    options.allowedToolsGate ??
-    createAllowedToolsGate({ passthrough: [loadToolName] });
+    options.allowedToolsGate ?? createAllowedToolsGate();
   const loaded = new Set<string>();
 
   const ext = defineExtension({
@@ -123,7 +122,7 @@ export function skills(options: SkillsExtensionOptions = {}): SkillsExtension {
             }
 
             const allowNote = skill.allowedTools?.length
-              ? `\n\n(allowed-tools for this skill: ${skill.allowedTools.join(", ")})`
+              ? `\n\n(pre-approved tools: ${skill.allowedTools.join(" ")})`
               : "";
             const text = `# Skill: ${skill.name}\n\n${skill.body}${allowNote}`;
             api.appendSystem(text);

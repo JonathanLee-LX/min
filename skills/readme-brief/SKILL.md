@@ -10,4 +10,4 @@ When the user asks about this repository's README or project overview:
 
 1. Use `glob` / `read_file` to open `README.md` (repo root).
 2. Answer briefly from the file contents.
-3. Do not use `bash` or `write_file` — they are outside this skill's allowed-tools.
+3. Prefer `read_file` and `glob`. `allowed-tools` pre-approves those two; it does not remove other tools.

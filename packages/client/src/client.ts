@@ -161,8 +161,6 @@ export async function createClient(
       }
       if (answer === "allow_session") {
         runtime.permissions?.grantSession(req.toolCall);
-        // Persist skill-allowlist escapes for the rest of the session.
-        runtime.allowedToolsGate?.grantSession(req.toolCall.name);
       }
     }
     return answer;

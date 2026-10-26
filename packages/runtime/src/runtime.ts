@@ -61,10 +61,7 @@ export interface Runtime {
   session: Session;
   store?: SessionStore;
   permissions?: WorkspacePermissionPolicy;
-  /**
-   * Skill `allowed-tools` gate. Always present so hosts can
-   * `grantSession(tool)` when the user approves an escape ask.
-   */
+  /** Skill `allowed-tools` pre-approval (does not restrict other tools). */
   allowedToolsGate: AllowedToolsGate;
   cwd: string;
   contextStrategy: ContextStrategyId;
