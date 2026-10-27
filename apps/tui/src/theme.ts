@@ -78,6 +78,8 @@ const mocha = {
   /** Darker muted tone for secondary / reasoning copy. */
   overlay: "#7f849c",
   green: "#a6e3a1",
+  /** Soft mint for the MIN banner wordmark. */
+  lightGreen: "#b4f0a7",
   blue: "#89b4fa",
   yellow: "#f9e2af",
   peach: "#fab387",
@@ -162,7 +164,7 @@ export const defaultTheme: TuiTheme = {
     approval: mocha.peach,
   },
   chrome: {
-    brand: mocha.text,
+    brand: mocha.lightGreen,
     error: mocha.red,
     permission: mocha.peach,
     completeSelected: mocha.green,

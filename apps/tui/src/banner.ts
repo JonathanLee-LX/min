@@ -1,30 +1,41 @@
 import { displayWidth } from "./text.js";
 
 /**
- * Header wordmark for min.
- *
- * Wide enough terminals get a three-row double-line glyph; tighter ones fall
- * back to a single mark so the transcript keeps most of the screen.
+ * Header wordmark for min — a large, slightly deformed MIN glyph.
+ * Narrow terminals fall back to a compact mark.
  */
 
-const BANNER_FULL = ["╔╦╗ ╦ ╔╗╗", "║║║ ║ ║║║", "╩╩╝ ╩ ╝╚╝"] as const;
+/** Full artistic glyph (~28 cols × 6 rows). */
+const BANNER_FULL = [
+  "  ███╗   ███╗ ██╗ ███╗   ██╗",
+  "  ████╗ ████║ ██║ ████╗  ██║",
+  "  ██╔████╔██║ ██║ ██╔██╗ ██║",
+  "  ██║╚██╔╝██║ ██║ ██║╚██╗██║",
+  "  ██║ ╚═╝ ██║ ██║ ██║ ╚████║",
+  "  ╚═╝     ╚═╝ ╚═╝ ╚═╝  ╚═══╝",
+] as const;
 
-const BANNER_TAG = "agent";
+/** Mid-size glyph when the full mark does not fit. */
+const BANNER_MID = [
+  "▛▙   ▛▙ ▛█▜ ▛▙  ▛▙",
+  "▌█▙ ▛█▌ ▐█▌ ▌█▙ ▐▌",
+  "▌▐█▟█▐▌ ▐█▌ ▌▐█▖▐▌",
+  "▌ ▜█▛▐▌ ▐█▌ ▌ ▜█▐▌",
+  "▘  ▀ ▝▘ ▝▀▘ ▘  ▜█▘",
+] as const;
 
-/** Compact one-line mark when the terminal is too tight for the glyph. */
+/** Compact one-line mark when even the mid glyph is too wide. */
 const BANNER_COMPACT = "MIN";
+
+function fits(lines: readonly string[], columns: number): boolean {
+  return lines.every((line) => displayWidth(line) <= columns);
+}
 
 export function minBannerLines(columns: number): string[] {
   const width = Math.max(1, columns);
-  const glyphWidth = displayWidth(BANNER_FULL[0]!);
-  if (width < glyphWidth) {
-    return [BANNER_COMPACT];
-  }
-  const tagBudget = width - glyphWidth - 2;
-  if (tagBudget >= displayWidth(BANNER_TAG)) {
-    return [BANNER_FULL[0]!, `${BANNER_FULL[1]!}  ${BANNER_TAG}`, BANNER_FULL[2]!];
-  }
-  return [...BANNER_FULL];
+  if (fits(BANNER_FULL, width)) return [...BANNER_FULL];
+  if (fits(BANNER_MID, width)) return [...BANNER_MID];
+  return [BANNER_COMPACT];
 }
 
 export function minBannerRows(columns: number): number {

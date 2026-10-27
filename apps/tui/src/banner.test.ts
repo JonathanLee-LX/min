@@ -3,26 +3,25 @@ import { minBannerLines, minBannerRows } from "./banner.js";
 import { displayWidth } from "./text.js";
 
 describe("minBanner", () => {
-  it("uses a compact mark when the glyph does not fit", () => {
+  it("uses a compact mark when no glyph fits", () => {
     expect(minBannerLines(4)).toEqual(["MIN"]);
     expect(minBannerRows(4)).toBe(1);
   });
 
-  it("renders a three-row MIN glyph that fits its own width", () => {
-    const lines = minBannerLines(12);
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toContain("╔╦╗");
-    expect(lines.join("\n")).toMatch(/╦/);
+  it("renders a mid-size MIN glyph without an agent tag", () => {
+    const lines = minBannerLines(20);
+    expect(lines.length).toBeGreaterThanOrEqual(5);
+    expect(lines.join("\n")).not.toMatch(/agent/i);
     for (const line of lines) {
-      expect(displayWidth(line)).toBeLessThanOrEqual(12);
+      expect(displayWidth(line)).toBeLessThanOrEqual(20);
     }
-    expect(minBannerRows(12)).toBe(3);
   });
 
-  it("adds an agent tag when there is room beside the glyph", () => {
+  it("renders the full artistic MIN glyph when wide enough", () => {
     const lines = minBannerLines(40);
-    expect(lines).toHaveLength(3);
-    expect(lines[1]).toContain("agent");
-    expect(lines.some((line) => line.includes("╔╦╗"))).toBe(true);
+    expect(lines).toHaveLength(6);
+    expect(lines.some((line) => line.includes("███╗"))).toBe(true);
+    expect(lines.join("\n")).not.toMatch(/agent/i);
+    expect(minBannerRows(40)).toBe(6);
   });
 });
