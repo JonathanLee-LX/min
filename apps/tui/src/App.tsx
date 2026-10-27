@@ -663,10 +663,11 @@ export function App({ args }: { args: TuiArgs }) {
   const caret = editorCaret(editor);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
-  const chatBar = theme.frames.chatBar;
-  const composer = `${chatBar}${caret.before}${caret.after}`;
-  /** Composer reserves at least two terminal rows (2× line height). */
+  const composer = `${caret.before}${caret.after}`;
+  /** Composer text area reserves at least two terminal rows (2× line height). */
   const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
+  /** Top + bottom rules that frame the input (no left chat bar). */
+  const composerBorderRows = 2;
   const suggestRows = commandSelectRows(suggestions.length);
   const activityRows = activity ? 1 : 0;
   const modelId = client?.getStatus().provider ?? "";
@@ -676,25 +677,25 @@ export function App({ args }: { args: TuiArgs }) {
   /** Banner + session meta + transcript top margin. */
   const headerRows = bannerRows + 1 + 1;
   const permBlockRows = pendingPerm ? permissionPromptRows(pendingPerm) : 0;
-  const composerMarginRows = 1;
   const reserved =
     headerRows +
     activityRows +
     permBlockRows +
-    composerMarginRows +
+    composerBorderRows +
     inputRows +
     suggestRows +
     bottomStatusRows;
   const logHeight = Math.max(1, termRows - reserved);
   const rowsAboveComposer =
-    headerRows + logHeight + activityRows + permBlockRows + composerMarginRows;
-  const rowsBelowComposer = suggestRows + bottomStatusRows;
+    headerRows + logHeight + activityRows + permBlockRows + 1; /* top rule */
+  const rowsBelowComposer = 1 /* bottom rule */ + suggestRows + bottomStatusRows;
   const userTone = toneFor("user", theme);
+  const composerRule = "─".repeat(innerWidth);
   const imeAnchor =
     client && !error
       ? composerCaretAnchor({
           paddingX: 1,
-          chatBar,
+          chatBar: "",
           text: editor.text,
           cursor: editor.cursor,
           inputRows,
@@ -857,17 +858,23 @@ export function App({ args }: { args: TuiArgs }) {
         />
       ) : null}
 
-      <Box marginTop={1} width={innerWidth} height={inputRows} flexShrink={0}>
-        <Text wrap="truncate">
-          <Text color={userTone.label}>{chatBar}</Text>
+      <Box flexDirection="column" width={innerWidth} flexShrink={0}>
+        <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+          {composerRule}
+        </Text>
+        <Box width={innerWidth} height={inputRows} flexShrink={0}>
           {/*
             Real terminal cursor marks the caret (for IME). Avoid a second
             inverse fake caret so the composition window lines up cleanly.
+            Top/bottom rules replace the old left chat-bar marker.
           */}
-          <Text color={userTone.body}>
+          <Text wrap="truncate" color={userTone.body}>
             {caret.before}
             {caret.after}
           </Text>
+        </Box>
+        <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+          {composerRule}
         </Text>
       </Box>
       {suggestions.length > 0 ? (
