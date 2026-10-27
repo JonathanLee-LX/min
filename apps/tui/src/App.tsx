@@ -27,7 +27,6 @@ import {
 import {
   commitEditor,
   createEditor,
-  editorCaret,
   inputAction,
   reduceEditor,
   type EditorState,
@@ -660,12 +659,11 @@ export function App({ args }: { args: TuiArgs }) {
   const columns = size.columns;
   const termRows = size.rows;
   const innerWidth = Math.max(1, columns - 2);
-  const caret = editorCaret(editor);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
-  const composer = `${caret.before}${caret.after}`;
-  /** Composer text area reserves at least two terminal rows (2× line height). */
-  const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
+  /** Soft-wrapped composer lines; box stays at least 2× line height. */
+  const composerLines = wrapText(editor.text, innerWidth);
+  const inputRows = Math.max(2, composerLines.length);
   /** Top + bottom rules that frame the input (no left chat bar). */
   const composerBorderRows = 2;
   const suggestRows = commandSelectRows(suggestions.length);
@@ -698,6 +696,7 @@ export function App({ args }: { args: TuiArgs }) {
           chatBar: "",
           text: editor.text,
           cursor: editor.cursor,
+          columns: innerWidth,
           inputRows,
           rowsAboveComposer,
           rowsBelowComposer,
@@ -859,21 +858,21 @@ export function App({ args }: { args: TuiArgs }) {
       ) : null}
 
       <Box flexDirection="column" width={innerWidth} flexShrink={0}>
-        <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+        <Text color={theme.chrome.brand} wrap="truncate">
           {composerRule}
         </Text>
-        <Box width={innerWidth} height={inputRows} flexShrink={0}>
+        <Box flexDirection="column" width={innerWidth} height={inputRows} flexShrink={0}>
           {/*
-            Real terminal cursor marks the caret (for IME). Avoid a second
-            inverse fake caret so the composition window lines up cleanly.
-            Top/bottom rules replace the old left chat-bar marker.
+            Soft-wrapped lines inside a 2× line-height box (grows with wrap /
+            Shift+Enter). Real terminal cursor marks the caret for IME.
           */}
-          <Text wrap="truncate" color={userTone.body}>
-            {caret.before}
-            {caret.after}
-          </Text>
+          {Array.from({ length: inputRows }, (_, index) => (
+            <Text key={`composer:${index}`} wrap="truncate" color={userTone.body}>
+              {composerLines[index] || " "}
+            </Text>
+          ))}
         </Box>
-        <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+        <Text color={theme.chrome.brand} wrap="truncate">
           {composerRule}
         </Text>
       </Box>

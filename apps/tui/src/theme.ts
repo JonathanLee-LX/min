@@ -41,6 +41,10 @@ export interface ActivityStyle {
 }
 
 export interface ChromeStyle {
+  /**
+   * Primary theme accent — MIN banner, composer rules, and default brand
+   * chrome. Soft mint green by default.
+   */
   brand: ThemeColor;
   error: ThemeColor;
   permission: ThemeColor;
@@ -95,8 +99,8 @@ export const defaultTheme: TuiTheme = {
   name: "Default",
   roles: {
     user: {
-      label: mocha.green,
-      body: mocha.green,
+      label: mocha.lightGreen,
+      body: mocha.lightGreen,
       dimLabel: false,
       dimBody: false,
     },
@@ -167,7 +171,7 @@ export const defaultTheme: TuiTheme = {
     brand: mocha.lightGreen,
     error: mocha.red,
     permission: mocha.peach,
-    completeSelected: mocha.green,
+    completeSelected: mocha.lightGreen,
     statusDim: true,
   },
 };

@@ -29,4 +29,9 @@ describe("actionFromChunk", () => {
       op: { op: "insert", text: "line\r\nnext" },
     });
   });
+
+  it("maps Shift+Enter sequences to newline", () => {
+    expect(actionFromChunk("\x1b[13;2u")).toEqual({ type: "edit", op: { op: "newline" } });
+    expect(actionFromChunk("\x1b[27;2;13~")).toEqual({ type: "edit", op: { op: "newline" } });
+  });
 });

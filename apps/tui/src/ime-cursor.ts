@@ -1,4 +1,4 @@
-import { displayWidth } from "./text.js";
+import { displayWidth, wrapText } from "./text.js";
 
 /**
  * Ink 5 IME caret sync.
@@ -24,6 +24,8 @@ export interface ComposerCaretLayout {
   chatBar: string;
   text: string;
   cursor: number;
+  /** Soft-wrap width for the composer text area. */
+  columns: number;
   inputRows: number;
   rowsAboveComposer: number;
   rowsBelowComposer: number;
@@ -31,10 +33,11 @@ export interface ComposerCaretLayout {
 
 export function composerCaretAnchor(layout: ComposerCaretLayout): ImeCaretAnchor {
   const cursor = Math.max(0, Math.min(layout.cursor, layout.text.length));
+  const columns = Math.max(1, layout.columns);
   const before = layout.text.slice(0, cursor);
-  const lineIndex = before.length === 0 ? 0 : before.split("\n").length - 1;
-  const lineStart = before.lastIndexOf("\n") + 1;
-  const columnText = layout.text.slice(lineStart, cursor);
+  const visual = wrapText(before, columns);
+  const lineIndex = Math.max(0, visual.length - 1);
+  const columnText = visual[lineIndex] ?? "";
   const inputRows = Math.max(1, layout.inputRows);
   const rowsBelowInComposer = Math.max(0, inputRows - 1 - lineIndex);
   return {

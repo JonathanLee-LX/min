@@ -9,6 +9,7 @@ describe("composerCaretAnchor", () => {
         chatBar: "▌ ",
         text: "",
         cursor: 0,
+        columns: 40,
         inputRows: 2,
         rowsAboveComposer: 10,
         rowsBelowComposer: 1,
@@ -23,11 +24,27 @@ describe("composerCaretAnchor", () => {
         chatBar: "> ",
         text: "你好",
         cursor: 1,
+        columns: 40,
         inputRows: 2,
         rowsAboveComposer: 5,
         rowsBelowComposer: 0,
       }),
     ).toEqual({ column: 1 + 2 + 2, rowFromTop: 5, rowsBelowCaret: 1 });
+  });
+
+  it("follows soft-wrapped rows", () => {
+    expect(
+      composerCaretAnchor({
+        paddingX: 1,
+        chatBar: "",
+        text: "abcdefgh",
+        cursor: 5,
+        columns: 4,
+        inputRows: 3,
+        rowsAboveComposer: 2,
+        rowsBelowComposer: 0,
+      }),
+    ).toEqual({ column: 1 + 1, rowFromTop: 3, rowsBelowCaret: 1 });
   });
 });
 

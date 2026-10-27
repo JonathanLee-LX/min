@@ -20,8 +20,10 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
 
   if (chunk === "\x7f" || chunk === "\b") return flagged({ backspace: true });
   if (chunk === "\x1b\x7f" || chunk === "\x1b\b") return flagged({ backspace: true, meta: true });
-  if (/^\x1b\[127(?:;\d+)?u$/.test(chunk)) return flagged({ backspace: true });
   if (/^\x1b\[3(?:;\d+)?~$/.test(chunk)) return flagged({ delete: true });
+
+  const enhanced = enhancedKey(chunk);
+  if (enhanced) return enhanced;
 
   if (chunk === "\r" || chunk === "\r\n") return flagged({ return: true });
   if (chunk === "\x1b\r" || chunk === "\x1b\n") return flagged({ return: true, meta: true });
@@ -53,6 +55,35 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
     return { input: chunk, key: flagged({ shift: true }).key };
   }
   return plain(chunk);
+}
+
+/**
+ * Kitty CSI-u / xterm modifyOtherKeys sequences.
+ * Shift+Enter → newline (via inputAction), plain Enter → submit.
+ */
+function enhancedKey(chunk: string): { input: string; key: InputKey } | null {
+  // CSI u: ESC [ code ; mods u  (Enter=13, Backspace=127, Tab=9, Escape=27)
+  const csiU = /^\x1b\[(\d+)(?:;(\d+))?u$/.exec(chunk);
+  if (csiU) {
+    const code = Number(csiU[1]);
+    const flags = modifiers(csiU[2]);
+    if (code === 13) return flagged({ return: true, ...flags });
+    if (code === 127) return flagged({ backspace: true, ...flags });
+    if (code === 9) return flagged({ tab: true, ...flags });
+    if (code === 27) return flagged({ escape: true, ...flags });
+    return null;
+  }
+  // modifyOtherKeys: ESC [ 27 ; mods ; code ~
+  const modOther = /^\x1b\[27;(\d+);(\d+)~$/.exec(chunk);
+  if (modOther) {
+    const flags = modifiers(modOther[1]);
+    const code = Number(modOther[2]);
+    if (code === 13) return flagged({ return: true, ...flags });
+    if (code === 127) return flagged({ backspace: true, ...flags });
+    if (code === 9) return flagged({ tab: true, ...flags });
+    if (code === 27) return flagged({ escape: true, ...flags });
+  }
+  return null;
 }
 
 function navigation(chunk: string): { input: string; key: InputKey } | null {

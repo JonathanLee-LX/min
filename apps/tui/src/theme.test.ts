@@ -13,8 +13,9 @@ import {
 describe("theme", () => {
   it("resolves accent foregrounds without default block fills", () => {
     expect(toneFor("user").background).toBeUndefined();
-    expect(toneFor("user").body).toBe("#a6e3a1");
-    expect(toneFor("user").label).toBe("#a6e3a1");
+    expect(toneFor("user").body).toBe("#b4f0a7");
+    expect(toneFor("user").label).toBe("#b4f0a7");
+    expect(defaultTheme.chrome.brand).toBe("#b4f0a7");
     expect(toneFor("assistant").background).toBeUndefined();
     expect(toneFor("assistant").label).toBe("#89b4fa");
     expect(toneFor("assistant").body).toBe("#cdd6f4");
