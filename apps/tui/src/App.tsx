@@ -35,7 +35,7 @@ import {
 } from "./editor.js";
 import { bottomStatusLines } from "./context-view.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
-import { applyImeCursor, composerCaretScreenPos, hideImeCursor } from "./ime-cursor.js";
+import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
@@ -140,6 +140,8 @@ export function App({ args }: { args: TuiArgs }) {
   const seenMeasureRef = useRef({ rows: 0, columns: 0 });
   const inflightTools = useRef(new Map<string, string>());
   const activityRef = useRef<ReturnType<typeof activityFor>>(null);
+  const imeAnchorRef = useRef<ReturnType<typeof composerCaretAnchor> | null>(null);
+  const termColumnsRef = useRef(80);
 
   const pushLine = useCallback((kind: LogKind, text: string) => {
     seq.current += 1;
@@ -647,10 +649,21 @@ export function App({ args }: { args: TuiArgs }) {
     suggestRows +
     bottomStatusRows +
     footerRows;
-  /** Rows above the composer content (where the real caret / IME must sit). */
-  const rowsAboveComposer =
-    headerRows + activityRows + permBlockRows + composerMarginRows;
+  const rowsBelowComposer = suggestRows + bottomStatusRows + footerRows;
   const userTone = toneFor("user", theme);
+  const imeAnchor =
+    client && !error
+      ? composerCaretAnchor({
+          paddingX: 1,
+          chatBar,
+          text: editor.text,
+          cursor: editor.cursor,
+          inputRows,
+          rowsBelowComposer,
+        })
+      : null;
+  imeAnchorRef.current = imeAnchor;
+  termColumnsRef.current = columns;
   const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
     toolOutputExpanded,
@@ -678,43 +691,15 @@ export function App({ args }: { args: TuiArgs }) {
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(painted, logHeight, scroll);
 
-  // Park the real terminal cursor on the composer caret so CJK IMEs can
-  // place their candidate window correctly (Ink paints a fake caret only).
-  useLayoutEffect(() => {
-    if (!client || error) {
-      hideImeCursor(stdout);
-      return;
-    }
-    const pos = composerCaretScreenPos({
-      paddingX: 1,
-      rowsAboveComposer,
-      chatBar,
-      text: editor.text,
-      cursor: editor.cursor,
-    });
-    applyImeCursor(stdout, pos, termRows, columns);
-  }, [
-    client,
-    error,
-    rowsAboveComposer,
-    chatBar,
-    editor.text,
-    editor.cursor,
-    termRows,
-    columns,
-    stdout,
-    // Re-sync after paints that move the frame (spinner, stream, layout).
-    activityKey,
-    logHeight,
-    rowCount,
-    suggestRows,
-    bottomStatusRows,
-    footerRows,
-    spinnerFrame,
-  ]);
-
+  // Re-park the real caret after every Ink stdout write. Absolute CUP is
+  // wrong because Ink redraws via eraseLines (frame is not at terminal 0,0);
+  // useLayoutEffect alone also loses to Ink's 32ms throttled paint.
   useEffect(() => {
-    return () => hideImeCursor(stdout);
+    return installImeCursorHook(
+      stdout,
+      () => imeAnchorRef.current,
+      () => termColumnsRef.current,
+    );
   }, [stdout]);
 
   if (error) {

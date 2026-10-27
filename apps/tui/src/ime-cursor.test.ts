@@ -1,41 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { composerCaretScreenPos } from "./ime-cursor.js";
+import { applyImeCursor, composerCaretAnchor } from "./ime-cursor.js";
 
-describe("composerCaretScreenPos", () => {
+describe("composerCaretAnchor", () => {
   it("anchors at the chat bar when the draft is empty", () => {
     expect(
-      composerCaretScreenPos({
+      composerCaretAnchor({
         paddingX: 1,
-        rowsAboveComposer: 10,
         chatBar: "▌ ",
         text: "",
         cursor: 0,
+        inputRows: 2,
+        rowsBelowComposer: 1,
       }),
-    ).toEqual({ x: 3, y: 10 });
+    ).toEqual({ column: 3, rowsBelowCaret: 1 + 1 });
   });
 
   it("accounts for wide CJK cells on the caret line", () => {
-    // "你" is one UTF-16 unit and two terminal cells.
     expect(
-      composerCaretScreenPos({
+      composerCaretAnchor({
         paddingX: 1,
-        rowsAboveComposer: 5,
         chatBar: "> ",
         text: "你好",
         cursor: 1,
+        inputRows: 2,
+        rowsBelowComposer: 0,
       }),
-    ).toEqual({ x: 1 + 2 + 2, y: 5 });
+    ).toEqual({ column: 1 + 2 + 2, rowsBelowCaret: 1 });
   });
 
-  it("moves down for newline caret rows", () => {
+  it("counts rows below the caret across newlines", () => {
     expect(
-      composerCaretScreenPos({
+      composerCaretAnchor({
         paddingX: 0,
-        rowsAboveComposer: 3,
         chatBar: "",
         text: "ab\ncd",
         cursor: 4,
+        inputRows: 2,
+        rowsBelowComposer: 3,
       }),
-    ).toEqual({ x: 1, y: 4 });
+    ).toEqual({ column: 1, rowsBelowCaret: 0 + 3 });
+  });
+});
+
+describe("applyImeCursor", () => {
+  it("climbs from below the Ink frame then sets the column", () => {
+    const chunks: string[] = [];
+    applyImeCursor((chunk) => chunks.push(chunk), { column: 4, rowsBelowCaret: 2 }, 80);
+    expect(chunks.join("")).toBe("\x1b[?25h\x1b[3A\x1b[5G");
   });
 });
