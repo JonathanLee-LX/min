@@ -569,6 +569,8 @@ export function App({ args }: { args: TuiArgs }) {
         live.abort();
         return;
       }
+      // Escape only aborts a running turn; Ctrl+C still quits when idle.
+      if (key.escape) return;
       exit();
       return;
     }

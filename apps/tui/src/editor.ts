@@ -122,6 +122,8 @@ export function editorCaret(state: EditorState): {
 
 export function inputAction(input: string, key: InputKey): InputAction {
   if (key.ctrl && input === "c") return { type: "interrupt" };
+  // Escape aborts a running turn while the composer is focused (does not quit).
+  if (key.escape) return { type: "interrupt" };
   if (key.ctrl && input === "o") return { type: "toggle-tool-output" };
   if (key.pageUp) return { type: "scroll", direction: "up" };
   if (key.pageDown) return { type: "scroll", direction: "down" };
@@ -139,7 +141,7 @@ export function inputAction(input: string, key: InputKey): InputAction {
   if (key.ctrl && input === "u") return { type: "edit", op: { op: "killLineStart" } };
   if (key.ctrl && input === "w") return { type: "edit", op: { op: "backspaceWord" } };
   if (key.tab) return { type: "complete" };
-  if (key.ctrl || key.meta || key.escape) return { type: "ignore" };
+  if (key.ctrl || key.meta) return { type: "ignore" };
   if (!input) return { type: "ignore" };
   return { type: "edit", op: { op: "insert", text: input } };
 }
