@@ -1,3 +1,4 @@
+import { Alert, Badge, ThemeProvider } from "@inkjs/ui";
 import {
   createAutoPermissionApprover,
   createClient,
@@ -33,15 +34,12 @@ import {
   type EditorState,
   type InputKey,
 } from "./editor.js";
-import { bottomStatusLines } from "./context-view.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
-  activityLabel,
   createPaintCache,
-  frameChar,
   toneFor,
   type TranscriptSource,
 } from "./paint.js";
@@ -58,6 +56,7 @@ import {
   type LogLine,
   type TranscriptMessage,
 } from "./transcript.js";
+import { ActivitySpinner, ContextMeter, contextMeterRows, inkThemeFromTui } from "./ui/index.js";
 
 const LOG_CAP = 2000;
 
@@ -95,7 +94,6 @@ export function App({ args }: { args: TuiArgs }) {
   const [pendingPerm, setPendingPerm] = useState<PendingPermission | null>(null);
   const [toolName, setToolName] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
-  const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [scroll, setScroll] = useState(0);
   /** Tool results start collapsed; Ctrl+O toggles. */
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
@@ -139,7 +137,6 @@ export function App({ args }: { args: TuiArgs }) {
   /** Track painted row baseline without setState-during-render (that flickered). */
   const seenMeasureRef = useRef({ rows: 0, columns: 0 });
   const inflightTools = useRef(new Map<string, string>());
-  const activityRef = useRef<ReturnType<typeof activityFor>>(null);
   const imeAnchorRef = useRef<ReturnType<typeof composerCaretAnchor> | null>(null);
   const termColumnsRef = useRef(80);
 
@@ -540,7 +537,8 @@ export function App({ args }: { args: TuiArgs }) {
       const matches = commandSuggestions(editor.text);
       if (matches.length > 0 && (action.op.op === "up" || action.op.op === "down")) {
         // Only move the highlight — keep the typed prefix so filtering stays stable.
-        setCompleteIndex((current) => cycleCommandIndex(current, matches.length, action.op.op));
+        const direction = action.op.op;
+        setCompleteIndex((current) => cycleCommandIndex(current, matches.length, direction));
         return;
       }
       setCompleteIndex(0);
@@ -596,18 +594,6 @@ export function App({ args }: { args: TuiArgs }) {
     },
     theme,
   );
-  activityRef.current = activity;
-  const activityKey = activity
-    ? `${activity.phase}\0${activity.labels.join("|")}\0${activity.intervalMs}`
-    : "";
-  useEffect(() => {
-    if (!activityKey || !focused) return;
-    setSpinnerFrame(0);
-    const interval = activityRef.current?.intervalMs ?? 250;
-    const timer = setInterval(() => setSpinnerFrame((frame) => frame + 1), interval);
-    return () => clearInterval(timer);
-  }, [activityKey, focused]);
-
   const columns = size.columns;
   const termRows = size.rows;
   const innerWidth = Math.max(1, columns - 2);
@@ -630,11 +616,7 @@ export function App({ args }: { args: TuiArgs }) {
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const activityRows = activity ? 1 : 0;
   const modelId = client?.getStatus().provider ?? "";
-  const bottomStatus = bottomStatusLines(modelId, contextUsage);
-  const bottomStatusRows = bottomStatus.reduce(
-    (count, line) => count + wrapText(line, innerWidth).length,
-    0,
-  );
+  const bottomStatusRows = contextMeterRows(modelId, contextUsage);
   const bannerRows = minBannerRows(innerWidth);
   /** Banner + session meta + transcript top margin. */
   const headerRows = bannerRows + 1 + 1;
@@ -702,19 +684,36 @@ export function App({ args }: { args: TuiArgs }) {
     );
   }, [stdout]);
 
+  const inkChromeTheme = useMemo(() => inkThemeFromTui(theme), [theme]);
+
   if (error) {
     return (
-      <Box flexDirection="column" padding={1}>
-        <Text color={theme.chrome.error}>error: {error}</Text>
-      </Box>
+      <ThemeProvider theme={inkChromeTheme}>
+        <Box flexDirection="column" padding={1}>
+          <Alert variant="error">{error}</Alert>
+        </Box>
+      </ThemeProvider>
     );
   }
 
   if (!client) {
     return (
-      <Box padding={1}>
-        <Text dimColor>starting min…</Text>
-      </Box>
+      <ThemeProvider theme={inkChromeTheme}>
+        <Box padding={1}>
+          <ActivitySpinner
+            activity={{
+              phase: "thinking",
+              labels: ["starting min"],
+              labelHold: 8,
+              frames: ["·"],
+              intervalMs: 250,
+              color: theme.activity.thinking,
+            }}
+            focused={focused}
+            theme={theme}
+          />
+        </Box>
+      </ThemeProvider>
     );
   }
 
@@ -727,6 +726,7 @@ export function App({ args }: { args: TuiArgs }) {
   const banner = minBannerLines(innerWidth);
 
   return (
+    <ThemeProvider theme={inkChromeTheme}>
     <Box flexDirection="column" paddingX={1} width={columns} height={termRows}>
       <Box flexDirection="column" flexShrink={0}>
         {banner.map((line, index) => (
@@ -734,9 +734,15 @@ export function App({ args }: { args: TuiArgs }) {
             {line}
           </Text>
         ))}
-        <Text dimColor={theme.chrome.statusDim} wrap="truncate">
-          {`${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
-        </Text>
+        <Box flexShrink={0}>
+          <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+            {`${shortId(status.sessionId)} · `}
+          </Text>
+          <Badge color={theme.chrome.brand}>{statusLabel}</Badge>
+          <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+            {` · queue ${queueSize}${scrollHint}`}
+          </Text>
+        </Box>
       </Box>
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
@@ -782,9 +788,7 @@ export function App({ args }: { args: TuiArgs }) {
       </Box>
 
       {activity ? (
-        <Text color={activity.color}>
-          {frameChar(activity, spinnerFrame)} {activityLabel(activity, spinnerFrame)}
-        </Text>
+        <ActivitySpinner activity={activity} focused={focused} theme={theme} />
       ) : null}
 
       {permText.length > 0 ? (
@@ -835,17 +839,19 @@ export function App({ args }: { args: TuiArgs }) {
           ))}
         </Box>
       ) : null}
-      {bottomStatus.map((line) => (
-        <Text key={line} dimColor={theme.chrome.statusDim} wrap="truncate">
-          {line}
-        </Text>
-      ))}
+      <ContextMeter
+        model={modelId}
+        usage={contextUsage}
+        theme={theme}
+        dim={theme.chrome.statusDim}
+      />
       {footer.map((line) => (
         <Text key={line} dimColor wrap="wrap">
           {line}
         </Text>
       ))}
     </Box>
+    </ThemeProvider>
   );
 }
 

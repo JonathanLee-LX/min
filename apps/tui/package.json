@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@inkjs/ui": "^2.0.0",
     "@min-agent/client": "workspace:*",
     "@min-agent/config": "workspace:*",
     "@min-agent/runtime": "workspace:*",

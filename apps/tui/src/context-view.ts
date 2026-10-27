@@ -15,8 +15,8 @@ export function contextBreakdownLine(usage: ContextUsage | undefined): string {
 }
 
 /**
- * Bottom chrome: model id plus context meter (and optional part breakdown).
- * Provider ids are usually `vendor:model`; mock may be a bare name.
+ * Bottom chrome: model id plus total context meter only.
+ * Part breakdown stays behind `/context` (see commands), not the footer.
  */
 export function bottomStatusLines(
   model: string,
@@ -24,9 +24,5 @@ export function bottomStatusLines(
 ): string[] {
   const ctx = contextStatusLine(usage);
   const head = [model.trim(), ctx].filter((part) => part.length > 0).join(" · ");
-  const lines: string[] = [];
-  if (head) lines.push(head);
-  const parts = contextBreakdownLine(usage);
-  if (parts) lines.push(parts);
-  return lines;
+  return head ? [head] : [];
 }

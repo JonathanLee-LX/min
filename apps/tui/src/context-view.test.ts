@@ -38,11 +38,10 @@ describe("context-view", () => {
     expect(contextStatusLine(undefined)).toBe("");
   });
 
-  it("builds bottom model + context chrome", () => {
+  it("builds bottom model + total context chrome without breakdown", () => {
     const usage = sampleUsage();
     expect(bottomStatusLines("deepseek:deepseek-flash", usage)).toEqual([
       `deepseek:deepseek-flash · ${formatContextUsageShort(usage)}`,
-      formatContextUsageBreakdown(usage),
     ]);
     expect(bottomStatusLines("mock", undefined)).toEqual(["mock"]);
     expect(bottomStatusLines("", undefined)).toEqual([]);
