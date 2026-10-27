@@ -614,7 +614,8 @@ export function App({ args }: { args: TuiArgs }) {
   const composer = `${chatBar}${caret.before}${caret.caret}${caret.after}${ghost}`;
   /** Composer reserves at least two terminal rows (2× line height). */
   const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
-  const suggestRows = suggestions.length > 0 ? 1 : 0;
+  /** One vertical row per slash match. */
+  const suggestRows = suggestions.length;
   const permText = pendingPerm ? permissionLines(pendingPerm) : [];
   const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const footer = footerLines(pendingPerm !== null);
@@ -782,19 +783,19 @@ export function App({ args }: { args: TuiArgs }) {
         </Text>
       </Box>
       {suggestions.length > 0 ? (
-        <Text wrap="truncate">
+        <Box flexDirection="column" flexShrink={0}>
           {suggestions.map((command, index) => (
             <Text
               key={command.name}
+              wrap="truncate"
               color={index === selectedComplete ? theme.chrome.completeSelected : undefined}
               bold={index === selectedComplete}
               dimColor={index !== selectedComplete}
             >
-              {`${index === 0 ? "" : "  "}/${command.name}`}
+              {`/${command.name}${command.hint ? `  ${command.hint}` : ""}`}
             </Text>
           ))}
-          <Text dimColor>{`  · Tab · ↑↓`}</Text>
-        </Text>
+        </Box>
       ) : null}
       {bottomStatus.map((line) => (
         <Text key={line} dimColor={theme.chrome.statusDim} wrap="truncate">
