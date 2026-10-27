@@ -1,7 +1,7 @@
 {
   "name": "min",
   "private": true,
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "type": "module",
   "description": "min — a minimal, extensible TypeScript agent harness",
   "repository": {
@@ -24,7 +24,7 @@
     "min-web": "pnpm --filter=@min-agent/webui dev",
     "link:cli": "pnpm --filter=@min-agent/cli run build && pnpm --filter=@min-agent/cli exec pnpm link --global",
     "link:tui": "pnpm --filter=@min-agent/tui run build && pnpm --filter=@min-agent/tui exec pnpm link --global",
-    "publish:alpha": "pnpm build && node scripts/release.mjs publish 0.1.0-alpha.2"
+    "publish:alpha": "pnpm build && node scripts/release.mjs publish 0.1.0-alpha.3"
   },
   "engines": {
     "node": ">=20"

@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/skills",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "license": "MIT",
   "description": "Agent Skills (SKILL.md) extension for the min agent harness",
   "type": "module",

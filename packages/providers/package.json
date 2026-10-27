@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/providers",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "license": "MIT",
   "description": "Built-in model providers and a registry for external ModelProvider implementations",
   "type": "module",
