@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { activityFor, activityFrames, createPaintCache, paintTranscript } from "./paint.js";
+import {
+  activityFor,
+  activityFrames,
+  activityLabel,
+  createPaintCache,
+  paintTranscript,
+} from "./paint.js";
 import { layoutViewport, summarizeToolCall } from "./transcript.js";
 import { displayWidth } from "./text.js";
 
@@ -137,15 +143,29 @@ describe("createPaintCache", () => {
 
 describe("activityFor", () => {
   it("picks a different spinner for each running phase", () => {
-    expect(
-      activityFor({ status: "running", streaming: false, toolName: null, continuing: false })?.phase,
-    ).toBe("thinking");
+    const thinking = activityFor({
+      status: "running",
+      streaming: false,
+      toolName: null,
+      continuing: false,
+    });
+    expect(thinking?.phase).toBe("thinking");
+    expect(thinking?.labels.length).toBeGreaterThan(1);
+    expect(thinking?.labels[0]).toBe("thinking");
+
     expect(
       activityFor({ status: "running", streaming: true, toolName: null, continuing: false })?.phase,
     ).toBe("writing");
-    expect(
-      activityFor({ status: "running", streaming: true, toolName: "bash", continuing: false })?.label,
-    ).toBe("bash");
+
+    const tool = activityFor({
+      status: "running",
+      streaming: true,
+      toolName: "bash",
+      continuing: false,
+    });
+    expect(tool?.phase).toBe("tool");
+    expect(tool?.labels).toEqual(["running bash", "using bash", "bash in progress"]);
+
     expect(
       activityFor({ status: "running", streaming: false, toolName: null, continuing: true })?.phase,
     ).toBe("continuing");
@@ -155,6 +175,21 @@ describe("activityFor", () => {
     expect(
       activityFor({ status: "idle", streaming: false, toolName: null, continuing: false }),
     ).toBeNull();
+  });
+
+  it("rotates status copy across spinner frames", () => {
+    const thinking = activityFor({
+      status: "running",
+      streaming: false,
+      toolName: null,
+      continuing: false,
+    });
+    expect(thinking).not.toBeNull();
+    if (!thinking) return;
+    const hold = thinking.labelHold;
+    expect(activityLabel(thinking, 0)).toBe(thinking.labels[0]);
+    expect(activityLabel(thinking, hold)).toBe(thinking.labels[1]);
+    expect(activityLabel(thinking, hold * thinking.labels.length)).toBe(thinking.labels[0]);
   });
 
   it("uses one-cell frames so the label does not jump", () => {

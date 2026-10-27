@@ -402,7 +402,10 @@ export type ActivityPhase = "thinking" | "writing" | "tool" | "continuing" | "ap
 
 export interface Activity {
   phase: ActivityPhase;
-  label: string;
+  /** Rotating copy; {@link activityLabel} picks one from the spinner frame. */
+  labels: readonly string[];
+  /** Spinner frames to hold each label before advancing. */
+  labelHold: number;
   frames: readonly string[];
   intervalMs: number;
   color: string;
@@ -415,6 +418,38 @@ const FRAMES: Record<ActivityPhase, readonly string[]> = {
   continuing: ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
   approval: ["◐", "◓", "◑", "◒"],
 };
+
+const THINKING_LABELS = [
+  "thinking",
+  "pondering",
+  "reasoning",
+  "working it out",
+  "considering",
+  "figuring it out",
+  "weighing options",
+  "connecting dots",
+] as const;
+
+const WRITING_LABELS = [
+  "writing",
+  "composing",
+  "drafting",
+  "replying",
+  "shaping the answer",
+] as const;
+
+const CONTINUING_LABELS = [
+  "following up",
+  "picking up the queue",
+  "continuing",
+  "next note",
+] as const;
+
+const APPROVAL_LABELS = [
+  "waiting for approval",
+  "needs your OK",
+  "permission pending",
+] as const;
 
 export function activityFrames(phase: ActivityPhase): readonly string[] {
   return FRAMES[phase];
@@ -430,13 +465,26 @@ export function activityFor(
   theme: TuiTheme = defaultTheme,
 ): Activity | null {
   if (input.status === "asking") {
-    return spec("approval", "waiting for approval", theme.activity.approval, 140);
+    return spec("approval", APPROVAL_LABELS, theme.activity.approval, 140, 12);
   }
   if (input.status !== "running") return null;
-  if (input.toolName) return spec("tool", clipLabel(input.toolName), theme.activity.tool, 80);
-  if (input.streaming) return spec("writing", "writing", theme.activity.writing, 140);
-  if (input.continuing) return spec("continuing", "continuing", theme.activity.continuing, 140);
-  return spec("thinking", "thinking", theme.activity.thinking, 80);
+  if (input.toolName) {
+    const name = clipLabel(input.toolName);
+    return spec(
+      "tool",
+      [`running ${name}`, `using ${name}`, `${name} in progress`],
+      theme.activity.tool,
+      80,
+      10,
+    );
+  }
+  if (input.streaming) {
+    return spec("writing", WRITING_LABELS, theme.activity.writing, 140, 10);
+  }
+  if (input.continuing) {
+    return spec("continuing", CONTINUING_LABELS, theme.activity.continuing, 140, 10);
+  }
+  return spec("thinking", THINKING_LABELS, theme.activity.thinking, 80, 12);
 }
 
 export function frameChar(activity: Activity, frame: number): string {
@@ -444,18 +492,32 @@ export function frameChar(activity: Activity, frame: number): string {
   return frames[frame % frames.length] ?? frames[0] ?? "·";
 }
 
-function clipLabel(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= 36) return flat;
-  return `${flat.slice(0, 33)}...`;
+/** Pick the rotating status line for the current spinner frame. */
+export function activityLabel(activity: Activity, frame: number): string {
+  const hold = Math.max(1, activity.labelHold);
+  const labels = activity.labels;
+  if (labels.length === 0) return "";
+  return labels[Math.floor(frame / hold) % labels.length] ?? labels[0] ?? "";
 }
 
-function spec(phase: ActivityPhase, label: string, color: string, intervalMs: number): Activity {
+function clipLabel(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= 28) return flat;
+  return `${flat.slice(0, 25)}...`;
+}
+
+function spec(
+  phase: ActivityPhase,
+  labels: readonly string[],
+  color: string,
+  intervalMs: number,
+  labelHold: number,
+): Activity {
   const frames = FRAMES[phase];
   for (const frame of frames) {
     if (displayWidth(frame) !== 1) {
       throw new Error(`spinner frame ${frame} for ${phase} is not one cell wide`);
     }
   }
-  return { phase, label, frames, intervalMs, color };
+  return { phase, labels, labelHold, frames, intervalMs, color };
 }

@@ -40,21 +40,21 @@ min-web
 
 Preferences use `@min-agent/config`: sparse JSON at `~/.config/min/config.json` and `<cwd>/.min/config.json`, then `MIN_*` env, then CLI flags. Unknown keys are kept under `extensions` so newer files stay readable. Sessions and permission grants remain separate sidecars under `.min/`.
 
-Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, and mermaid diagrams. Chat turns and the composer are color blocks without you/min labels; tool output nests under each call. Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
+Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, and mermaid diagrams. Chat turns and the composer are color blocks without you/min labels; tool output collapses by default (Ctrl+O expands). Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
 
 ## Publishing
 
 GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run. Every run, including a dry run, checks `NPM_TOKEN` with `npm whoami` before the build.
 
 1. Create an npm **Automation** token (or a granular token with 2FA bypass) that can publish the `@min-agent` scope. Classic “Publish” tokens fail in CI with `EOTP` when the account has 2FA. Save it as the repository secret `NPM_TOKEN`.
-2. Set the version in the root `package.json`. That is the only version npm receives. For this alpha it is `0.1.0-alpha.0`.
-3. Push the matching tag, `v0.1.0-alpha.0`.
+2. Set the version in the root `package.json`. That is the only version npm receives. For this alpha it is `0.1.0-alpha.1`.
+3. Push the matching tag, `v0.1.0-alpha.1`.
 
-The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag (`gh workflow run publish.yml -f version=0.1.0-alpha.0`).
+The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag (`gh workflow run publish.yml -f version=0.1.0-alpha.1`).
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
-Wait to push `v0.1.0-alpha.0` until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for this same alpha version. Provenance publish requires `repository.url` on the packed `@min-agent/min` manifest to match this GitHub repo.
+Wait to push a version tag until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for the current alpha version. Provenance publish requires `repository.url` on the packed `@min-agent/min` manifest to match this GitHub repo.
 
 ## Monorepo
 

@@ -33,6 +33,7 @@ import {
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
+  activityLabel,
   createPaintCache,
   frameChar,
   padToWidth,
@@ -516,7 +517,9 @@ export function App({ args }: { args: TuiArgs }) {
     theme,
   );
   activityRef.current = activity;
-  const activityKey = activity ? `${activity.phase}\0${activity.label}\0${activity.intervalMs}` : "";
+  const activityKey = activity
+    ? `${activity.phase}\0${activity.labels.join("|")}\0${activity.intervalMs}`
+    : "";
   useEffect(() => {
     if (!activityKey) return;
     setSpinnerFrame(0);
@@ -645,7 +648,7 @@ export function App({ args }: { args: TuiArgs }) {
 
       {activity ? (
         <Text color={activity.color}>
-          {frameChar(activity, spinnerFrame)} {activity.label}
+          {frameChar(activity, spinnerFrame)} {activityLabel(activity, spinnerFrame)}
         </Text>
       ) : null}
 
