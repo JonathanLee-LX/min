@@ -52,7 +52,7 @@ The workflow rejects the release when the root version differs from the tag, or 
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
-Wait to push `v0.1.0-alpha.0` until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for this same alpha version. Package metadata still has no `repository` URL.
+Wait to push `v0.1.0-alpha.0` until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for this same alpha version. Provenance publish requires `repository.url` on the packed `@min-agent/min` manifest to match this GitHub repo.
 
 ## Monorepo
 

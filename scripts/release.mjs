@@ -228,12 +228,22 @@ function stage(version) {
   mkdirSync(stageDir, { recursive: true });
   copyBuild(stageDir);
   const dependencies = externalDependencies(stageDir, packages);
+  // Provenance requires repository.url to match the GitHub Actions source repo.
+  const repositoryUrl =
+    process.env.RELEASE_REPOSITORY_URL?.trim() ||
+    "https://github.com/JonathanLee-LX/min";
   const manifest = {
     name: PUBLISH_NAME,
     version,
     description: "min — CLI, TUI, and Web UI for the agent harness. One package, built from the whole repo.",
     license: "MIT",
     type: "module",
+    repository: {
+      type: "git",
+      url: repositoryUrl,
+    },
+    homepage: `${repositoryUrl}#readme`,
+    bugs: { url: `${repositoryUrl}/issues` },
     bin: {
       min: "dist/cli.js",
       "min-tui": "dist/tui.js",

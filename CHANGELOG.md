@@ -16,4 +16,4 @@ Known limits: `createRuntime` does not connect MCP servers. A remembered bash ap
 
 Publishing is a GitHub Actions workflow. Push a `v<version>` tag that matches the root `package.json` version. The workflow builds the repo and publishes `@min-agent/min` only. The repository secret is `NPM_TOKEN` and must be an Automation token (or granular with 2FA bypass); a classic Publish token hits `EOTP` under account 2FA. A version already on npm is skipped, so the same tag can be re-run. Dist-tags are `alpha`, `beta`, `rc`, `next`, or `latest`.
 
-Package metadata has no `repository` URL yet.
+Packed `@min-agent/min` includes `repository.url` so npm provenance can verify the GitHub Actions source.

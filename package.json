@@ -4,6 +4,14 @@
   "version": "0.1.0-alpha.0",
   "type": "module",
   "description": "min — a minimal, extensible TypeScript agent harness",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JonathanLee-LX/min"
+  },
+  "homepage": "https://github.com/JonathanLee-LX/min#readme",
+  "bugs": {
+    "url": "https://github.com/JonathanLee-LX/min/issues"
+  },
   "packageManager": "pnpm@10.33.4",
   "scripts": {
     "build": "pnpm -r --filter=@min-agent/* run build",
