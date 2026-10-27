@@ -16,11 +16,13 @@ import {
   applyCommandCompletion,
   commandGhost,
   commandSuggestions,
+  cycleCommandIndex,
   formatCompact,
   formatQueue,
   formatSession,
   formatSessionList,
   routeSubmit,
+  selectCommandCompletion,
   type TuiCommand,
 } from "./commands.js";
 import {
@@ -535,11 +537,14 @@ export function App({ args }: { args: TuiArgs }) {
     if (action.type === "edit") {
       const matches = commandSuggestions(editor.text);
       if (matches.length > 0 && (action.op.op === "up" || action.op.op === "down")) {
-        const direction = action.op.op;
-        const count = matches.length;
-        setCompleteIndex((current) =>
-          direction === "down" ? (current + 1) % count : (current - 1 + count) % count,
-        );
+        const nextIndex = cycleCommandIndex(completeIndex, matches.length, action.op.op);
+        const filled = selectCommandCompletion(editor.text, nextIndex);
+        if (filled === null) return;
+        const nextMatches = commandSuggestions(filled);
+        const pickName = matches[nextIndex]!.name;
+        const indexInNext = nextMatches.findIndex((command) => command.name === pickName);
+        setCompleteIndex(indexInNext >= 0 ? indexInNext : 0);
+        setEditor((current) => ({ ...current, text: filled, cursor: filled.length }));
         return;
       }
       setCompleteIndex(0);
@@ -548,7 +553,14 @@ export function App({ args }: { args: TuiArgs }) {
     }
     if (action.type === "submit") {
       if (!clientRef.current) return;
-      const committed = commitEditor(editor);
+      // Apply the highlighted slash match before sending so Enter runs the
+      // selected command, not the partial typed prefix (e.g. "/").
+      const completed = applyCommandCompletion(editor.text, completeIndex);
+      const ready =
+        completed === null
+          ? editor
+          : { ...editor, text: completed.trimEnd(), cursor: completed.trimEnd().length };
+      const committed = commitEditor(ready);
       setEditor(committed.state);
       setCompleteIndex(0);
       if (!committed.text) return;

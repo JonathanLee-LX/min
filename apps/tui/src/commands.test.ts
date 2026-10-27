@@ -3,10 +3,12 @@ import {
   applyCommandCompletion,
   commandGhost,
   commandSuggestions,
+  cycleCommandIndex,
   formatCompact,
   formatQueue,
   parseTuiCommand,
   routeSubmit,
+  selectCommandCompletion,
 } from "./commands.js";
 
 describe("routeSubmit", () => {
@@ -70,5 +72,14 @@ describe("command completion", () => {
     expect(applyCommandCompletion("/s", 1)).toBe("/sessions");
     expect(commandGhost("/s", 0)).toBe("ession");
     expect(commandGhost("/s", 1)).toBe("essions");
+  });
+
+  it("fills the selected command when browsing without a trailing space", () => {
+    expect(selectCommandCompletion("/", 0)).toBe("/help");
+    expect(selectCommandCompletion("/s", 1)).toBe("/sessions");
+    expect(selectCommandCompletion("/op", 0)).toBe("/open");
+    expect(cycleCommandIndex(0, 3, "down")).toBe(1);
+    expect(cycleCommandIndex(0, 3, "up")).toBe(2);
+    expect(cycleCommandIndex(2, 3, "down")).toBe(0);
   });
 });

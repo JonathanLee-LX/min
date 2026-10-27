@@ -95,6 +95,28 @@ export function applyCommandCompletion(text: string, selected: number): string |
   return `/${pick.name}${pick.arg ? " " : ""}`;
 }
 
+/**
+ * Fill the composer with the selected slash match while browsing the menu.
+ * No trailing space so the panel stays open for arg commands until Tab/Enter.
+ */
+export function selectCommandCompletion(text: string, selected: number): string | null {
+  const matches = commandSuggestions(text);
+  if (matches.length === 0) return null;
+  const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
+  return `/${pick.name}`;
+}
+
+/** Next/previous index while cycling the slash menu. */
+export function cycleCommandIndex(
+  selected: number,
+  count: number,
+  direction: "up" | "down",
+): number {
+  if (count <= 0) return 0;
+  const at = ((selected % count) + count) % count;
+  return direction === "down" ? (at + 1) % count : (at - 1 + count) % count;
+}
+
 const BUSY_BLOCKED = new Set(["open", "new", "reset", "compact"]);
 
 export function parseTuiCommand(line: string): TuiCommand {
