@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ContextUsage } from "@min-agent/client";
 import { contextMeterRows } from "./ContextMeter.js";
 
 describe("contextMeterRows", () => {
-  it("counts head and progress rows", () => {
-    expect(contextMeterRows("", undefined)).toBe(0);
-    expect(contextMeterRows("mock", undefined)).toBe(1);
-    const usage = { ratio: 0.2 } as ContextUsage;
-    expect(contextMeterRows("mock", usage)).toBe(2);
+  it("reserves two status rows when cwd or model is set", () => {
+    expect(contextMeterRows("", "")).toBe(0);
+    expect(contextMeterRows("/tmp", "mock")).toBe(2);
+    expect(contextMeterRows("/tmp", "")).toBe(2);
   });
 });

@@ -38,12 +38,11 @@ describe("context-view", () => {
     expect(contextStatusLine(undefined)).toBe("");
   });
 
-  it("builds bottom model + total context chrome without breakdown", () => {
+  it("builds bottom cwd + model/thinking + percent chrome", () => {
     const usage = sampleUsage();
-    expect(bottomStatusLines("deepseek:deepseek-flash", usage)).toEqual([
-      `deepseek:deepseek-flash · ${formatContextUsageShort(usage)}`,
-    ]);
-    expect(bottomStatusLines("mock", undefined)).toEqual(["mock"]);
-    expect(bottomStatusLines("", undefined)).toEqual([]);
+    expect(
+      bottomStatusLines("/tmp/proj", "deepseek:deepseek-flash", usage, "main"),
+    ).toEqual(["/tmp/proj  main", "deepseek-flash (high)  13%"]);
+    expect(bottomStatusLines("/tmp", "mock", undefined)).toEqual(["/tmp", "mock  —"]);
   });
 });

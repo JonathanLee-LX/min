@@ -44,6 +44,7 @@ import {
 } from "./paint.js";
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer } from "./permission-view.js";
+import { readGitBranch } from "./status-bar.js";
 import { wrapText } from "./text.js";
 import { resolveMinConfig } from "@min-agent/config";
 import { themeFromConfig } from "./theme.js";
@@ -108,6 +109,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [focused, setFocused] = useState(true);
   const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>();
+  const [gitBranch, setGitBranch] = useState<string | undefined>();
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
   const focusedRef = useRef(true);
@@ -189,6 +191,21 @@ export function App({ args }: { args: TuiArgs }) {
   }, [stdout]);
 
   useEffect(() => enableFocusReporting(stdout), [stdout]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      void readGitBranch(args.cwd).then((branch) => {
+        if (!cancelled) setGitBranch(branch);
+      });
+    };
+    refresh();
+    const timer = setInterval(refresh, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [args.cwd]);
 
   useEffect(() => {
     focusedRef.current = focused;
@@ -653,7 +670,8 @@ export function App({ args }: { args: TuiArgs }) {
   const suggestRows = commandSelectRows(suggestions.length);
   const activityRows = activity ? 1 : 0;
   const modelId = client?.getStatus().provider ?? "";
-  const bottomStatusRows = contextMeterRows(modelId, contextUsage);
+  const cwdPath = client?.getStatus().cwd ?? args.cwd;
+  const bottomStatusRows = contextMeterRows(cwdPath, modelId);
   const bannerRows = minBannerRows(innerWidth);
   /** Banner + session meta + transcript top margin. */
   const headerRows = bannerRows + 1 + 1;
@@ -860,8 +878,10 @@ export function App({ args }: { args: TuiArgs }) {
         />
       ) : null}
       <ContextMeter
+        cwd={cwdPath}
         model={modelId}
         usage={contextUsage}
+        branch={gitBranch}
         theme={theme}
         dim={theme.chrome.statusDim}
       />

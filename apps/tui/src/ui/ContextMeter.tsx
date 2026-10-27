@@ -1,46 +1,42 @@
-import { ProgressBar, ThemeProvider } from "@inkjs/ui";
 import type { ContextUsage } from "@min-agent/client";
 import { Box, Text } from "ink";
-import { useMemo } from "react";
-import { contextStatusLine } from "../context-view.js";
+import { bottomStatusLines } from "../status-bar.js";
 import type { TuiTheme } from "../theme.js";
-import { inkThemeFromTui } from "./ink-theme.js";
 
-/** Model id + short context total, with an `@inkjs/ui` progress bar. */
+/**
+ * Bottom status bar:
+ *   cwd[+branch]
+ *   model (thinking)  ctx%
+ */
 export function ContextMeter({
+  cwd,
   model,
   usage,
-  theme,
+  branch,
   dim,
 }: {
+  cwd: string;
   model: string;
   usage: ContextUsage | undefined;
-  theme: TuiTheme;
+  branch?: string | null;
+  /** Kept for call-site compatibility; status lines are dim text only. */
+  theme?: TuiTheme;
   dim: boolean;
 }) {
-  const inkTheme = useMemo(() => inkThemeFromTui(theme), [theme]);
-  const short = contextStatusLine(usage);
-  const head = [model.trim(), short].filter((part) => part.length > 0).join(" · ");
-  if (!head && !usage) return null;
-  const value = usage ? Math.max(0, Math.min(100, Math.round(usage.ratio * 100))) : 0;
-
+  const lines = bottomStatusLines(cwd, model, usage, branch);
   return (
-    <ThemeProvider theme={inkTheme}>
-      <Box flexDirection="column" flexShrink={0}>
-        {head ? (
-          <Text dimColor={dim} wrap="truncate">
-            {head}
-          </Text>
-        ) : null}
-        {usage ? <ProgressBar value={value} /> : null}
-      </Box>
-    </ThemeProvider>
+    <Box flexDirection="column" flexShrink={0}>
+      {lines.map((line) => (
+        <Text key={line} dimColor={dim} wrap="truncate">
+          {line}
+        </Text>
+      ))}
+    </Box>
   );
 }
 
 /** Rows reserved under the composer for {@link ContextMeter}. */
-export function contextMeterRows(model: string, usage: ContextUsage | undefined): number {
-  const hasHead = model.trim().length > 0 || Boolean(usage);
-  if (!hasHead) return 0;
-  return usage ? 2 : 1;
+export function contextMeterRows(cwd: string, model: string): number {
+  if (!cwd.trim() && !model.trim()) return 0;
+  return 2;
 }
