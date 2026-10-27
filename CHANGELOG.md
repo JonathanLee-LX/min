@@ -4,6 +4,7 @@
 
 - TUI pauses spinner/stream paints while the terminal tab is unfocused (focus reporting), slowing background-tab flicker.
 - Model reasoning streams as `thinking_delta` through core/client and shows as dim `think` lines in the TUI (OpenAI Responses summary + chat `reasoning_content`).
+- DeepSeek Responses CoT uses `response.reasoning_text.delta` and `reasoning.effort` (summary is a no-op on DeepSeek).
 
 ## 0.1.0-alpha.2
 

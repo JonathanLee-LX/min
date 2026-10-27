@@ -53,12 +53,14 @@ export function deepseekProvider(
   }
 
   const model = opts.model ?? "deepseek-flash";
+  // DeepSeek thinking mode: CoT on response.reasoning_text.delta.
+  // `summary` is accepted but never generated — use effort instead.
   const inner = openaiProvider({
     apiKey,
     model,
     baseURL,
     maxTokens,
-    reasoningSummary: true,
+    reasoningEffort: "high",
     client: opts.client,
   });
   return {

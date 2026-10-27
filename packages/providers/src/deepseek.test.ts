@@ -25,6 +25,7 @@ describe("deepseekProvider", () => {
       messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
     });
     expect(create).toHaveBeenCalledOnce();
+    expect(create.mock.calls[0]![0].reasoning).toEqual({ effort: "high" });
     expect(result.message.content).toEqual([{ type: "text", text: "ok" }]);
   });
 

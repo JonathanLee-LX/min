@@ -23,10 +23,16 @@ export interface OpenAIProviderOptions {
   baseURL?: string;
   maxTokens?: number;
   /**
-   * Ask the Responses API for a visible reasoning summary stream.
-   * Default: auto from the model id (o-series, gpt-5, *reason*, deepseek-*).
+   * Ask OpenAI-style hosts for a reasoning *summary* stream
+   * (`response.reasoning_summary_text.delta`). Default: auto from model id.
+   * DeepSeek ignores `summary` — use {@link reasoningEffort} instead.
    */
   reasoningSummary?: boolean;
+  /**
+   * Responses `reasoning.effort` (DeepSeek thinking mode: none/low/high/max).
+   * DeepSeek streams CoT on `response.reasoning_text.delta`.
+   */
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
   /** Injected client for tests. */
   client?: OpenAI;
 }
@@ -39,10 +45,7 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
       baseURL: opts.baseURL,
     });
   const defaultMaxTokens = opts.maxTokens ?? 4096;
-  const reasoning =
-    (opts.reasoningSummary ?? modelLikelyReasons(opts.model))
-      ? ({ summary: "auto" } as const)
-      : undefined;
+  const reasoning = resolveReasoning(opts);
 
   return {
     id: `openai:${opts.model}`,
@@ -317,11 +320,34 @@ export function modelLikelyReasons(model: string): boolean {
   );
 }
 
+function resolveReasoning(
+  opts: OpenAIProviderOptions,
+): { summary?: "auto"; effort?: "none" | "low" | "medium" | "high" | "max" } | undefined {
+  if (opts.reasoningEffort) {
+    const out: { summary?: "auto"; effort: typeof opts.reasoningEffort } = {
+      effort: opts.reasoningEffort,
+    };
+    if (opts.reasoningSummary === true) out.summary = "auto";
+    return out;
+  }
+  if (opts.reasoningSummary === false) return undefined;
+  if (opts.reasoningSummary === true || modelLikelyReasons(opts.model)) {
+    // OpenAI o-series: summary stream. DeepSeek accepts summary but does not
+    // emit it — CoT still arrives on reasoning_text when thinking is on.
+    if (opts.model.trim().toLowerCase().startsWith("deepseek")) {
+      return { effort: "high" };
+    }
+    return { summary: "auto" };
+  }
+  return undefined;
+}
+
 function thinkingDeltaFromResponsesEvent(event: {
   type: string;
   delta?: unknown;
 }): string | null {
   if (
+    event.type === "response.reasoning_text.delta" ||
     event.type === "response.reasoning_summary_text.delta" ||
     event.type === "response.reasoning_summary.delta" ||
     event.type === "response.reasoning.delta"

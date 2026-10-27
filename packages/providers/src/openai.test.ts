@@ -49,6 +49,47 @@ describe("openaiProvider", () => {
     expect(create.mock.calls[0]![0].reasoning).toEqual({ summary: "auto" });
   });
 
+  it("streams DeepSeek reasoning_text deltas as thinking_delta", async () => {
+    async function* events() {
+      yield { type: "response.reasoning_text.delta", delta: "step one" };
+      yield { type: "response.reasoning_text.delta", delta: " step two" };
+      yield { type: "response.output_text.delta", delta: "done" };
+      yield {
+        type: "response.completed",
+        response: {
+          status: "completed",
+          output: [
+            {
+              type: "message",
+              content: [{ type: "output_text", text: "done" }],
+            },
+          ],
+          usage: { input_tokens: 2, output_tokens: 3 },
+        },
+      };
+    }
+
+    const create = vi.fn().mockResolvedValue(events());
+    const provider = openaiProvider({
+      model: "deepseek-flash",
+      reasoningEffort: "high",
+      client: { responses: { create } } as never,
+    });
+
+    const chunks = [];
+    for await (const chunk of provider.stream!({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.filter((c) => c.type === "thinking_delta")).toEqual([
+      { type: "thinking_delta", text: "step one" },
+      { type: "thinking_delta", text: " step two" },
+    ]);
+    expect(create.mock.calls[0]![0].reasoning).toEqual({ effort: "high" });
+  });
+
   it("detects models that usually expose reasoning", () => {
     expect(modelLikelyReasons("o3-mini")).toBe(true);
     expect(modelLikelyReasons("deepseek-flash")).toBe(true);
