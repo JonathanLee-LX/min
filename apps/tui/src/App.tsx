@@ -35,6 +35,7 @@ import {
 } from "./editor.js";
 import { bottomStatusLines } from "./context-view.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
+import { applyImeCursor, composerCaretScreenPos, hideImeCursor } from "./ime-cursor.js";
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
@@ -616,11 +617,7 @@ export function App({ args }: { args: TuiArgs }) {
       : 0;
   const ghost = commandGhost(editor.text, selectedComplete);
   const chatBar = theme.frames.chatBar;
-  // When a slash preview is showing, the caret sits after the ghost so the
-  // highlight reads as "cursor at end of selected command".
-  const composer = ghost
-    ? `${chatBar}${caret.before}${caret.after}${ghost} `
-    : `${chatBar}${caret.before}${caret.caret}${caret.after}`;
+  const composer = `${chatBar}${caret.before}${caret.after}${ghost}`;
   /** Composer reserves at least two terminal rows (2× line height). */
   const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
   /** One vertical row per slash match. */
@@ -639,15 +636,20 @@ export function App({ args }: { args: TuiArgs }) {
   const bannerRows = minBannerRows(innerWidth);
   /** Banner + session meta + transcript top margin. */
   const headerRows = bannerRows + 1 + 1;
+  const permBlockRows = permRows > 0 ? permRows + 1 : 0;
+  const composerMarginRows = 1;
   const reserved =
     headerRows +
     activityRows +
-    (permRows > 0 ? permRows + 1 : 0) +
-    1 +
+    permBlockRows +
+    composerMarginRows +
     inputRows +
     suggestRows +
     bottomStatusRows +
     footerRows;
+  /** Rows above the composer content (where the real caret / IME must sit). */
+  const rowsAboveComposer =
+    headerRows + activityRows + permBlockRows + composerMarginRows;
   const userTone = toneFor("user", theme);
   const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
@@ -675,6 +677,45 @@ export function App({ args }: { args: TuiArgs }) {
 
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(painted, logHeight, scroll);
+
+  // Park the real terminal cursor on the composer caret so CJK IMEs can
+  // place their candidate window correctly (Ink paints a fake caret only).
+  useLayoutEffect(() => {
+    if (!client || error) {
+      hideImeCursor(stdout);
+      return;
+    }
+    const pos = composerCaretScreenPos({
+      paddingX: 1,
+      rowsAboveComposer,
+      chatBar,
+      text: editor.text,
+      cursor: editor.cursor,
+    });
+    applyImeCursor(stdout, pos, termRows, columns);
+  }, [
+    client,
+    error,
+    rowsAboveComposer,
+    chatBar,
+    editor.text,
+    editor.cursor,
+    termRows,
+    columns,
+    stdout,
+    // Re-sync after paints that move the frame (spinner, stream, layout).
+    activityKey,
+    logHeight,
+    rowCount,
+    suggestRows,
+    bottomStatusRows,
+    footerRows,
+    spinnerFrame,
+  ]);
+
+  useEffect(() => {
+    return () => hideImeCursor(stdout);
+  }, [stdout]);
 
   if (error) {
     return (
@@ -779,28 +820,19 @@ export function App({ args }: { args: TuiArgs }) {
       <Box marginTop={1} width={innerWidth} height={inputRows} flexShrink={0}>
         <Text wrap="truncate">
           <Text color={userTone.label}>{chatBar}</Text>
+          {/*
+            Real terminal cursor marks the caret (for IME). Avoid a second
+            inverse fake caret so the composition window lines up cleanly.
+          */}
+          <Text color={userTone.body}>
+            {caret.before}
+            {caret.after}
+          </Text>
           {ghost ? (
-            <>
-              <Text color={userTone.body}>
-                {caret.before}
-                {caret.after}
-              </Text>
-              <Text color={userTone.body} dimColor>
-                {ghost}
-              </Text>
-              <Text color={userTone.body} inverse>
-                {" "}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text color={userTone.body}>{caret.before}</Text>
-              <Text color={userTone.body} inverse>
-                {caret.caret}
-              </Text>
-              <Text color={userTone.body}>{caret.after}</Text>
-            </>
-          )}
+            <Text color={userTone.body} dimColor>
+              {ghost}
+            </Text>
+          ) : null}
         </Text>
       </Box>
       {suggestions.length > 0 ? (
