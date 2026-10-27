@@ -94,13 +94,18 @@ export function padToWidth(text: string, width: number): string {
   return text + " ".repeat(width - used);
 }
 
-/** Blank line before each new user or assistant turn. */
+/** Blank rows inserted before each new user or assistant turn. */
+const TURN_GAP_ROWS = 2;
+
+/** Blank lines before each new user or assistant turn. */
 export function separateTurns(lines: readonly TranscriptSource[]): TranscriptSource[] {
   const out: TranscriptSource[] = [];
   let prev: LogKind | undefined;
   for (const line of lines) {
     if (prev && isTurn(line.kind) && line.kind !== prev) {
-      out.push({ key: `${line.key}:gap`, kind: "gap", text: "" });
+      for (let i = 0; i < TURN_GAP_ROWS; i++) {
+        out.push({ key: `${line.key}:gap${i}`, kind: "gap", text: "" });
+      }
     }
     out.push(line);
     if (line.kind !== "gap") prev = line.kind;

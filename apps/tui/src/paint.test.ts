@@ -126,7 +126,13 @@ describe("paintTranscript", () => {
       ],
       40,
     );
-    expect(rows.map((row) => row.kind)).toEqual(["tool", "tool-result", "gap", "assistant"]);
+    expect(rows.map((row) => row.kind)).toEqual([
+      "tool",
+      "tool-result",
+      "gap",
+      "gap",
+      "assistant",
+    ]);
   });
 });
 
