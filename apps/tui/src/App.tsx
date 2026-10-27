@@ -3,6 +3,7 @@ import {
   createClient,
   type ClientEvent,
   type ClientStatus,
+  type ContextUsage,
   type MinClient,
 } from "@min-agent/client";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
@@ -30,6 +31,7 @@ import {
   type EditorState,
   type InputKey,
 } from "./editor.js";
+import { contextBreakdownLine, contextStatusLine } from "./context-view.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { decodeInput } from "./keys.js";
 import {
@@ -97,6 +99,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [completeIndex, setCompleteIndex] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [focused, setFocused] = useState(true);
+  const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>();
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
   const focusedRef = useRef(true);
@@ -241,6 +244,10 @@ export function App({ args }: { args: TuiArgs }) {
             syncQueue();
             return;
           }
+          if (event.type === "context") {
+            setContextUsage(event.usage);
+            return;
+          }
           if (event.type === "thinking_delta") {
             thinkingPumpRef.current?.push(event.text);
             return;
@@ -326,6 +333,7 @@ export function App({ args }: { args: TuiArgs }) {
         setQueueSize(status.queueSize);
         setStatusLabel(status.status);
         setBusy(status.status !== "idle");
+        setContextUsage(status.context);
         setClient(created);
       } catch (err) {
         if (!cancelled) setError(messageOf(err));
@@ -611,8 +619,19 @@ export function App({ args }: { args: TuiArgs }) {
   const footer = footerLines(busy, pendingPerm !== null, toolOutputExpanded);
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const activityRows = activity ? 1 : 0;
+  const contextLine = contextStatusLine(contextUsage);
+  const contextPartsLine = contextBreakdownLine(contextUsage);
+  /** Breakdown sits under the status row; the short meter shares the status line. */
+  const contextExtraRows = contextPartsLine ? 1 : 0;
   const reserved =
-    2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + suggestRows + footerRows;
+    2 +
+    contextExtraRows +
+    activityRows +
+    (permRows > 0 ? permRows + 1 : 0) +
+    1 +
+    inputRows +
+    suggestRows +
+    footerRows;
   const userTone = toneFor("user", theme);
   const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
@@ -670,9 +689,16 @@ export function App({ args }: { args: TuiArgs }) {
           min
         </Text>
         <Text dimColor={theme.chrome.statusDim}>
-          {` · ${status.provider} · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
+          {` · ${status.provider} · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${
+            contextLine ? ` · ${contextLine}` : ""
+          }${scrollHint}`}
         </Text>
       </Text>
+      {contextPartsLine ? (
+        <Text dimColor wrap="truncate">
+          {contextPartsLine}
+        </Text>
+      ) : null}
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
         {layout.visible.map((row) => {

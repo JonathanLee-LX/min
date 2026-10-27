@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Context usage meter: estimated used/limit plus breakdown (system, conversation, skills, mcp, tools, reserved), emitted as ClientEvent `context` and shown in the TUI header.
+
 ## 0.1.0-alpha.3
 
 Thinking stream + TUI flicker polish.

@@ -15,6 +15,9 @@ const PUBLIC_EXPORTS = [
   "createClient",
   "createEventTranslator",
   "createPermissionBridge",
+  "formatContextUsageBreakdown",
+  "formatContextUsageShort",
+  "formatTokenCount",
   "isAbortError",
   "previewArgs",
 ].sort();
@@ -22,6 +25,7 @@ const PUBLIC_EXPORTS = [
 const CLIENT_EVENT_TYPES = [
   "assistant_delta",
   "assistant_done",
+  "context",
   "error",
   "follow_up",
   "permission",

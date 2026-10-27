@@ -65,6 +65,12 @@ export async function createClient(
         onIncoming: (texts) => {
           incomingBridge.emit(texts);
         },
+        onAfterAssemble({ assemble }) {
+          if (assemble.usage) {
+            emit({ type: "context", usage: assemble.usage });
+          }
+          return assemble;
+        },
       },
     }),
   ];
@@ -219,6 +225,7 @@ export async function createClient(
     sessionId: runtime.session.id,
     queueSize: runtime.session.inputQueue?.size ?? 0,
     cwd: runtime.cwd,
+    context: runtime.session.lastAssemble?.usage,
   });
 
   const getSession = (): ClientSessionInfo => ({

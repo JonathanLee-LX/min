@@ -6,6 +6,7 @@ import {
   type ContextFoldOptions,
 } from "./fold.js";
 import type { ContextStash } from "./stash.js";
+import type { ContextUsage } from "./context-usage.js";
 import {
   defaultTokenEstimator,
   type TokenEstimator,
@@ -89,8 +90,9 @@ export interface AssembleResult {
    * Useful for A/B eval (`trim` baseline vs `hmt`, or custom ids).
    */
   strategy?: string;
+  /** Window occupancy breakdown for UI meters (attached by Session). */
+  usage?: ContextUsage;
 }
-
 const DEFAULT_HEAD_TURNS = 1;
 const DEFAULT_TAIL_TURNS = 2;
 

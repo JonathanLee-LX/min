@@ -113,3 +113,17 @@ export {
   estimateToolsTokens,
   type TokenEstimator,
 } from "./tokens.js";
+export {
+  computeContextUsage,
+  formatContextUsageBreakdown,
+  formatContextUsageShort,
+  formatTokenCount,
+  withContextUsage,
+  type ComputeContextUsageInput,
+  type ContextPartId,
+  type ContextPartsSnapshot,
+  type ContextSystemPart,
+  type ContextToolGroup,
+  type ContextUsage,
+  type ContextUsagePart,
+} from "./context-usage.js";

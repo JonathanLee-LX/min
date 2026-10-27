@@ -1,17 +1,12 @@
-import { defineSessionExtension, type SessionExtension } from "@min-agent/session";
+import {
+  defineSessionExtension,
+  formatContextUsageBreakdown,
+  formatContextUsageShort,
+  type AssembleResult,
+  type SessionExtension,
+} from "@min-agent/session";
 
-function formatAssembleLine(
-  assemble: {
-    trimmed: boolean;
-    foldedParts?: number;
-    stashedIds?: string[];
-    regions?: { headTurns: number; middleTurns: number; tailTurns: number };
-    strategy?: string;
-    estimatedTokens: number;
-    messageBudget: number;
-  },
-  when: "assemble" | "run",
-): string {
+function formatAssembleLine(assemble: AssembleResult, when: "assemble" | "run"): string {
   const folded =
     assemble.foldedParts && assemble.foldedParts > 0
       ? ` · foldedParts=${assemble.foldedParts}`
@@ -31,7 +26,10 @@ function formatAssembleLine(
     : folded || stashed
       ? "projected"
       : "ok";
-  return `context[${when}/${status}]: ${strategy} · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})${regions}${folded}${stashed}`;
+  const usage = assemble.usage
+    ? ` · ${formatContextUsageShort(assemble.usage)} · ${formatContextUsageBreakdown(assemble.usage)}`
+    : ` · view~${assemble.estimatedTokens} tokens (budget messages=${assemble.messageBudget})`;
+  return `context[${when}/${status}]: ${strategy}${usage}${regions}${folded}${stashed}`;
 }
 
 /**

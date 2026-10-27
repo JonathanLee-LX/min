@@ -1,5 +1,6 @@
 import {
   createAgent,
+  toolToDefinition,
   type Agent,
   type ModelProvider,
   type RunEvent,
@@ -11,7 +12,11 @@ import {
   DEFAULT_MAX_CONTEXT_TOKENS,
   recallContextExtension,
   resolveContextStrategy,
+  type ContextPartId,
+  type ContextPartsSnapshot,
   type ContextStrategyId,
+  type ContextSystemPart,
+  type ContextToolGroup,
   type Session,
   type SessionStore,
 } from "@min-agent/session";
@@ -106,12 +111,22 @@ export async function createRuntime(
     provider: opts.provider,
   });
 
-  const systemParts = [BASE_SYSTEM];
-  const appendSystem = (text: string) => {
+  const labeledSystem: ContextSystemPart[] = [{ id: "system", text: BASE_SYSTEM }];
+  const toolBuckets = new Map<ContextPartId, Tool[]>();
+
+  const appendSystem = (
+    text: string,
+    id: ContextSystemPart["id"] = "system",
+  ) => {
     const trimmed = text.trim();
-    if (trimmed) systemParts.push(trimmed);
+    if (!trimmed) return;
+    labeledSystem.push({ id, text: trimmed });
   };
-  const tools: Tool[] = [];
+  const addTools = (list: Tool[], id: ContextToolGroup["id"]) => {
+    const bucket = toolBuckets.get(id) ?? [];
+    bucket.push(...list);
+    toolBuckets.set(id, bucket);
+  };
 
   if (!opts.noTools) {
     const rulesFile = permissionRulesPath(opts.cwd);
@@ -129,15 +144,15 @@ export async function createRuntime(
         },
       },
     });
-    tools.push(...workspace.tools);
-    appendSystem(workspace.system);
+    addTools(workspace.tools, "tools");
+    appendSystem(workspace.system, "system");
     permissions = workspace.permissions;
   }
 
   if (resolved.needsRecall && resolved.stash) {
     const recall = recallContextExtension(resolved.stash);
-    tools.push(recall.tool);
-    appendSystem(recall.system);
+    addTools([recall.tool], "tools");
+    appendSystem(recall.system, "system");
   }
 
   const skillsDir = opts.skillsDir
@@ -147,10 +162,12 @@ export async function createRuntime(
     const loaded = await skills({
       dirs: [skillsDir],
       allowedToolsGate,
-      appendSystem,
+      appendSystem: (text) => appendSystem(text, "skills"),
     });
-    tools.push(...loaded.tools);
+    addTools(loaded.tools, "skills");
   }
+
+  const tools: Tool[] = [...toolBuckets.values()].flat();
 
   const permissionHandler = permissions
     ? allowedToolsGate.wrap(permissions.handler)
@@ -158,13 +175,42 @@ export async function createRuntime(
   const permissionGate = createPermissionGate(permissionHandler);
 
   const maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
+  const liveSystem = () =>
+    labeledSystem
+      .map((part) => part.text.trim())
+      .filter(Boolean)
+      .join("\n\n");
 
   const agent = await createAgent({
     provider: opts.provider,
     tools: permissionGate.wrap(tools),
-    system: () => systemParts.join("\n\n"),
+    system: liveSystem,
     maxTurns,
   });
+
+  const contextParts = (): ContextPartsSnapshot => {
+    const groups = new Map<ContextToolGroup["id"], ReturnType<typeof toolToDefinition>[]>();
+    for (const [id, list] of toolBuckets) {
+      groups.set(
+        id as ContextToolGroup["id"],
+        list.map(toolToDefinition),
+      );
+    }
+    const known = new Set(
+      [...groups.values()].flatMap((list) => list.map((tool) => tool.name)),
+    );
+    for (const def of agent.tools.definitions()) {
+      if (known.has(def.name)) continue;
+      const id: ContextToolGroup["id"] = looksLikeMcpTool(def.name) ? "mcp" : "tools";
+      const bucket = groups.get(id) ?? [];
+      bucket.push(def);
+      groups.set(id, bucket);
+    }
+    return {
+      systemParts: labeledSystem.map((part) => ({ ...part })),
+      toolGroups: [...groups.entries()].map(([id, list]) => ({ id, tools: list })),
+    };
+  };
 
   const store = opts.noSessionStore
     ? undefined
@@ -180,7 +226,8 @@ export async function createRuntime(
     store,
     id: opts.sessionId,
     stash: resolved.stash,
-    systemForBudget: BASE_SYSTEM,
+    systemForBudget: liveSystem,
+    contextParts,
     budget: {
       ...budget,
       stash: resolved.stash,
@@ -202,6 +249,11 @@ export async function createRuntime(
 }
 
 export type { PermissionAskResult, RunEvent };
+
+/** Host-added MCP tools are often named `server__tool` or `mcp_*`. */
+function looksLikeMcpTool(name: string): boolean {
+  return name.startsWith("mcp_") || name.includes("__");
+}
 
 async function exists(p: string): Promise<boolean> {
   try {

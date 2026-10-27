@@ -33,6 +33,8 @@ export interface ClientStatusSnapshot {
   sessionId: string;
   queueSize: number;
   cwd: string;
+  /** Latest assemble context meter, when available. */
+  context?: import("@min-agent/session").ContextUsage;
 }
 
 export interface ClientQueueApi {
@@ -79,6 +81,10 @@ export type ClientEvent =
     }
   | { type: "queued"; text: string; queueSize: number }
   | { type: "error"; message: string; aborted?: boolean }
+  | {
+      type: "context";
+      usage: import("@min-agent/session").ContextUsage;
+    }
   | {
       type: "session";
       id: string;

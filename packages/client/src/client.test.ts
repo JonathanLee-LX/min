@@ -31,6 +31,15 @@ describe("createClient", () => {
     expect(
       events.some((e) => e.type === "assistant_done" && e.text === "Hello"),
     ).toBe(true);
+    const context = events.find((e) => e.type === "context");
+    expect(context?.type).toBe("context");
+    if (context?.type === "context") {
+      expect(context.usage.limit).toBeGreaterThan(0);
+      expect(context.usage.parts.some((part) => part.id === "conversation")).toBe(
+        true,
+      );
+    }
+    expect(client.getStatus().context?.used).toBeGreaterThan(0);
     expect(client.getStatus().status).toBe("idle");
     await client.dispose();
   });

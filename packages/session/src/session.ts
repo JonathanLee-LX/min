@@ -12,6 +12,10 @@ import {
   type CompactHistoryResult,
 } from "./assemble-compact.js";
 import {
+  withContextUsage,
+  type ContextPartsSnapshot,
+} from "./context-usage.js";
+import {
   resolveSessionExtensions,
   type ContextAssembler,
   type SessionExtension,
@@ -58,6 +62,11 @@ export interface CreateSessionOptions {
    * Live system still comes from the Agent each turn.
    */
   systemForBudget?: string | (() => string | undefined);
+  /**
+   * Labeled system/tool sources for context usage breakdown.
+   * When omitted, usage collapses to system + tools + conversation.
+   */
+  contextParts?: () => ContextPartsSnapshot;
   /** Replace the default budget assembler entirely. */
   assembler?: ContextAssembler;
   /** Lifecycle hooks (also accept via `extensions`). */
@@ -209,13 +218,25 @@ export async function createSession(
       await h.onBeforeRun?.(hookCtx);
     }
 
+    const annotateUsage = (result: AssembleResult): AssembleResult =>
+      withContextUsage(result, {
+        limit: budget.maxContextTokens,
+        reservedOutput: budget.reservedOutputTokens,
+        system,
+        tools,
+        parts: opts.contextParts?.(),
+        estimate: budget.estimate,
+      });
+
     const pending = [...messages, userMessage(userText)];
-    let assembled = await finalAssembler.assemble({
-      messages: pending,
-      system,
-      tools,
-      budget,
-    });
+    let assembled = annotateUsage(
+      await finalAssembler.assemble({
+        messages: pending,
+        system,
+        tools,
+        budget,
+      }),
+    );
 
     for (const h of hooks) {
       if (!h.onAfterAssemble) continue;
@@ -224,7 +245,7 @@ export async function createSession(
         pending,
         assemble: assembled,
       });
-      if (next) assembled = next;
+      if (next) assembled = annotateUsage(next);
     }
 
     lastAssemble = assembled;
@@ -234,12 +255,14 @@ export async function createSession(
     // every complete — including the first — so mid-loop growth stays
     // foldable and lastAssemble reflects the real projection.
     const project: MessageProjector = async (inFlight) => {
-      let projected = await finalAssembler.assemble({
-        messages: [...inFlight],
-        system,
-        tools,
-        budget,
-      });
+      let projected = annotateUsage(
+        await finalAssembler.assemble({
+          messages: [...inFlight],
+          system,
+          tools,
+          budget,
+        }),
+      );
       for (const h of hooks) {
         if (!h.onAfterAssemble) continue;
         const next = await h.onAfterAssemble({
@@ -247,7 +270,7 @@ export async function createSession(
           pending: [...inFlight],
           assemble: projected,
         });
-        if (next) projected = next;
+        if (next) projected = annotateUsage(next);
       }
       lastAssemble = projected;
       return projected.view;
