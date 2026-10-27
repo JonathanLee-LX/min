@@ -616,7 +616,7 @@ export function App({ args }: { args: TuiArgs }) {
   const suggestRows = suggestions.length > 0 ? 1 : 0;
   const permText = pendingPerm ? permissionLines(pendingPerm) : [];
   const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
-  const footer = footerLines(busy, pendingPerm !== null, toolOutputExpanded);
+  const footer = footerLines(pendingPerm !== null);
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const activityRows = activity ? 1 : 0;
   const contextLine = contextStatusLine(contextUsage);
@@ -819,17 +819,12 @@ function toDisplayLines(
   return lines;
 }
 
-function footerLines(busy: boolean, pending: boolean, toolExpanded: boolean): string[] {
-  if (pending) {
-    return [
-      "y once · n deny · a remember · no answer denies in 2 minutes",
-      "PgUp/PgDn scroll · Ctrl+C abort",
-    ];
-  }
-  const toolHint = toolExpanded ? "Ctrl+O collapse tools" : "Ctrl+O expand tools";
+/** Keybinding/command chrome stays hidden; only permission prompts surface here. */
+function footerLines(pending: boolean): string[] {
+  if (!pending) return [];
   return [
-    `Enter ${busy ? "queues" : "sends"} · Tab completes /cmd · Alt+Enter newline · ↑↓ history · PgUp/PgDn scroll · ${toolHint} · Ctrl+C ${busy ? "abort" : "quit"}`,
-    "/help /session /sessions /open /new /compact /reset /queue /dense /exit",
+    "y once · n deny · a remember · no answer denies in 2 minutes",
+    "PgUp/PgDn scroll · Ctrl+C abort",
   ];
 }
 
