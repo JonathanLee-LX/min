@@ -22,7 +22,6 @@ import {
   formatSession,
   formatSessionList,
   routeSubmit,
-  selectCommandCompletion,
   type TuiCommand,
 } from "./commands.js";
 import {
@@ -537,14 +536,8 @@ export function App({ args }: { args: TuiArgs }) {
     if (action.type === "edit") {
       const matches = commandSuggestions(editor.text);
       if (matches.length > 0 && (action.op.op === "up" || action.op.op === "down")) {
-        const nextIndex = cycleCommandIndex(completeIndex, matches.length, action.op.op);
-        const filled = selectCommandCompletion(editor.text, nextIndex);
-        if (filled === null) return;
-        const nextMatches = commandSuggestions(filled);
-        const pickName = matches[nextIndex]!.name;
-        const indexInNext = nextMatches.findIndex((command) => command.name === pickName);
-        setCompleteIndex(indexInNext >= 0 ? indexInNext : 0);
-        setEditor((current) => ({ ...current, text: filled, cursor: filled.length }));
+        // Only move the highlight — keep the typed prefix so filtering stays stable.
+        setCompleteIndex((current) => cycleCommandIndex(current, matches.length, action.op.op));
         return;
       }
       setCompleteIndex(0);
@@ -623,7 +616,11 @@ export function App({ args }: { args: TuiArgs }) {
       : 0;
   const ghost = commandGhost(editor.text, selectedComplete);
   const chatBar = theme.frames.chatBar;
-  const composer = `${chatBar}${caret.before}${caret.caret}${caret.after}${ghost}`;
+  // When a slash preview is showing, the caret sits after the ghost so the
+  // highlight reads as "cursor at end of selected command".
+  const composer = ghost
+    ? `${chatBar}${caret.before}${caret.after}${ghost} `
+    : `${chatBar}${caret.before}${caret.caret}${caret.after}`;
   /** Composer reserves at least two terminal rows (2× line height). */
   const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
   /** One vertical row per slash match. */
@@ -782,16 +779,28 @@ export function App({ args }: { args: TuiArgs }) {
       <Box marginTop={1} width={innerWidth} height={inputRows} flexShrink={0}>
         <Text wrap="truncate">
           <Text color={userTone.label}>{chatBar}</Text>
-          <Text color={userTone.body}>{caret.before}</Text>
-          <Text color={userTone.body} inverse>
-            {caret.caret}
-          </Text>
-          <Text color={userTone.body}>{caret.after}</Text>
           {ghost ? (
-            <Text color={userTone.body} dimColor>
-              {ghost}
-            </Text>
-          ) : null}
+            <>
+              <Text color={userTone.body}>
+                {caret.before}
+                {caret.after}
+              </Text>
+              <Text color={userTone.body} dimColor>
+                {ghost}
+              </Text>
+              <Text color={userTone.body} inverse>
+                {" "}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text color={userTone.body}>{caret.before}</Text>
+              <Text color={userTone.body} inverse>
+                {caret.caret}
+              </Text>
+              <Text color={userTone.body}>{caret.after}</Text>
+            </>
+          )}
         </Text>
       </Box>
       {suggestions.length > 0 ? (
