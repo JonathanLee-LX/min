@@ -182,12 +182,18 @@ function paintOne(
     streaming: line.streaming === true,
   });
   const rows = paintBlocks(line, blocks, gutter, blank, bodyWidth);
-  for (const row of rows) fillRowWidth(row, bodyWidth);
+  const fillBackground = Boolean(theme.roles[line.kind]?.background);
+  for (const row of rows) fillRowWidth(row, bodyWidth, fillBackground);
   if (!line.streaming) return rows;
-  return appendCaret(rows, line, gutter, blank, bodyWidth);
+  return appendCaret(rows, line, gutter, blank, bodyWidth, fillBackground);
 }
 
-function fillRowWidth(row: PaintedRow, bodyWidth: number): void {
+/** Pad a row to full width only when a role background needs a solid fill. */
+function fillRowWidth(row: PaintedRow, bodyWidth: number, fillBackground: boolean): void {
+  if (!fillBackground) {
+    row.text = row.gutter + row.body;
+    return;
+  }
   const used = displayWidth(row.body);
   if (used >= bodyWidth) {
     row.text = row.gutter + row.body;
@@ -286,6 +292,7 @@ function appendCaret(
   gutter: string,
   blank: string,
   bodyWidth: number,
+  fillBackground: boolean,
 ): PaintedRow[] {
   const caret: PaintedSpan = { text: "▍", tone: "plain", bold: false };
   const last = rows[rows.length - 1];
@@ -295,7 +302,7 @@ function appendCaret(
     if (displayWidth(last.body) + displayWidth(caret.text) <= bodyWidth) {
       last.spans.push(caret);
       last.body += caret.text;
-      fillRowWidth(last, bodyWidth);
+      fillRowWidth(last, bodyWidth, fillBackground);
       return rows;
     }
   }
@@ -309,7 +316,7 @@ function appendCaret(
     text: prefix + caret.text,
     spans: [caret],
   };
-  fillRowWidth(row, bodyWidth);
+  fillRowWidth(row, bodyWidth, fillBackground);
   rows.push(row);
   return rows;
 }

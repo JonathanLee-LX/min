@@ -11,11 +11,13 @@ import {
 } from "./theme.js";
 
 describe("theme", () => {
-  it("resolves high-contrast role colors from the active theme", () => {
-    expect(toneFor("user").background).toBe("#a6e3a1");
-    expect(toneFor("user").body).toBe("#11111b");
-    expect(toneFor("assistant").background).toBe("#89b4fa");
-    expect(toneFor("assistant").body).toBe("#11111b");
+  it("resolves accent foregrounds without default block fills", () => {
+    expect(toneFor("user").background).toBeUndefined();
+    expect(toneFor("user").body).toBe("#a6e3a1");
+    expect(toneFor("user").label).toBe("#a6e3a1");
+    expect(toneFor("assistant").background).toBeUndefined();
+    expect(toneFor("assistant").label).toBe("#89b4fa");
+    expect(toneFor("assistant").body).toBe("#cdd6f4");
     const custom = createTheme({
       id: "ink",
       name: "Ink",
@@ -52,17 +54,13 @@ describe("theme", () => {
     });
     expect(themed.frames.chatBar).toBe("> ");
     expect(themed.roles.user.background).toBe("cyan");
-    expect(themed.roles.assistant.background).toBe("#89b4fa");
+    expect(themed.roles.assistant.background).toBeUndefined();
   });
 
-  it("keeps dark body text on soft user/assistant fills for contrast", () => {
-    const user = defaultTheme.roles.user;
-    const assistant = defaultTheme.roles.assistant;
-    expect(user.background).toMatch(/^#/);
-    expect(assistant.background).toMatch(/^#/);
-    expect(user.body).toBe("#11111b");
-    expect(assistant.body).toBe("#11111b");
-    expect(user.body).not.toBe(user.background);
-    expect(assistant.body).not.toBe(assistant.background);
+  it("keeps default user/assistant roles free of background fills", () => {
+    expect(defaultTheme.roles.user.background).toBeUndefined();
+    expect(defaultTheme.roles.assistant.background).toBeUndefined();
+    expect(defaultTheme.roles.user.body).toMatch(/^#/);
+    expect(defaultTheme.roles.assistant.body).toMatch(/^#/);
   });
 });

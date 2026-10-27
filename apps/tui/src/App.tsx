@@ -7,7 +7,7 @@ import {
 } from "@min-agent/client";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 import {
   TUI_HELP,
@@ -36,13 +36,12 @@ import {
   activityLabel,
   createPaintCache,
   frameChar,
-  padToWidth,
   toneFor,
   type TranscriptSource,
 } from "./paint.js";
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer, permissionLines } from "./permission-view.js";
-import { displayWidth, wrapText } from "./text.js";
+import { wrapText } from "./text.js";
 import { resolveMinConfig } from "@min-agent/config";
 import { themeFromConfig } from "./theme.js";
 import {
@@ -95,7 +94,6 @@ export function App({ args }: { args: TuiArgs }) {
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
   const [completeIndex, setCompleteIndex] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
-  const [seenMeasure, setSeenMeasure] = useState({ rows: 0, columns: 0 });
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
   const pumpRef = useRef<StreamPump | null>(null);
@@ -112,6 +110,8 @@ export function App({ args }: { args: TuiArgs }) {
     paintCache.current = createPaintCache(theme);
   }
   const viewRef = useRef({ total: 0, height: 1 });
+  /** Track painted row baseline without setState-during-render (that flickered). */
+  const seenMeasureRef = useRef({ rows: 0, columns: 0 });
   const inflightTools = useRef(new Map<string, string>());
   const activityRef = useRef<ReturnType<typeof activityFor>>(null);
 
@@ -540,7 +540,8 @@ export function App({ args }: { args: TuiArgs }) {
   const ghost = commandGhost(editor.text, selectedComplete);
   const chatBar = theme.frames.chatBar;
   const composer = `${chatBar}${caret.before}${caret.caret}${caret.after}${ghost}`;
-  const inputRows = wrapText(composer, innerWidth).length;
+  /** Composer reserves at least two terminal rows (2× line height). */
+  const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
   const suggestRows = suggestions.length > 0 ? 1 : 0;
   const permText = pendingPerm ? permissionLines(pendingPerm) : [];
   const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
@@ -550,30 +551,29 @@ export function App({ args }: { args: TuiArgs }) {
   const reserved =
     2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + suggestRows + footerRows;
   const userTone = toneFor("user", theme);
-  const composerBody = `${caret.before}${caret.caret}${caret.after}${ghost}`;
-  const composerPad = padToWidth(
-    composerBody,
-    Math.max(1, innerWidth - displayWidth(chatBar)),
-  ).slice(composerBody.length);
   const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth, {
     toolOutputExpanded,
   });
   const rowCount = painted.length;
 
-  if (client) {
-    const columnsChanged = innerWidth !== seenMeasure.columns;
-    const delta = rowCount - seenMeasure.rows;
-    const baselineChanged = rowCount !== seenMeasure.rows || columnsChanged;
+  useLayoutEffect(() => {
+    if (!client) return;
+    const seen = seenMeasureRef.current;
+    const columnsChanged = innerWidth !== seen.columns;
+    const delta = rowCount - seen.rows;
+    const baselineChanged = rowCount !== seen.rows || columnsChanged;
     let nextScroll = scroll;
     if (baselineChanged && !columnsChanged && scroll > 0 && delta !== 0) {
       nextScroll = Math.max(0, scroll + delta);
     }
     const maxScroll = Math.max(0, rowCount - logHeight);
     if (nextScroll > maxScroll) nextScroll = maxScroll;
-    if (baselineChanged) setSeenMeasure({ rows: rowCount, columns: innerWidth });
+    if (baselineChanged) {
+      seenMeasureRef.current = { rows: rowCount, columns: innerWidth };
+    }
     if (nextScroll !== scroll) setScroll(nextScroll);
-  }
+  }, [client, rowCount, innerWidth, logHeight, scroll]);
 
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(painted, logHeight, scroll);
@@ -623,9 +623,14 @@ export function App({ args }: { args: TuiArgs }) {
           }
           return (
             <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
-              <Text wrap="truncate" backgroundColor={tone.background}>
+              <Text wrap="truncate" backgroundColor={tone.background ?? undefined}>
                 {row.gutter ? (
-                  <Text bold={row.lead} color={tone.label} dimColor={tone.dimLabel} backgroundColor={tone.background}>
+                  <Text
+                    bold={row.lead}
+                    color={tone.label}
+                    dimColor={tone.dimLabel}
+                    backgroundColor={tone.background ?? undefined}
+                  >
                     {row.gutter}
                   </Text>
                 ) : null}
@@ -634,7 +639,7 @@ export function App({ args }: { args: TuiArgs }) {
                     key={spanIndex}
                     bold={span.bold}
                     color={tone.body}
-                    backgroundColor={tone.background}
+                    backgroundColor={tone.background ?? undefined}
                     dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}
                   >
                     {span.text}
@@ -667,28 +672,17 @@ export function App({ args }: { args: TuiArgs }) {
         </Box>
       ) : null}
 
-      <Box marginTop={1} width={innerWidth}>
-        <Text wrap="truncate" backgroundColor={userTone.background}>
-          <Text color={userTone.label} backgroundColor={userTone.background}>
-            {chatBar}
-          </Text>
-          <Text color={userTone.body} backgroundColor={userTone.background}>
-            {caret.before}
-          </Text>
-          <Text color={userTone.body} backgroundColor={userTone.background} inverse>
+      <Box marginTop={1} width={innerWidth} height={inputRows} flexShrink={0}>
+        <Text wrap="truncate">
+          <Text color={userTone.label}>{chatBar}</Text>
+          <Text color={userTone.body}>{caret.before}</Text>
+          <Text color={userTone.body} inverse>
             {caret.caret}
           </Text>
-          <Text color={userTone.body} backgroundColor={userTone.background}>
-            {caret.after}
-          </Text>
+          <Text color={userTone.body}>{caret.after}</Text>
           {ghost ? (
-            <Text color={userTone.body} backgroundColor={userTone.background} dimColor>
+            <Text color={userTone.body} dimColor>
               {ghost}
-            </Text>
-          ) : null}
-          {composerPad ? (
-            <Text color={userTone.body} backgroundColor={userTone.background}>
-              {composerPad}
             </Text>
           ) : null}
         </Text>

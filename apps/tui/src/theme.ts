@@ -65,13 +65,12 @@ export type ThemeOverrides = {
 };
 
 /**
- * Built-in palette inspired by Catppuccin Mocha: soft accent fills with
- * near-black body text so user/assistant blocks stay readable on both dark
- * and light terminals (ANSI named green/blue + black/white often wash out).
+ * Built-in palette inspired by Catppuccin Mocha: accent foregrounds on the
+ * terminal's own background (no chat-block fills). Overrides may still set
+ * `background` when a host wants filled rows.
  * https://github.com/catppuccin/catppuccin
  */
 const mocha = {
-  crust: "#11111b",
   text: "#cdd6f4",
   subtext: "#a6adc8",
   green: "#a6e3a1",
@@ -84,22 +83,20 @@ const mocha = {
   sky: "#89dceb",
 } as const;
 
-/** Built-in Catppuccin-inspired high-contrast blocks. */
+/** Built-in Catppuccin-inspired accents without block backgrounds. */
 export const defaultTheme: TuiTheme = {
   id: "default",
   name: "Default",
   roles: {
     user: {
-      label: mocha.crust,
-      body: mocha.crust,
-      background: mocha.green,
+      label: mocha.green,
+      body: mocha.green,
       dimLabel: false,
       dimBody: false,
     },
     assistant: {
-      label: mocha.crust,
-      body: mocha.crust,
-      background: mocha.blue,
+      label: mocha.blue,
+      body: mocha.text,
       dimLabel: false,
       dimBody: false,
     },

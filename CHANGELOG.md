@@ -4,7 +4,7 @@
 
 TUI and release polish on top of the first alpha.
 
-- TUI default theme uses a Catppuccin Mocha-inspired palette (soft green/blue fills with near-black text) so chat blocks stay readable.
+- TUI default theme uses a Catppuccin Mocha-inspired palette (green/blue accents, no block background fills).
 - Tool output collapses to a one-line summary by default; **Ctrl+O** expands or collapses all tool results.
 - Packed `@min-agent/min` sets `repository.url` for npm provenance on public GitHub publishes.
 - Architecture/contract tests lock the dependency DAG, `RunEvent` / `ClientEvent` surfaces, session projection, and permission/config sidecars.
@@ -23,7 +23,7 @@ The harness contract for this alpha:
 
 `[a]lways` writes a remembered pattern to `<cwd>/.min/permissions.json`. `--auto` keeps those grants in memory for the process only.
 
-Known limits: `createRuntime` does not connect MCP servers. A remembered bash approval stores the command's first token, and shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, and mermaid diagrams. Chat turns and the composer are color blocks without you/min labels; tool output nests under each call. Slash commands complete with Tab. Shared preferences go through `@min-agent/config` (user/project JSON, env, flags); TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
+Known limits: `createRuntime` does not connect MCP servers. A remembered bash approval stores the command's first token, and shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, and mermaid diagrams. Chat turns and the composer use accent foregrounds without block fills; tool output nests under each call. Slash commands complete with Tab. Shared preferences go through `@min-agent/config` (user/project JSON, env, flags); TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
 
 Publishing is a GitHub Actions workflow. Push a `v<version>` tag that matches the root `package.json` version. The workflow builds the repo and publishes `@min-agent/min` only. The repository secret is `NPM_TOKEN` and must be an Automation token (or granular with 2FA bypass); a classic Publish token hits `EOTP` under account 2FA. A version already on npm is skipped, so the same tag can be re-run. Dist-tags are `alpha`, `beta`, `rc`, `next`, or `latest`.
 
