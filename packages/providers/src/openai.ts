@@ -8,6 +8,7 @@ import type {
   ResponseOutputItem,
   Tool,
 } from "openai/resources/responses/responses";
+import type { Reasoning } from "openai/resources/shared";
 import type { ModelProvider } from "@min-agent/core";
 import type {
   CompletionChunk,
@@ -61,7 +62,8 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
           ...(req.tools?.length
             ? { tools: toOpenAITools(req.tools) }
             : {}),
-          ...(reasoning ? { reasoning } : {}),
+          // DeepSeek accepts effort values beyond the OpenAI SDK union (e.g. none/max).
+          ...(reasoning ? { reasoning: reasoning as Reasoning } : {}),
           max_output_tokens: req.maxTokens ?? defaultMaxTokens,
           store: false,
         },
@@ -82,7 +84,7 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
           ...(req.tools?.length
             ? { tools: toOpenAITools(req.tools) }
             : {}),
-          ...(reasoning ? { reasoning } : {}),
+          ...(reasoning ? { reasoning: reasoning as Reasoning } : {}),
           max_output_tokens: req.maxTokens ?? defaultMaxTokens,
           store: false,
           stream: true,
