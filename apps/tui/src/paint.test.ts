@@ -40,6 +40,18 @@ describe("paintTranscript", () => {
     expect(layout.total).toBe(rows.length);
   });
 
+  it("paints thinking without a think chrome prefix", () => {
+    const rows = paintTranscript(
+      [{ key: "th", kind: "thinking", text: "consider the options carefully" }],
+      40,
+    );
+    expect(rows[0]?.kind).toBe("thinking");
+    expect(rows[0]?.gutter).toBe("  ");
+    expect(rows[0]?.gutter).not.toMatch(/think/i);
+    expect(rows[0]?.body.trimEnd()).toBe("consider the options carefully");
+    expect(rows.map((row) => row.text).join("")).not.toMatch(/think/i);
+  });
+
   it("nests tool output under the call and collapses it by default", () => {
     const rows = paintTranscript(
       [

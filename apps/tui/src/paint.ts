@@ -20,7 +20,6 @@ export interface PaintOptions {
 }
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
-  thinking: "think",
   error: "err",
   notice: "note",
   sys: "sys",
@@ -72,6 +71,12 @@ function frameFor(
     const gutter = frames.toolMarker;
     const width = displayWidth(gutter);
     return { gutter, blank: " ".repeat(width), bodyWidth: Math.max(1, columns - width) };
+  }
+  // Reasoning stream: quiet indent, no "think" chrome label.
+  if (kind === "thinking") {
+    const gutter = "  ";
+    const width = displayWidth(gutter);
+    return { gutter, blank: gutter, bodyWidth: Math.max(1, columns - width) };
   }
   const chromeWidth = Math.max(1, frames.chromeWidth);
   const label = (CHROME_LABELS[kind] ?? "·").padEnd(chromeWidth, " ");
