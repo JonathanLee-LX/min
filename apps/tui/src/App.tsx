@@ -10,6 +10,7 @@ import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
+import { minBannerLines, minBannerRows } from "./banner.js";
 import {
   TUI_HELP,
   applyCommandCompletion,
@@ -625,8 +626,11 @@ export function App({ args }: { args: TuiArgs }) {
     (count, line) => count + wrapText(line, innerWidth).length,
     0,
   );
+  const bannerRows = minBannerRows(innerWidth);
+  /** Banner + session meta + transcript top margin. */
+  const headerRows = bannerRows + 1 + 1;
   const reserved =
-    2 +
+    headerRows +
     activityRows +
     (permRows > 0 ? permRows + 1 : 0) +
     1 +
@@ -684,16 +688,20 @@ export function App({ args }: { args: TuiArgs }) {
       ? ` · ↑${layout.hiddenAbove} ↓${layout.hiddenBelow}`
       : "";
 
+  const banner = minBannerLines(innerWidth);
+
   return (
     <Box flexDirection="column" paddingX={1} width={columns} height={termRows}>
-      <Text wrap="truncate">
-        <Text bold color={theme.chrome.brand}>
-          min
+      <Box flexDirection="column" flexShrink={0}>
+        {banner.map((line, index) => (
+          <Text key={`banner:${index}`} bold color={theme.chrome.brand} wrap="truncate">
+            {line}
+          </Text>
+        ))}
+        <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+          {`${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
         </Text>
-        <Text dimColor={theme.chrome.statusDim}>
-          {` · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
-        </Text>
-      </Text>
+      </Box>
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
         {layout.visible.map((row) => {
