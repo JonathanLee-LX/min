@@ -8,9 +8,11 @@ A minimal, extensible TypeScript **agent harness**. Core packages, `@min-agent/c
 - **Wide edge**: Skills, MCP, and workspace tools are composed by the host and passed into `createAgent`. The runner does not own a plugin bus.
 - **Dual protocols**: Anthropic Messages and OpenAI Responses adapters — vendor formats never leak into the loop.
 
-## 0.1.0-alpha.0
+## 0.1.0-alpha.1
 
-First alpha. npm gets one package, `@min-agent/min`, tagged `alpha`. That tarball is the full build: `min`, `min-tui`, and `min-web`, plus the workspace modules they run. Those modules are not published as their own packages.
+Current alpha. npm gets one package, `@min-agent/min`, tagged `alpha`. That tarball is the full build: `min`, `min-tui`, and `min-web`, plus the workspace modules they run. Those modules are not published as their own packages.
+
+Since `0.1.0-alpha.0`: Catppuccin-inspired TUI default colors, tool output collapsed by default (**Ctrl+O** to expand), and provenance-ready `repository.url` on the packed package.
 
 ```bash
 npm install -g @min-agent/min@alpha

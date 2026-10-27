@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/tui",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Terminal UI for the min agent harness",
   "type": "module",

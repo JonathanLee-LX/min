@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/session",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Session and context budget management for the min agent harness",
   "type": "module",

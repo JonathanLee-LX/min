@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha.1
+
+TUI and release polish on top of the first alpha.
+
+- TUI default theme uses a Catppuccin Mocha-inspired palette (soft green/blue fills with near-black text) so chat blocks stay readable.
+- Tool output collapses to a one-line summary by default; **Ctrl+O** expands or collapses all tool results.
+- Packed `@min-agent/min` sets `repository.url` for npm provenance on public GitHub publishes.
+- Architecture/contract tests lock the dependency DAG, `RunEvent` / `ClientEvent` surfaces, session projection, and permission/config sidecars.
+
+Install: `npm install -g @min-agent/min@alpha`
+
 ## 0.1.0-alpha.0
 
 First alpha. npm publishes one package, `@min-agent/min`, with dist-tag `alpha`. The tarball is the full monorepo build (`min`, `min-tui`, `min-web`, and the workspace dists they use). Workspace packages stay private and are not published separately.
