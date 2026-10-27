@@ -64,55 +64,80 @@ export type ThemeOverrides = {
   chrome?: Partial<ChromeStyle>;
 };
 
-/** Built-in green / blue blocks. */
+/**
+ * Built-in palette inspired by Catppuccin Mocha: soft accent fills with
+ * near-black body text so user/assistant blocks stay readable on both dark
+ * and light terminals (ANSI named green/blue + black/white often wash out).
+ * https://github.com/catppuccin/catppuccin
+ */
+const mocha = {
+  crust: "#11111b",
+  text: "#cdd6f4",
+  subtext: "#a6adc8",
+  green: "#a6e3a1",
+  blue: "#89b4fa",
+  yellow: "#f9e2af",
+  peach: "#fab387",
+  red: "#f38ba8",
+  mauve: "#cba6f7",
+  teal: "#94e2d5",
+  sky: "#89dceb",
+} as const;
+
+/** Built-in Catppuccin-inspired high-contrast blocks. */
 export const defaultTheme: TuiTheme = {
   id: "default",
   name: "Default",
   roles: {
     user: {
-      label: "black",
-      body: "black",
-      background: "green",
+      label: mocha.crust,
+      body: mocha.crust,
+      background: mocha.green,
       dimLabel: false,
       dimBody: false,
     },
     assistant: {
-      label: "white",
-      body: "white",
-      background: "blue",
+      label: mocha.crust,
+      body: mocha.crust,
+      background: mocha.blue,
       dimLabel: false,
       dimBody: false,
     },
     tool: {
-      label: "yellow",
-      body: "yellow",
+      label: mocha.yellow,
+      body: mocha.yellow,
       dimLabel: false,
       dimBody: false,
     },
     "tool-result": {
-      body: "white",
+      body: mocha.subtext,
       dimLabel: true,
       dimBody: false,
     },
     "tool-error": {
-      label: "red",
-      body: "red",
+      label: mocha.red,
+      body: mocha.red,
       dimLabel: false,
       dimBody: false,
     },
     error: {
-      label: "red",
-      body: "red",
+      label: mocha.red,
+      body: mocha.red,
       dimLabel: false,
       dimBody: false,
     },
     notice: {
-      label: "yellow",
-      body: "yellow",
+      label: mocha.peach,
+      body: mocha.peach,
       dimLabel: false,
       dimBody: false,
     },
-    sys: { dimLabel: true, dimBody: true },
+    sys: {
+      label: mocha.subtext,
+      body: mocha.subtext,
+      dimLabel: true,
+      dimBody: true,
+    },
     gap: { dimLabel: true, dimBody: true },
   },
   frames: {
@@ -122,17 +147,17 @@ export const defaultTheme: TuiTheme = {
     chromeWidth: 5,
   },
   activity: {
-    thinking: "magenta",
-    writing: "cyan",
-    tool: "cyan",
-    continuing: "yellow",
-    approval: "yellow",
+    thinking: mocha.mauve,
+    writing: mocha.teal,
+    tool: mocha.sky,
+    continuing: mocha.yellow,
+    approval: mocha.peach,
   },
   chrome: {
-    brand: "white",
-    error: "red",
-    permission: "yellow",
-    completeSelected: "green",
+    brand: mocha.text,
+    error: mocha.red,
+    permission: mocha.peach,
+    completeSelected: mocha.green,
     statusDim: true,
   },
 };

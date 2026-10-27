@@ -11,9 +11,11 @@ import {
 } from "./theme.js";
 
 describe("theme", () => {
-  it("resolves role colors from the active theme", () => {
-    expect(toneFor("user").background).toBe("green");
-    expect(toneFor("assistant").background).toBe("blue");
+  it("resolves high-contrast role colors from the active theme", () => {
+    expect(toneFor("user").background).toBe("#a6e3a1");
+    expect(toneFor("user").body).toBe("#11111b");
+    expect(toneFor("assistant").background).toBe("#89b4fa");
+    expect(toneFor("assistant").body).toBe("#11111b");
     const custom = createTheme({
       id: "ink",
       name: "Ink",
@@ -50,6 +52,17 @@ describe("theme", () => {
     });
     expect(themed.frames.chatBar).toBe("> ");
     expect(themed.roles.user.background).toBe("cyan");
-    expect(themed.roles.assistant.background).toBe("blue");
+    expect(themed.roles.assistant.background).toBe("#89b4fa");
+  });
+
+  it("keeps dark body text on soft user/assistant fills for contrast", () => {
+    const user = defaultTheme.roles.user;
+    const assistant = defaultTheme.roles.assistant;
+    expect(user.background).toMatch(/^#/);
+    expect(assistant.background).toMatch(/^#/);
+    expect(user.body).toBe("#11111b");
+    expect(assistant.body).toBe("#11111b");
+    expect(user.body).not.toBe(user.background);
+    expect(assistant.body).not.toBe(assistant.background);
   });
 });
