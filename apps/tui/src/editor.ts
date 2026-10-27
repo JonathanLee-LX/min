@@ -46,6 +46,7 @@ export type InputAction =
   | { type: "submit" }
   | { type: "complete" }
   | { type: "scroll"; direction: "up" | "down" }
+  | { type: "toggle-tool-output" }
   | { type: "interrupt" }
   | { type: "ignore" };
 
@@ -121,6 +122,7 @@ export function editorCaret(state: EditorState): {
 
 export function inputAction(input: string, key: InputKey): InputAction {
   if (key.ctrl && input === "c") return { type: "interrupt" };
+  if (key.ctrl && input === "o") return { type: "toggle-tool-output" };
   if (key.pageUp) return { type: "scroll", direction: "up" };
   if (key.pageDown) return { type: "scroll", direction: "down" };
   if (key.return && (key.meta || key.shift)) return { type: "edit", op: { op: "newline" } };

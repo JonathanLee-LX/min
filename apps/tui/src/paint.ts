@@ -7,11 +7,17 @@ import {
   type SpanTone,
 } from "./render.js";
 import { defaultTheme, type TuiTheme } from "./theme.js";
+import { foldToolOutput } from "./tool-fold.js";
 import type { LogKind } from "./transcript.js";
 import { displayWidth, wrapText } from "./text.js";
 
 export type { LineTone } from "./theme.js";
 export { toneFor } from "./theme.js";
+
+export interface PaintOptions {
+  /** When false (default), multi-line tool output collapses to one summary line. */
+  toolOutputExpanded?: boolean;
+}
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
   error: "err",
@@ -100,9 +106,12 @@ export function paintTranscript(
   lines: readonly TranscriptSource[],
   columns: number,
   theme: TuiTheme = defaultTheme,
+  options: PaintOptions = {},
 ): PaintedRow[] {
   const rows: PaintedRow[] = [];
-  for (const line of separateTurns(lines)) rows.push(...paintOne(line, columns, theme));
+  for (const line of separateTurns(lines)) {
+    rows.push(...paintOne(line, columns, theme, options));
+  }
   return rows;
 }
 
@@ -111,22 +120,27 @@ export function paintTranscript(
  * growing reply, not the history above it.
  */
 export function createPaintCache(theme: TuiTheme = defaultTheme): {
-  paint(lines: readonly TranscriptSource[], columns: number): PaintedRow[];
+  paint(
+    lines: readonly TranscriptSource[],
+    columns: number,
+    options?: PaintOptions,
+  ): PaintedRow[];
 } {
   const cache = new Map<string, { sig: string; rows: PaintedRow[] }>();
   return {
-    paint(lines, columns) {
+    paint(lines, columns, options = {}) {
+      const expanded = options.toolOutputExpanded === true ? "1" : "0";
       const seen = new Set<string>();
       const rows: PaintedRow[] = [];
       for (const line of separateTurns(lines)) {
         seen.add(line.key);
-        const sig = `${theme.id}\0${columns}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const sig = `${theme.id}\0${columns}\0${expanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
         const cached = cache.get(line.key);
         if (cached?.sig === sig) {
           rows.push(...cached.rows);
           continue;
         }
-        const painted = paintOne(line, columns, theme);
+        const painted = paintOne(line, columns, theme, options);
         cache.set(line.key, { sig, rows: painted });
         rows.push(...painted);
       }
@@ -138,7 +152,12 @@ export function createPaintCache(theme: TuiTheme = defaultTheme): {
   };
 }
 
-function paintOne(line: TranscriptSource, columns: number, theme: TuiTheme): PaintedRow[] {
+function paintOne(
+  line: TranscriptSource,
+  columns: number,
+  theme: TuiTheme,
+  options: PaintOptions = {},
+): PaintedRow[] {
   if (line.kind === "gap") {
     return [
       {
@@ -153,9 +172,13 @@ function paintOne(line: TranscriptSource, columns: number, theme: TuiTheme): Pai
     ];
   }
   const { gutter, blank, bodyWidth } = frameFor(line.kind, columns, theme);
+  const sourceText =
+    line.kind === "tool-result" || line.kind === "tool-error"
+      ? foldToolOutput(line.text, options.toolOutputExpanded === true)
+      : line.text;
   const blocks = renderContent({
     role: roleFor(line.kind),
-    text: line.text,
+    text: sourceText,
     streaming: line.streaming === true,
   });
   const rows = paintBlocks(line, blocks, gutter, blank, bodyWidth);

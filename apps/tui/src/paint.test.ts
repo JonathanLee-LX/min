@@ -34,19 +34,36 @@ describe("paintTranscript", () => {
     expect(layout.total).toBe(rows.length);
   });
 
-  it("nests tool output under the call so the body stays visible", () => {
+  it("nests tool output under the call and collapses it by default", () => {
+    const rows = paintTranscript(
+      [
+        { key: "t", kind: "tool", text: "bash  ls" },
+        { key: "r", kind: "tool-result", text: "apps\npackages\nREADME.md" },
+      ],
+      80,
+    );
+    expect(rows[0]).toMatchObject({ kind: "tool", gutter: "▸ ", body: expect.stringContaining("bash  ls") });
+    const output = rows.filter((row) => row.kind === "tool-result");
+    expect(output).toHaveLength(1);
+    expect(output[0]?.body.trimEnd()).toContain("apps");
+    expect(output[0]?.body.trimEnd()).toContain("3 lines");
+    expect(output[0]?.body.trimEnd()).toContain("Ctrl+O");
+    expect(output[0]?.gutter).toBe("  │ ");
+  });
+
+  it("expands tool output when toolOutputExpanded is set", () => {
     const rows = paintTranscript(
       [
         { key: "t", kind: "tool", text: "bash  ls" },
         { key: "r", kind: "tool-result", text: "apps\npackages\nREADME.md" },
       ],
       40,
+      undefined,
+      { toolOutputExpanded: true },
     );
-    expect(rows[0]).toMatchObject({ kind: "tool", gutter: "▸ ", body: expect.stringContaining("bash  ls") });
     const output = rows.filter((row) => row.kind === "tool-result");
     expect(output.map((row) => row.body.trimEnd())).toEqual(["apps", "packages", "README.md"]);
     expect(output.every((row) => row.gutter === "  │ ")).toBe(true);
-    expect(output.every((row) => !row.gutter.includes("ok"))).toBe(true);
   });
 
   it("keeps a long answer by wrapping instead of dropping the tail", () => {

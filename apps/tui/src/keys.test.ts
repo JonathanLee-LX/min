@@ -22,6 +22,7 @@ describe("actionFromChunk", () => {
     expect(actionFromChunk("\x1b[5~")).toEqual({ type: "scroll", direction: "up" });
     expect(actionFromChunk("\x1b[6~")).toEqual({ type: "scroll", direction: "down" });
     expect(actionFromChunk("\x03")).toEqual({ type: "interrupt" });
+    expect(actionFromChunk("\x0f")).toEqual({ type: "toggle-tool-output" });
     expect(actionFromChunk("你好")).toEqual({ type: "edit", op: { op: "insert", text: "你好" } });
     expect(actionFromChunk("\x1b[200~line\r\nnext\x1b[201~")).toEqual({
       type: "edit",

@@ -123,6 +123,7 @@ describe("inputAction", () => {
     expect(inputAction("", key({ pageUp: true }))).toEqual({ type: "scroll", direction: "up" });
     expect(inputAction("", key({ pageDown: true }))).toEqual({ type: "scroll", direction: "down" });
     expect(inputAction("c", key({ ctrl: true }))).toEqual({ type: "interrupt" });
+    expect(inputAction("o", key({ ctrl: true }))).toEqual({ type: "toggle-tool-output" });
     expect(inputAction("w", key({ ctrl: true }))).toEqual({
       type: "edit",
       op: { op: "backspaceWord" },

@@ -90,6 +90,8 @@ export function App({ args }: { args: TuiArgs }) {
   const [continuing, setContinuing] = useState(false);
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [scroll, setScroll] = useState(0);
+  /** Tool results start collapsed; Ctrl+O toggles. */
+  const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
   const [completeIndex, setCompleteIndex] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [seenMeasure, setSeenMeasure] = useState({ rows: 0, columns: 0 });
@@ -443,6 +445,10 @@ export function App({ args }: { args: TuiArgs }) {
       });
       return;
     }
+    if (action.type === "toggle-tool-output") {
+      setToolOutputExpanded((current) => !current);
+      return;
+    }
     if (pendingPerm) {
       const answer = key.ctrl || key.meta || key.return ? null : permissionAnswer(input);
       if (answer && clientRef.current) {
@@ -535,7 +541,7 @@ export function App({ args }: { args: TuiArgs }) {
   const suggestRows = suggestions.length > 0 ? 1 : 0;
   const permText = pendingPerm ? permissionLines(pendingPerm) : [];
   const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
-  const footer = footerLines(busy, pendingPerm !== null);
+  const footer = footerLines(busy, pendingPerm !== null, toolOutputExpanded);
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const activityRows = activity ? 1 : 0;
   const reserved =
@@ -547,7 +553,9 @@ export function App({ args }: { args: TuiArgs }) {
     Math.max(1, innerWidth - displayWidth(chatBar)),
   ).slice(composerBody.length);
   const logHeight = Math.max(1, termRows - reserved);
-  const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth);
+  const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth, {
+    toolOutputExpanded,
+  });
   const rowCount = painted.length;
 
   if (client) {
@@ -716,15 +724,16 @@ function toDisplayLines(logs: readonly LogLine[], stream: string): TranscriptSou
   return lines;
 }
 
-function footerLines(busy: boolean, pending: boolean): string[] {
+function footerLines(busy: boolean, pending: boolean, toolExpanded: boolean): string[] {
   if (pending) {
     return [
       "y once · n deny · a remember · no answer denies in 2 minutes",
       "PgUp/PgDn scroll · Ctrl+C abort",
     ];
   }
+  const toolHint = toolExpanded ? "Ctrl+O collapse tools" : "Ctrl+O expand tools";
   return [
-    `Enter ${busy ? "queues" : "sends"} · Tab completes /cmd · Alt+Enter newline · ↑↓ history · PgUp/PgDn scroll · Ctrl+C ${busy ? "abort" : "quit"}`,
+    `Enter ${busy ? "queues" : "sends"} · Tab completes /cmd · Alt+Enter newline · ↑↓ history · PgUp/PgDn scroll · ${toolHint} · Ctrl+C ${busy ? "abort" : "quit"}`,
     "/help /session /sessions /open /new /compact /reset /queue /dense /exit",
   ];
 }

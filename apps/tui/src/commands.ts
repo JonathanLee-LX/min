@@ -64,6 +64,7 @@ Keys:
   Alt+Enter, Ctrl+J  insert a newline
   Up/Down            previous line, or input history at the ends
   PageUp/PageDown    scroll the transcript
+  Ctrl+O             expand / collapse tool output
   Ctrl+C             abort the run, or quit when idle
   Ctrl+A / Ctrl+E    start / end of line
   Ctrl+W / Ctrl+U    delete previous word / to line start`;

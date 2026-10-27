@@ -27,5 +27,6 @@ describe("tui parseArgs", () => {
     expect(help).toContain("/open <id>");
     expect(help).toContain("Alt+Enter");
     expect(help).toContain("PageUp/PageDown");
+    expect(help).toContain("Ctrl+O");
   });
 });
