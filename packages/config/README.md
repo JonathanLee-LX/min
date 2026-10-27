@@ -28,7 +28,7 @@ Missing files are fine. Each file is a **sparse** document: only set what you ov
   "model": "deepseek-flash",
   "runtime": {
     "maxTurns": 40,
-    "maxContextTokens": 32000,
+    "maxContextTokens": 256000,
     "contextStrategy": "hybrid",
     "sessionDir": null
   },

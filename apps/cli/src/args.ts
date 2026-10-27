@@ -1,3 +1,5 @@
+import { DEFAULT_MAX_CONTEXT_TOKENS } from "@min-agent/session";
+
 export interface CliArgs {
   help: boolean;
   repl: boolean;
@@ -63,7 +65,9 @@ export function parseArgs(argv: string[]): CliArgs {
     addRoots: [],
     noSessionStore: false,
     listSessions: false,
-    maxContextTokens: Number(process.env.MIN_MAX_CONTEXT_TOKENS ?? 32_000),
+    maxContextTokens: Number(
+      process.env.MIN_MAX_CONTEXT_TOKENS ?? DEFAULT_MAX_CONTEXT_TOKENS,
+    ),
     maxTurns: Number(process.env.MIN_MAX_TURNS ?? 40),
     contextStrategy: parseStrategy(process.env.MIN_CONTEXT_STRATEGY),
   };
@@ -188,7 +192,7 @@ Options:
   --session-dir <dir> session store directory (default: <cwd>/.min/sessions)
   --no-session-store  keep conversation only in memory
   --list-sessions     list sessions in --session-dir and exit
-  --max-context-tokens <n>  model view budget (default: 32000)
+  --max-context-tokens <n>  model view budget (default: 256000)
   --max-user-turns <n>      keep at most N trailing user turns in the view
   --max-turns <n>           max model completes per user message (default: 40)
   --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|hybrid

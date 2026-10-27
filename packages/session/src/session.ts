@@ -38,7 +38,8 @@ import {
   type SessionStore,
 } from "./store.js";
 
-export const DEFAULT_MAX_CONTEXT_TOKENS = 32_000;
+export { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
+import { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
 
 export interface CreateSessionOptions {
   agent: Agent;

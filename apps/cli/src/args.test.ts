@@ -21,6 +21,7 @@ describe("parseArgs", () => {
     expect(parseArgs(["-i"]).repl).toBe(true);
     // Default left unset so Runtime picks hybrid (tools) / trim (no-tools).
     expect(parseArgs(["-i"]).contextStrategy).toBeUndefined();
+    expect(parseArgs(["-i"]).maxContextTokens).toBe(256_000);
     expect(
       parseArgs([
         "-y",

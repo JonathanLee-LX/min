@@ -12,6 +12,7 @@ import {
   type ContextAssembler,
   type SessionExtension,
 } from "./extension.js";
+import { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
 import {
   createContextStash,
   type ContextStash,
@@ -335,7 +336,7 @@ function budgetFromPartial(
   stash?: ContextStash,
 ): ContextBudget {
   return {
-    maxContextTokens: partial?.maxContextTokens ?? 32_000,
+    maxContextTokens: partial?.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     reservedOutputTokens: partial?.reservedOutputTokens ?? 1024,
     maxUserTurns: partial?.maxUserTurns,
     headTurns: partial?.headTurns,
