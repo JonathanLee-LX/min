@@ -13,11 +13,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { TuiArgs } from "./args.js";
 import { minBannerLines, minBannerRows } from "./banner.js";
 import {
+  TUI_COMMANDS,
   TUI_HELP,
   applyCommandCompletion,
-  commandGhost,
   commandSuggestions,
-  cycleCommandIndex,
   formatCompact,
   formatQueue,
   formatSession,
@@ -44,7 +43,7 @@ import {
   type TranscriptSource,
 } from "./paint.js";
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
-import { permissionAnswer, permissionLines } from "./permission-view.js";
+import { permissionAnswer } from "./permission-view.js";
 import { wrapText } from "./text.js";
 import { resolveMinConfig } from "@min-agent/config";
 import { themeFromConfig } from "./theme.js";
@@ -56,7 +55,16 @@ import {
   type LogLine,
   type TranscriptMessage,
 } from "./transcript.js";
-import { ActivitySpinner, ContextMeter, contextMeterRows, inkThemeFromTui } from "./ui/index.js";
+import {
+  ActivitySpinner,
+  CommandSelect,
+  commandSelectRows,
+  ContextMeter,
+  contextMeterRows,
+  inkThemeFromTui,
+  PermissionPrompt,
+  permissionPromptRows,
+} from "./ui/index.js";
 
 const LOG_CAP = 2000;
 
@@ -97,7 +105,6 @@ export function App({ args }: { args: TuiArgs }) {
   const [scroll, setScroll] = useState(0);
   /** Tool results start collapsed; Ctrl+O toggles. */
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
-  const [completeIndex, setCompleteIndex] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [focused, setFocused] = useState(true);
   const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>();
@@ -168,7 +175,12 @@ export function App({ args }: { args: TuiArgs }) {
   }, []);
 
   useEffect(() => {
-    const update = () => setSize(terminalSize(stdout));
+    const update = () => {
+      // Hard-clear so Ink's eraseLines bookkeeping cannot leave duplicate
+      // bottom chrome when the terminal size changes.
+      if (stdout.isTTY) stdout.write("\x1b[2J\x1b[3J\x1b[H");
+      setSize(terminalSize(stdout));
+    };
     update();
     stdout.on("resize", update);
     return () => {
@@ -493,6 +505,45 @@ export function App({ args }: { args: TuiArgs }) {
     [pushLine, runCommand],
   );
 
+  const handlePermissionAllow = useCallback(() => {
+    const pending = pendingPerm;
+    if (!pending) return;
+    clientRef.current?.respondPermission(pending.id, "allow");
+    setPendingPerm(null);
+  }, [pendingPerm]);
+
+  const handlePermissionDeny = useCallback(() => {
+    const pending = pendingPerm;
+    if (!pending) return;
+    clientRef.current?.respondPermission(pending.id, "deny");
+    setPendingPerm(null);
+  }, [pendingPerm]);
+
+  const handleCommandSelect = useCallback(
+    (name: string) => {
+      const spec = TUI_COMMANDS.find((command) => command.name === name);
+      if (!spec) return;
+      if (spec.arg) {
+        const next = `/${spec.name} `;
+        setEditor((current) => ({ ...current, text: next, cursor: next.length }));
+        return;
+      }
+      setEditor((current) => {
+        const committed = commitEditor({
+          ...current,
+          text: `/${spec.name}`,
+          cursor: `/${spec.name}`.length,
+        });
+        queueMicrotask(() => {
+          setScroll(0);
+          void submitLine(committed.text);
+        });
+        return committed.state;
+      });
+    },
+    [submitLine],
+  );
+
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
     const action = inputAction(input, key);
@@ -519,44 +570,39 @@ export function App({ args }: { args: TuiArgs }) {
       return;
     }
     if (pendingPerm) {
-      const answer = key.ctrl || key.meta || key.return ? null : permissionAnswer(input);
-      if (answer && clientRef.current) {
-        clientRef.current.respondPermission(pendingPerm.id, answer);
+      // ConfirmInput owns Y/n/Enter; we only keep `a` for remember-session.
+      if (!key.ctrl && !key.meta && permissionAnswer(input) === "allow_session") {
+        clientRef.current?.respondPermission(pendingPerm.id, "allow_session");
         setPendingPerm(null);
       }
       return;
     }
-    if (action.type === "complete") {
-      const next = applyCommandCompletion(editor.text, completeIndex);
+    const slashOpen = commandSuggestions(editor.text).length > 0;
+    if (slashOpen && (key.upArrow || key.downArrow || key.return)) {
+      // CommandSelect owns ↑↓/Enter while the slash menu is open.
+      return;
+    }
+    if (slashOpen && (key.tab || action.type === "complete")) {
+      // Tab completes the first filtered match; Enter selects via Select.
+      const next = applyCommandCompletion(editor.text, 0);
       if (next === null) return;
       setEditor((current) => ({ ...current, text: next, cursor: next.length }));
-      setCompleteIndex(0);
+      return;
+    }
+    if (action.type === "complete") {
+      const next = applyCommandCompletion(editor.text, 0);
+      if (next === null) return;
+      setEditor((current) => ({ ...current, text: next, cursor: next.length }));
       return;
     }
     if (action.type === "edit") {
-      const matches = commandSuggestions(editor.text);
-      if (matches.length > 0 && (action.op.op === "up" || action.op.op === "down")) {
-        // Only move the highlight — keep the typed prefix so filtering stays stable.
-        const direction = action.op.op;
-        setCompleteIndex((current) => cycleCommandIndex(current, matches.length, direction));
-        return;
-      }
-      setCompleteIndex(0);
       setEditor((current) => reduceEditor(current, action.op));
       return;
     }
     if (action.type === "submit") {
       if (!clientRef.current) return;
-      // Apply the highlighted slash match before sending so Enter runs the
-      // selected command, not the partial typed prefix (e.g. "/").
-      const completed = applyCommandCompletion(editor.text, completeIndex);
-      const ready =
-        completed === null
-          ? editor
-          : { ...editor, text: completed.trimEnd(), cursor: completed.trimEnd().length };
-      const committed = commitEditor(ready);
+      const committed = commitEditor(editor);
       setEditor(committed.state);
-      setCompleteIndex(0);
       if (!committed.text) return;
       setScroll(0);
       void submitLine(committed.text);
@@ -599,28 +645,19 @@ export function App({ args }: { args: TuiArgs }) {
   const innerWidth = Math.max(1, columns - 2);
   const caret = editorCaret(editor);
   const suggestions = commandSuggestions(editor.text);
-  const selectedComplete =
-    suggestions.length > 0
-      ? ((completeIndex % suggestions.length) + suggestions.length) % suggestions.length
-      : 0;
-  const ghost = commandGhost(editor.text, selectedComplete);
+  const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
   const chatBar = theme.frames.chatBar;
-  const composer = `${chatBar}${caret.before}${caret.after}${ghost}`;
+  const composer = `${chatBar}${caret.before}${caret.after}`;
   /** Composer reserves at least two terminal rows (2× line height). */
   const inputRows = Math.max(2, wrapText(composer, innerWidth).length);
-  /** One vertical row per slash match. */
-  const suggestRows = suggestions.length;
-  const permText = pendingPerm ? permissionLines(pendingPerm) : [];
-  const permRows = permText.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
-  const footer = footerLines(pendingPerm !== null);
-  const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
+  const suggestRows = commandSelectRows(suggestions.length);
   const activityRows = activity ? 1 : 0;
   const modelId = client?.getStatus().provider ?? "";
   const bottomStatusRows = contextMeterRows(modelId, contextUsage);
   const bannerRows = minBannerRows(innerWidth);
   /** Banner + session meta + transcript top margin. */
   const headerRows = bannerRows + 1 + 1;
-  const permBlockRows = permRows > 0 ? permRows + 1 : 0;
+  const permBlockRows = pendingPerm ? permissionPromptRows(pendingPerm) : 0;
   const composerMarginRows = 1;
   const reserved =
     headerRows +
@@ -629,9 +666,11 @@ export function App({ args }: { args: TuiArgs }) {
     composerMarginRows +
     inputRows +
     suggestRows +
-    bottomStatusRows +
-    footerRows;
-  const rowsBelowComposer = suggestRows + bottomStatusRows + footerRows;
+    bottomStatusRows;
+  const logHeight = Math.max(1, termRows - reserved);
+  const rowsAboveComposer =
+    headerRows + logHeight + activityRows + permBlockRows + composerMarginRows;
+  const rowsBelowComposer = suggestRows + bottomStatusRows;
   const userTone = toneFor("user", theme);
   const imeAnchor =
     client && !error
@@ -641,12 +680,12 @@ export function App({ args }: { args: TuiArgs }) {
           text: editor.text,
           cursor: editor.cursor,
           inputRows,
+          rowsAboveComposer,
           rowsBelowComposer,
         })
       : null;
   imeAnchorRef.current = imeAnchor;
   termColumnsRef.current = columns;
-  const logHeight = Math.max(1, termRows - reserved);
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
     toolOutputExpanded,
   });
@@ -791,19 +830,13 @@ export function App({ args }: { args: TuiArgs }) {
         <ActivitySpinner activity={activity} focused={focused} theme={theme} />
       ) : null}
 
-      {permText.length > 0 ? (
-        <Box flexDirection="column" marginTop={1}>
-          {permText.map((line, index) => (
-            <Text
-              key={`${index}:${line}`}
-              color={index === 0 ? theme.chrome.permission : undefined}
-              dimColor={index === permText.length - 1}
-              wrap="wrap"
-            >
-              {line}
-            </Text>
-          ))}
-        </Box>
+      {pendingPerm ? (
+        <PermissionPrompt
+          pending={pendingPerm}
+          theme={theme}
+          onAllow={handlePermissionAllow}
+          onDeny={handlePermissionDeny}
+        />
       ) : null}
 
       <Box marginTop={1} width={innerWidth} height={inputRows} flexShrink={0}>
@@ -817,27 +850,14 @@ export function App({ args }: { args: TuiArgs }) {
             {caret.before}
             {caret.after}
           </Text>
-          {ghost ? (
-            <Text color={userTone.body} dimColor>
-              {ghost}
-            </Text>
-          ) : null}
         </Text>
       </Box>
       {suggestions.length > 0 ? (
-        <Box flexDirection="column" flexShrink={0}>
-          {suggestions.map((command, index) => (
-            <Text
-              key={command.name}
-              wrap="truncate"
-              color={index === selectedComplete ? theme.chrome.completeSelected : undefined}
-              bold={index === selectedComplete}
-              dimColor={index !== selectedComplete}
-            >
-              {`/${command.name}${command.hint ? `  ${command.hint}` : ""}`}
-            </Text>
-          ))}
-        </Box>
+        <CommandSelect
+          suggestions={suggestions}
+          highlightText={slashHighlight || undefined}
+          onSelect={handleCommandSelect}
+        />
       ) : null}
       <ContextMeter
         model={modelId}
@@ -845,11 +865,6 @@ export function App({ args }: { args: TuiArgs }) {
         theme={theme}
         dim={theme.chrome.statusDim}
       />
-      {footer.map((line) => (
-        <Text key={line} dimColor wrap="wrap">
-          {line}
-        </Text>
-      ))}
     </Box>
     </ThemeProvider>
   );
@@ -872,19 +887,15 @@ function toDisplayLines(
   return lines;
 }
 
-/** Keybinding/command chrome stays hidden; only permission prompts surface here. */
-function footerLines(pending: boolean): string[] {
-  if (!pending) return [];
-  return [
-    "y once · n deny · a remember · no answer denies in 2 minutes",
-    "PgUp/PgDn scroll · Ctrl+C abort",
-  ];
-}
-
+/**
+ * Use the full terminal height so Ink paints via clearTerminal
+ * (`outputHeight >= stdout.rows`) instead of eraseLines — that path
+ * leaves duplicate bottom chrome after a resize.
+ */
 function terminalSize(stdout: NodeJS.WriteStream): { columns: number; rows: number } {
   return {
     columns: Math.max(20, stdout.columns || 80),
-    rows: Math.max(8, (stdout.rows || 24) - 1),
+    rows: Math.max(8, stdout.rows || 24),
   };
 }
 

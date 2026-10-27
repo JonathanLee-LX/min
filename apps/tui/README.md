@@ -2,7 +2,7 @@
 
 Ink terminal UI for min. Drives `@min-agent/client` (same experience contract as CLI / Web).
 
-Basic chrome uses [`@inkjs/ui`](https://github.com/vadimdemedes/ink-ui) (`Spinner`, `Badge`, `Alert`, `ProgressBar`) via `src/ui/`, themed through `ThemeProvider` + `extendTheme`. The composer, transcript paint, and slash menu stay custom — they need multiline editing, IME caret sync, and filter-stable command browsing that stock `TextInput` / `Select` do not cover yet.
+Basic chrome uses [`@inkjs/ui`](https://github.com/vadimdemedes/ink-ui) (`Spinner`, `Badge`, `Alert`, `ProgressBar`, `ConfirmInput`, `Select`) via `src/ui/`, themed through `ThemeProvider` + `extendTheme`. The composer and transcript paint stay custom — they need multiline editing and IME caret sync that stock `TextInput` does not cover. Slash suggestions use `Select`; permission prompts use `ConfirmInput` (with host-handled `a` for remember-session).
 
 The transcript scrolls (PageUp / PageDown) and wraps instead of clipping to a short window. `--session` restores the saved history. Lines typed while the agent is running stay in the composer; Enter queues them. `/open`, `/new`, `/reset`, and `/compact` wait until the run is idle. The composer edits by grapheme (Alt+Enter or Ctrl+J for a newline). A permission prompt shows the tool or the root grant; no answer denies it after two minutes.
 

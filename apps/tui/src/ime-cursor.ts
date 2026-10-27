@@ -1,24 +1,20 @@
 import { displayWidth } from "./text.js";
 
 /**
- * Ink 5 hides the real terminal cursor and paints with eraseLines, so the
- * frame is *not* pinned to terminal row 0. Absolute CUP therefore lands in
- * the wrong place for IME candidate windows.
+ * Ink 5 IME caret sync.
  *
- * After each Ink paint, log-update leaves the real cursor one row below the
- * frame. We climb back up to the composer caret and set the column — then
- * re-apply on every stdout write so we win against Ink's throttled redraw.
- *
- * Ink ≥6.7 `useCursor` is the upstream fix; this is the Ink 5 stand-in.
+ * Full-height frames use clearTerminal (absolute CUP from top). Shorter
+ * eraseLines frames leave the cursor under the output (relative climb).
  */
 
 export interface ImeCaretAnchor {
   /** 0-based column in the terminal. */
   column: number;
+  /** 0-based row from the top of the Ink frame. */
+  rowFromTop: number;
   /**
-   * Content rows below the caret line inside the Ink frame
-   * (composer tail + suggestions + status + footer).
-   * Does not include log-update's trailing blank line after the frame.
+   * Content rows below the caret line inside the Ink frame.
+   * Used for the eraseLines (relative) paint path.
    */
   rowsBelowCaret: number;
 }
@@ -27,15 +23,12 @@ export interface ComposerCaretLayout {
   paddingX: number;
   chatBar: string;
   text: string;
-  /** UTF-16 caret offset into `text`. */
   cursor: number;
-  /** Reserved composer box height in rows. */
   inputRows: number;
-  /** Rows rendered under the composer box. */
+  rowsAboveComposer: number;
   rowsBelowComposer: number;
 }
 
-/** Anchor for the composer caret relative to the bottom of the Ink frame. */
 export function composerCaretAnchor(layout: ComposerCaretLayout): ImeCaretAnchor {
   const cursor = Math.max(0, Math.min(layout.cursor, layout.text.length));
   const before = layout.text.slice(0, cursor);
@@ -46,23 +39,27 @@ export function composerCaretAnchor(layout: ComposerCaretLayout): ImeCaretAnchor
   const rowsBelowInComposer = Math.max(0, inputRows - 1 - lineIndex);
   return {
     column: layout.paddingX + displayWidth(layout.chatBar) + displayWidth(columnText),
+    rowFromTop: Math.max(0, layout.rowsAboveComposer) + lineIndex,
     rowsBelowCaret: rowsBelowInComposer + Math.max(0, layout.rowsBelowComposer),
   };
 }
 
-/**
- * Move + show the real cursor.
- * Call immediately after Ink finishes writing a frame (cursor sits one row
- * below the frame due to log-update's trailing newline).
- */
+export type ImePaintMode = "absolute" | "relative";
+
 export function applyImeCursor(
   write: (chunk: string) => void,
   anchor: ImeCaretAnchor,
   termColumns: number,
+  mode: ImePaintMode,
 ): void {
-  // +1: log-update appends an extra newline under the frame.
-  const up = 1 + Math.max(0, anchor.rowsBelowCaret);
   const col = Math.max(1, Math.min(Math.max(1, termColumns), anchor.column + 1));
+  if (mode === "absolute") {
+    const row = Math.max(1, anchor.rowFromTop + 1);
+    write(`\x1b[?25h\x1b[${row};${col}H`);
+    return;
+  }
+  // log-update appends an extra newline under the frame.
+  const up = 1 + Math.max(0, anchor.rowsBelowCaret);
   write(`\x1b[?25h\x1b[${up}A\x1b[${col}G`);
 }
 
@@ -72,21 +69,18 @@ export function hideImeCursor(write: (chunk: string) => void): void {
 
 type StdoutWrite = NodeJS.WriteStream["write"];
 
-function isInkFrameWrite(chunk: unknown): boolean {
+function paintModeForChunk(chunk: unknown): ImePaintMode | null {
   const text =
     typeof chunk === "string"
       ? chunk
       : Buffer.isBuffer(chunk)
         ? chunk.toString("utf8")
         : "";
-  // log-update eraseLines uses EL (`\x1b[2K`); full-screen path uses clear.
-  return text.includes("\x1b[2K") || text.includes("\x1b[2J");
+  if (text.includes("\x1b[2J")) return "absolute";
+  if (text.includes("\x1b[2K")) return "relative";
+  return null;
 }
 
-/**
- * Re-park the IME caret after every Ink frame paint (Ink paints are throttled
- * and otherwise clobber a one-shot useLayoutEffect).
- */
 export function installImeCursorHook(
   stdout: NodeJS.WriteStream,
   getAnchor: () => ImeCaretAnchor | null,
@@ -109,14 +103,13 @@ export function installImeCursorHook(
             encoding as BufferEncoding | undefined,
             cb as ((err?: Error | null) => void) | undefined,
           );
-    // Only re-park after an Ink frame paint (eraseLines / clearTerminal).
-    // Other stdout writes (focus enable, etc.) must not climb relative rows.
-    if (!syncing && isInkFrameWrite(chunk)) {
+    const mode = paintModeForChunk(chunk);
+    if (!syncing && mode) {
       const anchor = getAnchor();
       if (anchor) {
         syncing = true;
         try {
-          applyImeCursor(writeRaw, anchor, getColumns());
+          applyImeCursor(writeRaw, anchor, getColumns(), mode);
         } finally {
           syncing = false;
         }

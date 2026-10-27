@@ -11,7 +11,8 @@ export function permissionAnswer(input: string): PermissionChoice | null {
   return null;
 }
 
-export function permissionLines(input: {
+/** Detail lines only — keys live in ConfirmInput chrome. */
+export function permissionDetailLines(input: {
   reason: string;
   toolCall: { name: string; arguments: unknown };
   grantRoot?: string;
@@ -24,15 +25,20 @@ export function permissionLines(input: {
       `  path  ${input.grantRoot}`,
       `  tool  ${tool}`,
       `  ${input.reason}`,
-      `  ${PERMISSION_KEYS} this root`,
-      `  ${PERMISSION_TIMEOUT}`,
     ];
   }
+  return ["Allow tool", `  ${tool}`, `  ${input.reason}`];
+}
+
+/** @deprecated Prefer {@link permissionDetailLines} + ConfirmInput. */
+export function permissionLines(input: {
+  reason: string;
+  toolCall: { name: string; arguments: unknown };
+  grantRoot?: string;
+}): string[] {
   return [
-    "Allow tool",
-    `  ${tool}`,
-    `  ${input.reason}`,
-    `  ${PERMISSION_KEYS} this pattern`,
+    ...permissionDetailLines(input),
+    `  ${PERMISSION_KEYS}${input.grantRoot ? " this root" : " this pattern"}`,
     `  ${PERMISSION_TIMEOUT}`,
   ];
 }

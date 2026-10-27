@@ -10,9 +10,10 @@ describe("composerCaretAnchor", () => {
         text: "",
         cursor: 0,
         inputRows: 2,
+        rowsAboveComposer: 10,
         rowsBelowComposer: 1,
       }),
-    ).toEqual({ column: 3, rowsBelowCaret: 1 + 1 });
+    ).toEqual({ column: 3, rowFromTop: 10, rowsBelowCaret: 2 });
   });
 
   it("accounts for wide CJK cells on the caret line", () => {
@@ -23,29 +24,33 @@ describe("composerCaretAnchor", () => {
         text: "你好",
         cursor: 1,
         inputRows: 2,
+        rowsAboveComposer: 5,
         rowsBelowComposer: 0,
       }),
-    ).toEqual({ column: 1 + 2 + 2, rowsBelowCaret: 1 });
-  });
-
-  it("counts rows below the caret across newlines", () => {
-    expect(
-      composerCaretAnchor({
-        paddingX: 0,
-        chatBar: "",
-        text: "ab\ncd",
-        cursor: 4,
-        inputRows: 2,
-        rowsBelowComposer: 3,
-      }),
-    ).toEqual({ column: 1, rowsBelowCaret: 0 + 3 });
+    ).toEqual({ column: 1 + 2 + 2, rowFromTop: 5, rowsBelowCaret: 1 });
   });
 });
 
 describe("applyImeCursor", () => {
-  it("climbs from below the Ink frame then sets the column", () => {
+  it("uses CUP for clearTerminal paints", () => {
     const chunks: string[] = [];
-    applyImeCursor((chunk) => chunks.push(chunk), { column: 4, rowsBelowCaret: 2 }, 80);
+    applyImeCursor(
+      (chunk) => chunks.push(chunk),
+      { column: 4, rowFromTop: 12, rowsBelowCaret: 2 },
+      80,
+      "absolute",
+    );
+    expect(chunks.join("")).toBe("\x1b[?25h\x1b[13;5H");
+  });
+
+  it("climbs from below the frame for eraseLines paints", () => {
+    const chunks: string[] = [];
+    applyImeCursor(
+      (chunk) => chunks.push(chunk),
+      { column: 4, rowFromTop: 12, rowsBelowCaret: 2 },
+      80,
+      "relative",
+    );
     expect(chunks.join("")).toBe("\x1b[?25h\x1b[3A\x1b[5G");
   });
 });
