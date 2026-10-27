@@ -100,6 +100,12 @@ export const defaultTheme: TuiTheme = {
       dimLabel: false,
       dimBody: false,
     },
+    thinking: {
+      label: mocha.mauve,
+      body: mocha.subtext,
+      dimLabel: false,
+      dimBody: true,
+    },
     tool: {
       label: mocha.yellow,
       body: mocha.yellow,

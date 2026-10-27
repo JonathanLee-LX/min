@@ -7,6 +7,9 @@ describe("createEventTranslator", () => {
     expect(t.push({ type: "text_delta", text: "hi" })).toEqual([
       { type: "assistant_delta", text: "hi" },
     ]);
+    expect(t.push({ type: "thinking_delta", text: "hmm" })).toEqual([
+      { type: "thinking_delta", text: "hmm" },
+    ]);
     expect(
       t.push({
         type: "tool_call",

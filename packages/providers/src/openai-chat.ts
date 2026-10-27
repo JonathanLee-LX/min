@@ -141,6 +141,10 @@ export function openaiChatProvider(
         finishReason = choice.finish_reason ?? finishReason;
 
         const delta = choice.delta;
+        const reasoning = chatReasoningDelta(delta);
+        if (reasoning) {
+          yield { type: "thinking_delta", text: reasoning };
+        }
         if (delta?.content) {
           text += delta.content;
           yield { type: "text_delta", text: delta.content };
@@ -286,4 +290,15 @@ function appendMessage(
       }
     }
   }
+}
+
+/** DeepSeek / compatible hosts stream CoT on `reasoning_content`. */
+function chatReasoningDelta(delta: unknown): string | null {
+  if (!delta || typeof delta !== "object") return null;
+  const record = delta as Record<string, unknown>;
+  for (const key of ["reasoning_content", "reasoning", "reasoning_text"]) {
+    const value = record[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return null;
 }

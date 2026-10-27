@@ -41,7 +41,13 @@ export async function createClient(
 ): Promise<MinClient> {
   const factory = resolveFactory(options);
   /** Shared with send() so follow-up drains can flush the prior assistant turn. */
-  const turnBuf = { text: "" };
+  const turnBuf = { text: "", thinking: "" };
+
+  const flushThinking = () => {
+    if (!turnBuf.thinking) return;
+    emit({ type: "thinking_done", text: turnBuf.thinking });
+    turnBuf.thinking = "";
+  };
 
   const incomingBridge = {
     emit: (_texts: string[]) => {
@@ -91,6 +97,7 @@ export async function createClient(
   incomingBridge.emit = (texts) => {
     // Session drains the queue between agent passes — finalize the previous
     // assistant turn before announcing follow-up texts.
+    flushThinking();
     if (turnBuf.text) {
       emit({ type: "assistant_done", text: turnBuf.text });
       turnBuf.text = "";
@@ -243,13 +250,19 @@ export async function createClient(
 
     setStatus("running");
     turnBuf.text = "";
+    turnBuf.thinking = "";
 
     try {
       const result = await runtime.session.run(prompt, {
         signal: abortController.signal,
         onEvent: (event: RunEvent) => {
-          if (event.type === "text_delta") {
+          if (event.type === "thinking_delta") {
+            turnBuf.thinking += event.text;
+          } else if (event.type === "text_delta") {
+            flushThinking();
             turnBuf.text += event.text;
+          } else if (event.type === "tool_call") {
+            flushThinking();
           }
           for (const ce of translator.push(event)) {
             emit(ce);
@@ -261,6 +274,7 @@ export async function createClient(
         },
       });
 
+      flushThinking();
       const finalText = turnBuf.text || result.text;
       if (finalText) {
         emit({ type: "assistant_done", text: finalText });

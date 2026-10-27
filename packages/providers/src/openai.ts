@@ -22,6 +22,11 @@ export interface OpenAIProviderOptions {
   model: string;
   baseURL?: string;
   maxTokens?: number;
+  /**
+   * Ask the Responses API for a visible reasoning summary stream.
+   * Default: auto from the model id (o-series, gpt-5, *reason*, deepseek-*).
+   */
+  reasoningSummary?: boolean;
   /** Injected client for tests. */
   client?: OpenAI;
 }
@@ -34,6 +39,10 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
       baseURL: opts.baseURL,
     });
   const defaultMaxTokens = opts.maxTokens ?? 4096;
+  const reasoning =
+    (opts.reasoningSummary ?? modelLikelyReasons(opts.model))
+      ? ({ summary: "auto" } as const)
+      : undefined;
 
   return {
     id: `openai:${opts.model}`,
@@ -49,6 +58,7 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
           ...(req.tools?.length
             ? { tools: toOpenAITools(req.tools) }
             : {}),
+          ...(reasoning ? { reasoning } : {}),
           max_output_tokens: req.maxTokens ?? defaultMaxTokens,
           store: false,
         },
@@ -69,6 +79,7 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
           ...(req.tools?.length
             ? { tools: toOpenAITools(req.tools) }
             : {}),
+          ...(reasoning ? { reasoning } : {}),
           max_output_tokens: req.maxTokens ?? defaultMaxTokens,
           store: false,
           stream: true,
@@ -88,6 +99,12 @@ export function openaiProvider(opts: OpenAIProviderOptions): ModelProvider {
 
         if (event.type === "response.output_text.delta" && event.delta) {
           yield { type: "text_delta", text: event.delta };
+          continue;
+        }
+
+        const thinking = thinkingDeltaFromResponsesEvent(event);
+        if (thinking) {
+          yield { type: "thinking_delta", text: thinking };
           continue;
         }
 
@@ -262,9 +279,8 @@ function fromResponsesOutput(response: Response): CompletionResult {
         arguments: args,
       });
     }
-    // reasoning / web_search_call / custom_tool_call: ignored for now —
-    // not represented in ContentPart. Incomplete streams that only contain
-    // reasoning therefore yield empty content with stopReason "length".
+    // reasoning / web_search_call / custom_tool_call: not ContentParts.
+    // Thinking streams live on thinking_delta only (not persisted).
   }
 
   // Fallback to convenience helper when output is empty but output_text exists
@@ -287,4 +303,39 @@ function fromResponsesOutput(response: Response): CompletionResult {
       outputTokens: response.usage?.output_tokens,
     },
   };
+}
+
+/** Models that usually expose a reasoning summary over Responses. */
+export function modelLikelyReasons(model: string): boolean {
+  const m = model.trim().toLowerCase();
+  if (!m) return false;
+  return (
+    /^o[1-9]/.test(m) ||
+    m.startsWith("gpt-5") ||
+    m.includes("reason") ||
+    m.startsWith("deepseek")
+  );
+}
+
+function thinkingDeltaFromResponsesEvent(event: {
+  type: string;
+  delta?: unknown;
+}): string | null {
+  if (
+    event.type === "response.reasoning_summary_text.delta" ||
+    event.type === "response.reasoning_summary.delta" ||
+    event.type === "response.reasoning.delta"
+  ) {
+    return deltaText(event.delta);
+  }
+  return null;
+}
+
+function deltaText(delta: unknown): string | null {
+  if (typeof delta === "string" && delta) return delta;
+  if (delta && typeof delta === "object" && "text" in delta) {
+    const text = (delta as { text?: unknown }).text;
+    if (typeof text === "string" && text) return text;
+  }
+  return null;
 }

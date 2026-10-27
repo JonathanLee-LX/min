@@ -58,6 +58,7 @@ export function deepseekProvider(
     model,
     baseURL,
     maxTokens,
+    reasoningSummary: true,
     client: opts.client,
   });
   return {

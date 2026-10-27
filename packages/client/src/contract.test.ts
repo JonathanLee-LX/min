@@ -28,6 +28,8 @@ const CLIENT_EVENT_TYPES = [
   "queued",
   "session",
   "status",
+  "thinking_delta",
+  "thinking_done",
   "tool_end",
   "tool_start",
 ].sort();

@@ -155,6 +155,8 @@ export class Runner {
         }
         if (chunk.type === "text_delta" && chunk.text) {
           await emit({ type: "text_delta", text: chunk.text });
+        } else if (chunk.type === "thinking_delta" && chunk.text) {
+          await emit({ type: "thinking_delta", text: chunk.text });
         } else if (chunk.type === "done" && chunk.result) {
           final = chunk.result;
         }

@@ -31,7 +31,7 @@ apps    ← client (+ config for TUI)
 |------|----------|
 | Core tools | `ToolRegistry.execute` returns `{ isError }` instead of throwing to the model |
 | Core types | Messages use `ContentPart` (`text` / `tool_call` / `tool_result`) |
-| Core events | `RunEvent` is `turn_start\|text_delta\|tool_call\|tool_result\|turn_end\|done\|error` — no `permission` |
+| Core events | `RunEvent` is `turn_start\|text_delta\|thinking_delta\|tool_call\|tool_result\|turn_end\|done\|error` — no `permission` |
 | Core agent | `Agent` keys are `provider` / `tools` / `run` / `dispose` only |
 | Session | Canonical `session.messages` stay full; assemblers only change the model view; `bindPermissionAsk` clears after run |
 | Runtime | Default tool set has no MCP; permissions live on the runtime; deny → `tool_result.isError` then `done` |

@@ -103,6 +103,39 @@ describe("Runner / createAgent", () => {
     await agent.dispose();
   });
 
+  it("forwards thinking_delta chunks from provider.stream", async () => {
+    const thinking: string[] = [];
+    const provider = {
+      id: "think-mock",
+      async complete() {
+        return {
+          message: { role: "assistant" as const, content: [{ type: "text" as const, text: "ok" }] },
+          stopReason: "end" as const,
+        };
+      },
+      async *stream() {
+        yield { type: "thinking_delta" as const, text: "plan" };
+        yield { type: "text_delta" as const, text: "ok" };
+        yield {
+          type: "done" as const,
+          result: {
+            message: { role: "assistant" as const, content: [{ type: "text" as const, text: "ok" }] },
+            stopReason: "end" as const,
+          },
+        };
+      },
+    };
+    const agent = await createAgent({ provider });
+    await agent.run({
+      input: "hi",
+      onEvent(e) {
+        if (e.type === "thinking_delta") thinking.push(e.text);
+      },
+    });
+    expect(thinking).toEqual(["plan"]);
+    await agent.dispose();
+  });
+
   it("aborts when signal is already aborted", async () => {
     const agent = await createAgent({
       provider: mockProvider([{ text: "nope" }]),

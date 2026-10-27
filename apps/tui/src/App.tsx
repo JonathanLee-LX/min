@@ -30,6 +30,7 @@ import {
   type EditorState,
   type InputKey,
 } from "./editor.js";
+import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
@@ -85,6 +86,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [queueSize, setQueueSize] = useState(0);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [stream, setStream] = useState("");
+  const [thinking, setThinking] = useState("");
   const [pendingPerm, setPendingPerm] = useState<PendingPermission | null>(null);
   const [toolName, setToolName] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
@@ -94,13 +96,31 @@ export function App({ args }: { args: TuiArgs }) {
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
   const [completeIndex, setCompleteIndex] = useState(0);
   const [size, setSize] = useState(() => terminalSize(stdout));
+  const [focused, setFocused] = useState(true);
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
+  const focusedRef = useRef(true);
+  const pendingStreamRef = useRef<string | null>(null);
+  const pendingThinkingRef = useRef<string | null>(null);
   const pumpRef = useRef<StreamPump | null>(null);
+  const thinkingPumpRef = useRef<StreamPump | null>(null);
   if (pumpRef.current === null) {
     pumpRef.current = createStreamPump((text) => {
+      if (!focusedRef.current) {
+        pendingStreamRef.current = text;
+        return;
+      }
       setContinuing(false);
       setStream(text);
+    });
+  }
+  if (thinkingPumpRef.current === null) {
+    thinkingPumpRef.current = createStreamPump((text) => {
+      if (!focusedRef.current) {
+        pendingThinkingRef.current = text;
+        return;
+      }
+      setThinking(text);
     });
   }
   const paintCache = useRef(createPaintCache(theme));
@@ -135,7 +155,11 @@ export function App({ args }: { args: TuiArgs }) {
     );
     setScroll(0);
     pumpRef.current?.reset();
+    thinkingPumpRef.current?.reset();
     setStream("");
+    setThinking("");
+    pendingStreamRef.current = null;
+    pendingThinkingRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -146,6 +170,22 @@ export function App({ args }: { args: TuiArgs }) {
       stdout.off("resize", update);
     };
   }, [stdout]);
+
+  useEffect(() => enableFocusReporting(stdout), [stdout]);
+
+  useEffect(() => {
+    focusedRef.current = focused;
+    if (!focused) return;
+    if (pendingThinkingRef.current !== null) {
+      setThinking(pendingThinkingRef.current);
+      pendingThinkingRef.current = null;
+    }
+    if (pendingStreamRef.current !== null) {
+      setContinuing(false);
+      setStream(pendingStreamRef.current);
+      pendingStreamRef.current = null;
+    }
+  }, [focused]);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,9 +233,23 @@ export function App({ args }: { args: TuiArgs }) {
               inflightTools.current.clear();
               setToolName(null);
               setContinuing(false);
+              thinkingPumpRef.current?.reset();
+              pendingThinkingRef.current = null;
+              setThinking("");
             }
             if (event.status === "asking") setContinuing(false);
             syncQueue();
+            return;
+          }
+          if (event.type === "thinking_delta") {
+            thinkingPumpRef.current?.push(event.text);
+            return;
+          }
+          if (event.type === "thinking_done") {
+            thinkingPumpRef.current?.reset();
+            pendingThinkingRef.current = null;
+            setThinking("");
+            if (event.text.trim()) pushLine("thinking", event.text.trim());
             return;
           }
           if (event.type === "assistant_delta") {
@@ -204,8 +258,12 @@ export function App({ args }: { args: TuiArgs }) {
           }
           if (event.type === "assistant_done") {
             pumpRef.current?.reset();
+            thinkingPumpRef.current?.reset();
+            pendingStreamRef.current = null;
+            pendingThinkingRef.current = null;
             setContinuing(false);
             setStream("");
+            setThinking("");
             if (event.text) pushLine("assistant", event.text);
             return;
           }
@@ -498,6 +556,11 @@ export function App({ args }: { args: TuiArgs }) {
   useEffect(() => {
     const onChunk = (chunk: string | Buffer) => {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      const focus = focusStateFromChunk(text);
+      if (focus !== null) {
+        setFocused(focus);
+        return;
+      }
       const { input, key } = decodeInput(text);
       handleInput.current(input, key);
     };
@@ -521,12 +584,12 @@ export function App({ args }: { args: TuiArgs }) {
     ? `${activity.phase}\0${activity.labels.join("|")}\0${activity.intervalMs}`
     : "";
   useEffect(() => {
-    if (!activityKey) return;
+    if (!activityKey || !focused) return;
     setSpinnerFrame(0);
-    const interval = activityRef.current?.intervalMs ?? 80;
+    const interval = activityRef.current?.intervalMs ?? 250;
     const timer = setInterval(() => setSpinnerFrame((frame) => frame + 1), interval);
     return () => clearInterval(timer);
-  }, [activityKey]);
+  }, [activityKey, focused]);
 
   const columns = size.columns;
   const termRows = size.rows;
@@ -552,7 +615,7 @@ export function App({ args }: { args: TuiArgs }) {
     2 + activityRows + (permRows > 0 ? permRows + 1 : 0) + 1 + inputRows + suggestRows + footerRows;
   const userTone = toneFor("user", theme);
   const logHeight = Math.max(1, termRows - reserved);
-  const painted = paintCache.current.paint(toDisplayLines(logs, stream), innerWidth, {
+  const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
     toolOutputExpanded,
   });
   const rowCount = painted.length;
@@ -711,12 +774,19 @@ export function App({ args }: { args: TuiArgs }) {
   );
 }
 
-function toDisplayLines(logs: readonly LogLine[], stream: string): TranscriptSource[] {
+function toDisplayLines(
+  logs: readonly LogLine[],
+  stream: string,
+  thinking: string,
+): TranscriptSource[] {
   const lines: TranscriptSource[] = logs.map((line) => ({
     key: String(line.id),
     kind: line.kind,
     text: line.text,
   }));
+  if (thinking) {
+    lines.push({ key: "thinking", kind: "thinking", text: thinking, streaming: true });
+  }
   if (stream) lines.push({ key: "stream", kind: "assistant", text: stream, streaming: true });
   return lines;
 }

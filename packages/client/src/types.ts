@@ -50,6 +50,9 @@ export type ClientEvent =
   | { type: "status"; status: ClientStatus }
   | { type: "assistant_delta"; text: string }
   | { type: "assistant_done"; text: string }
+  /** Live model reasoning; not stored in session messages. */
+  | { type: "thinking_delta"; text: string }
+  | { type: "thinking_done"; text: string }
   | {
       type: "tool_start";
       name: string;

@@ -46,6 +46,7 @@ const RUN_EVENT_TYPES = [
   "done",
   "error",
   "text_delta",
+  "thinking_delta",
   "tool_call",
   "tool_result",
   "turn_end",

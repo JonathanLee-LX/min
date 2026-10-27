@@ -13,6 +13,7 @@ export type TranscriptPart =
 export type LogKind =
   | "user"
   | "assistant"
+  | "thinking"
   | "tool"
   | "tool-result"
   | "tool-error"

@@ -63,7 +63,7 @@ export interface CompletionResult {
 }
 
 export interface CompletionChunk {
-  type: "text_delta" | "tool_call_delta" | "done";
+  type: "text_delta" | "thinking_delta" | "tool_call_delta" | "done";
   text?: string;
   toolCall?: Partial<ToolCallPart>;
   result?: CompletionResult;
@@ -72,6 +72,8 @@ export interface CompletionChunk {
 export type RunEvent =
   | { type: "turn_start"; turn: number }
   | { type: "text_delta"; text: string }
+  /** Model reasoning / chain-of-thought stream (not persisted as ContentPart). */
+  | { type: "thinking_delta"; text: string }
   | { type: "tool_call"; toolCall: ToolCallPart }
   | { type: "tool_result"; toolCallId: string; content: string; isError?: boolean }
   | { type: "turn_end"; turn: number; message: Message }

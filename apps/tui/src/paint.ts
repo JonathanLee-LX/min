@@ -20,6 +20,7 @@ export interface PaintOptions {
 }
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
+  thinking: "think",
   error: "err",
   notice: "note",
   sys: "sys",
@@ -213,6 +214,7 @@ function roleFor(kind: LogKind): RenderRole {
   if (kind === "tool-error") return "tool-error";
   if (kind === "error") return "error";
   if (kind === "notice") return "notice";
+  // thinking stays raw (not Markdown) like sys chrome.
   return "sys";
 }
 
@@ -472,7 +474,7 @@ export function activityFor(
   theme: TuiTheme = defaultTheme,
 ): Activity | null {
   if (input.status === "asking") {
-    return spec("approval", APPROVAL_LABELS, theme.activity.approval, 140, 12);
+    return spec("approval", APPROVAL_LABELS, theme.activity.approval, 220, 5);
   }
   if (input.status !== "running") return null;
   if (input.toolName) {
@@ -481,17 +483,17 @@ export function activityFor(
       "tool",
       [`running ${name}`, `using ${name}`, `${name} in progress`],
       theme.activity.tool,
-      80,
-      10,
+      200,
+      5,
     );
   }
   if (input.streaming) {
-    return spec("writing", WRITING_LABELS, theme.activity.writing, 140, 10);
+    return spec("writing", WRITING_LABELS, theme.activity.writing, 200, 6);
   }
   if (input.continuing) {
-    return spec("continuing", CONTINUING_LABELS, theme.activity.continuing, 140, 10);
+    return spec("continuing", CONTINUING_LABELS, theme.activity.continuing, 220, 5);
   }
-  return spec("thinking", THINKING_LABELS, theme.activity.thinking, 80, 12);
+  return spec("thinking", THINKING_LABELS, theme.activity.thinking, 250, 4);
 }
 
 export function frameChar(activity: Activity, frame: number): string {

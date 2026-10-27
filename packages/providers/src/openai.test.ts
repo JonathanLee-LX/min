@@ -1,7 +1,60 @@
 import { describe, expect, it, vi } from "vitest";
-import { openaiProvider } from "./openai.js";
+import { modelLikelyReasons, openaiProvider } from "./openai.js";
 
 describe("openaiProvider", () => {
+  it("streams reasoning summary deltas as thinking_delta", async () => {
+    async function* events() {
+      yield {
+        type: "response.reasoning_summary_text.delta",
+        delta: "consider options",
+      };
+      yield {
+        type: "response.output_text.delta",
+        delta: "answer",
+      };
+      yield {
+        type: "response.completed",
+        response: {
+          status: "completed",
+          output: [
+            {
+              type: "message",
+              content: [{ type: "output_text", text: "answer" }],
+            },
+          ],
+          usage: { input_tokens: 3, output_tokens: 2 },
+        },
+      };
+    }
+
+    const create = vi.fn().mockResolvedValue(events());
+    const provider = openaiProvider({
+      model: "o3-mini",
+      client: { responses: { create } } as never,
+    });
+
+    const chunks = [];
+    for await (const chunk of provider.stream!({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.map((c) => c.type)).toEqual([
+      "thinking_delta",
+      "text_delta",
+      "done",
+    ]);
+    expect(chunks[0]).toEqual({ type: "thinking_delta", text: "consider options" });
+    expect(create.mock.calls[0]![0].reasoning).toEqual({ summary: "auto" });
+  });
+
+  it("detects models that usually expose reasoning", () => {
+    expect(modelLikelyReasons("o3-mini")).toBe(true);
+    expect(modelLikelyReasons("deepseek-flash")).toBe(true);
+    expect(modelLikelyReasons("gpt-4.1")).toBe(false);
+  });
+
   it("yields done on response.incomplete (DeepSeek / truncated streams)", async () => {
     async function* events() {
       yield {

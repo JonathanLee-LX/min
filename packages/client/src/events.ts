@@ -22,6 +22,9 @@ export function createEventTranslator(): EventTranslator {
         case "text_delta":
           return [{ type: "assistant_delta", text: event.text }];
 
+        case "thinking_delta":
+          return [{ type: "thinking_delta", text: event.text }];
+
         case "tool_call": {
           toolNames.set(event.toolCall.id, event.toolCall.name);
           return [
