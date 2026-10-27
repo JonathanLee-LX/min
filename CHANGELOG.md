@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha.2
+
+TUI status and layout polish.
+
+- Spinner status copy rotates by phase (pondering, composing, running `<tool>`, …) instead of staying on “thinking”.
+- Default theme drops chat/composer block background fills; accents stay on the terminal background.
+- Composer has no fill and reserves two terminal rows of height.
+- Transcript growth no longer `setState`s during render, which had caused occasional screen flicker.
+
+Install: `npm install -g @min-agent/min@alpha`
+
 ## 0.1.0-alpha.1
 
 TUI and release polish on top of the first alpha.

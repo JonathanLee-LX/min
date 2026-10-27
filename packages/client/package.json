@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/client",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "license": "MIT",
   "description": "UI-facing facade for min: send / subscribe / queue / permission / session",
   "type": "module",
