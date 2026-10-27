@@ -716,6 +716,7 @@ export function App({ args }: { args: TuiArgs }) {
                 {row.gutter ? (
                   <Text
                     bold={row.lead}
+                    italic={tone.italicBody}
                     color={tone.label}
                     dimColor={tone.dimLabel}
                     backgroundColor={tone.background ?? undefined}
@@ -727,6 +728,7 @@ export function App({ args }: { args: TuiArgs }) {
                   <Text
                     key={spanIndex}
                     bold={span.bold}
+                    italic={tone.italicBody}
                     color={tone.body}
                     backgroundColor={tone.background ?? undefined}
                     dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}

@@ -63,4 +63,12 @@ describe("theme", () => {
     expect(defaultTheme.roles.user.body).toMatch(/^#/);
     expect(defaultTheme.roles.assistant.body).toMatch(/^#/);
   });
+
+  it("styles thinking as muted italic copy", () => {
+    const tone = toneFor("thinking");
+    expect(tone.italicBody).toBe(true);
+    expect(tone.dimBody).toBe(true);
+    expect(tone.body).toBe("#7f849c");
+    expect(toneFor("assistant").italicBody).toBe(false);
+  });
 });

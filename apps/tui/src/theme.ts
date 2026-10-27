@@ -17,6 +17,8 @@ export interface RoleStyle {
   background?: ThemeColor;
   dimLabel?: boolean;
   dimBody?: boolean;
+  /** When true, body spans render in italic (e.g. reasoning). */
+  italicBody?: boolean;
 }
 
 export interface FrameStyle {
@@ -73,6 +75,8 @@ export type ThemeOverrides = {
 const mocha = {
   text: "#cdd6f4",
   subtext: "#a6adc8",
+  /** Darker muted tone for secondary / reasoning copy. */
+  overlay: "#7f849c",
   green: "#a6e3a1",
   blue: "#89b4fa",
   yellow: "#f9e2af",
@@ -101,10 +105,11 @@ export const defaultTheme: TuiTheme = {
       dimBody: false,
     },
     thinking: {
-      label: mocha.mauve,
-      body: mocha.subtext,
-      dimLabel: false,
+      label: mocha.overlay,
+      body: mocha.overlay,
+      dimLabel: true,
       dimBody: true,
+      italicBody: true,
     },
     tool: {
       label: mocha.yellow,
@@ -213,6 +218,7 @@ export interface LineTone {
   background?: ThemeColor;
   dimLabel: boolean;
   dimBody: boolean;
+  italicBody: boolean;
 }
 
 export function toneFor(kind: LogKind, theme: TuiTheme = defaultTheme): LineTone {
@@ -223,6 +229,7 @@ export function toneFor(kind: LogKind, theme: TuiTheme = defaultTheme): LineTone
     background: role.background,
     dimLabel: role.dimLabel === true,
     dimBody: role.dimBody === true,
+    italicBody: role.italicBody === true,
   };
 }
 
