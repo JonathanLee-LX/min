@@ -31,7 +31,7 @@ import {
   type EditorState,
   type InputKey,
 } from "./editor.js";
-import { contextBreakdownLine, contextStatusLine } from "./context-view.js";
+import { bottomStatusLines } from "./context-view.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { decodeInput } from "./keys.js";
 import {
@@ -619,18 +619,20 @@ export function App({ args }: { args: TuiArgs }) {
   const footer = footerLines(pendingPerm !== null);
   const footerRows = footer.reduce((count, line) => count + wrapText(line, innerWidth).length, 0);
   const activityRows = activity ? 1 : 0;
-  const contextLine = contextStatusLine(contextUsage);
-  const contextPartsLine = contextBreakdownLine(contextUsage);
-  /** Breakdown sits under the status row; the short meter shares the status line. */
-  const contextExtraRows = contextPartsLine ? 1 : 0;
+  const modelId = client?.getStatus().provider ?? "";
+  const bottomStatus = bottomStatusLines(modelId, contextUsage);
+  const bottomStatusRows = bottomStatus.reduce(
+    (count, line) => count + wrapText(line, innerWidth).length,
+    0,
+  );
   const reserved =
     2 +
-    contextExtraRows +
     activityRows +
     (permRows > 0 ? permRows + 1 : 0) +
     1 +
     inputRows +
     suggestRows +
+    bottomStatusRows +
     footerRows;
   const userTone = toneFor("user", theme);
   const logHeight = Math.max(1, termRows - reserved);
@@ -689,16 +691,9 @@ export function App({ args }: { args: TuiArgs }) {
           min
         </Text>
         <Text dimColor={theme.chrome.statusDim}>
-          {` · ${status.provider} · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${
-            contextLine ? ` · ${contextLine}` : ""
-          }${scrollHint}`}
+          {` · ${shortId(status.sessionId)} · ${statusLabel} · queue ${queueSize}${scrollHint}`}
         </Text>
       </Text>
-      {contextPartsLine ? (
-        <Text dimColor wrap="truncate">
-          {contextPartsLine}
-        </Text>
-      ) : null}
 
       <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
         {layout.visible.map((row) => {
@@ -793,6 +788,11 @@ export function App({ args }: { args: TuiArgs }) {
           <Text dimColor>{`  · Tab · ↑↓`}</Text>
         </Text>
       ) : null}
+      {bottomStatus.map((line) => (
+        <Text key={line} dimColor={theme.chrome.statusDim} wrap="truncate">
+          {line}
+        </Text>
+      ))}
       {footer.map((line) => (
         <Text key={line} dimColor wrap="wrap">
           {line}

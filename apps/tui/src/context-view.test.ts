@@ -4,7 +4,11 @@ import {
   formatContextUsageShort,
   type ContextUsage,
 } from "@min-agent/client";
-import { contextBreakdownLine, contextStatusLine } from "./context-view.js";
+import {
+  bottomStatusLines,
+  contextBreakdownLine,
+  contextStatusLine,
+} from "./context-view.js";
 
 function sampleUsage(): ContextUsage {
   return {
@@ -32,5 +36,15 @@ describe("context-view", () => {
     expect(contextBreakdownLine(usage)).toMatch(/sys /);
     expect(contextBreakdownLine(undefined)).toBe("");
     expect(contextStatusLine(undefined)).toBe("");
+  });
+
+  it("builds bottom model + context chrome", () => {
+    const usage = sampleUsage();
+    expect(bottomStatusLines("deepseek:deepseek-flash", usage)).toEqual([
+      `deepseek:deepseek-flash · ${formatContextUsageShort(usage)}`,
+      formatContextUsageBreakdown(usage),
+    ]);
+    expect(bottomStatusLines("mock", undefined)).toEqual(["mock"]);
+    expect(bottomStatusLines("", undefined)).toEqual([]);
   });
 });
