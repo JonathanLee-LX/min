@@ -7,6 +7,7 @@ import {
 import {
   bottomStatusLines,
   contextBreakdownLine,
+  contextReport,
   contextStatusLine,
 } from "./context-view.js";
 
@@ -36,6 +37,11 @@ describe("context-view", () => {
     expect(contextBreakdownLine(usage)).toMatch(/sys /);
     expect(contextBreakdownLine(undefined)).toBe("");
     expect(contextStatusLine(undefined)).toBe("");
+    expect(contextReport(undefined)).toMatch(/no usage/);
+    expect(contextReport(usage)).toContain(formatContextUsageShort(usage));
+    expect(contextReport(usage)).toContain("strategy: hybrid");
+    expect(contextReport(usage)).toMatch(/sys /);
+    expect(contextReport(usage)).toMatch(/reserved /);
   });
 
   it("builds bottom cwd + model/thinking + percent chrome", () => {

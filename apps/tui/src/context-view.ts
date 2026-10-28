@@ -1,6 +1,7 @@
 import type { ContextUsage } from "@min-agent/client";
 import {
   formatContextUsageBreakdown,
+  formatContextUsageReport,
   formatContextUsageShort,
 } from "@min-agent/client";
 import {
@@ -18,9 +19,14 @@ export function contextBreakdownLine(usage: ContextUsage | undefined): string {
   return formatContextUsageBreakdown(usage);
 }
 
+/** Full `/context` report (short + strategy + part shares). */
+export function contextReport(usage: ContextUsage | undefined): string {
+  return formatContextUsageReport(usage);
+}
+
 /**
  * Bottom chrome: cwd[+branch] and model (thinking) + context %.
- * Part breakdown stays behind `/context`, not the footer.
+ * Part breakdown is available via `/context`.
  */
 export function bottomStatusLines(
   cwd: string,

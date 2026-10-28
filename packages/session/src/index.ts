@@ -116,6 +116,7 @@ export {
 export {
   computeContextUsage,
   formatContextUsageBreakdown,
+  formatContextUsageReport,
   formatContextUsageShort,
   formatTokenCount,
   withContextUsage,

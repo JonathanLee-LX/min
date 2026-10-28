@@ -20,6 +20,14 @@ describe("routeSubmit", () => {
 
   it("keeps read-only commands while busy and blocks session mutations", () => {
     expect(routeSubmit("/help", true)).toEqual({ type: "command", command: { type: "help" } });
+    expect(routeSubmit("/context", true)).toEqual({
+      type: "command",
+      command: { type: "context" },
+    });
+    expect(routeSubmit("/version", true)).toEqual({
+      type: "command",
+      command: { type: "version" },
+    });
     expect(routeSubmit("/queue", true)).toEqual({ type: "command", command: { type: "queue" } });
     expect(routeSubmit("/session", true).type).toBe("command");
     expect(routeSubmit("/sessions", true).type).toBe("command");
@@ -45,6 +53,8 @@ describe("routeSubmit", () => {
     expect(parseTuiCommand("/open")).toEqual({ type: "open-usage" });
     expect(parseTuiCommand("/open session-1")).toEqual({ type: "open", id: "session-1" });
     expect(parseTuiCommand("/dense")).toEqual({ type: "dense-usage" });
+    expect(parseTuiCommand("/ctx")).toEqual({ type: "context" });
+    expect(parseTuiCommand("/v")).toEqual({ type: "version" });
   });
 
   it("formats queue and compact results", () => {
@@ -65,6 +75,8 @@ describe("command completion", () => {
   it("lists slash matches and completes the selected one", () => {
     expect(commandSuggestions("hello")).toEqual([]);
     expect(commandSuggestions("/he").map((command) => command.name)).toEqual(["help"]);
+    expect(commandSuggestions("/con").map((command) => command.name)).toEqual(["context"]);
+    expect(commandSuggestions("/ver").map((command) => command.name)).toEqual(["version"]);
     expect(commandSuggestions("/s").map((command) => command.name)).toEqual([
       "session",
       "sessions",

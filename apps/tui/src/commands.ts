@@ -8,6 +8,8 @@ export type TuiCommand =
   | { type: "prompt"; text: string }
   | { type: "exit" }
   | { type: "help" }
+  | { type: "context" }
+  | { type: "version" }
   | { type: "session" }
   | { type: "sessions" }
   | { type: "open"; id: string }
@@ -35,6 +37,8 @@ export interface CommandSpec {
 
 export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "help", hint: "show this help" },
+  { name: "context", hint: "context window used/limit and part breakdown" },
+  { name: "version", hint: "show min version" },
   { name: "session", hint: "current session id, title, messages, queue" },
   { name: "sessions", hint: "list saved sessions" },
   { name: "open", hint: "switch to a saved session", arg: true },
@@ -49,6 +53,8 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
 
 export const TUI_HELP = `Commands:
   /help              show this help
+  /context           context window used/limit and part breakdown
+  /version           show min version
   /session           current session id, title, messages, queue
   /sessions          list saved sessions
   /open <id>         switch to a saved session
@@ -129,6 +135,8 @@ export function parseTuiCommand(line: string): TuiCommand {
   const name = (cmd ?? "").toLowerCase();
   if (name === "exit" || name === "quit" || name === "q") return { type: "exit" };
   if (name === "help" || name === "h" || name === "?") return { type: "help" };
+  if (name === "context" || name === "ctx") return { type: "context" };
+  if (name === "version" || name === "v") return { type: "version" };
   if (name === "session") return { type: "session" };
   if (name === "sessions") return { type: "sessions" };
   if (name === "open") {

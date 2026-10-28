@@ -217,7 +217,7 @@ During a run:
   Ctrl+C              abort the current turn (REPL stays open)
 
 REPL commands:
-  /help  /session  /compact  /reset  /queue  /dense  /exit
+  /help  /context  /version  /session  /compact  /reset  /queue  /dense  /exit
   (lines typed during a run are queued; drained after the agent pass)
 
 Context:

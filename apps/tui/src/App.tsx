@@ -24,6 +24,8 @@ import {
   routeSubmit,
   type TuiCommand,
 } from "./commands.js";
+import { contextReport } from "./context-view.js";
+import { formatVersionLine } from "./version.js";
 import {
   commitEditor,
   createEditor,
@@ -403,6 +405,14 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "help") {
         pushLine("sys", TUI_HELP);
+        return;
+      }
+      if (command.type === "context") {
+        pushLine("sys", contextReport(live.getStatus().context));
+        return;
+      }
+      if (command.type === "version") {
+        pushLine("sys", formatVersionLine());
         return;
       }
       if (command.type === "session") {

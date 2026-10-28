@@ -1,4 +1,6 @@
+import { formatContextUsageReport } from "@min-agent/session";
 import type { CliClient } from "./run.js";
+import { formatVersionLine } from "./version.js";
 
 export type ReplAction =
   | { type: "exit" }
@@ -27,6 +29,8 @@ export function handleReplCommand(
   if (name === "help" || name === "h" || name === "?") {
     console.log(`REPL commands:
   /help              show this help
+  /context           context window used/limit and part breakdown
+  /version           show min version
   /session           show current session id / title / message count
   /sessions          list saved sessions (via Client)
   /open <id>         switch to a saved session
@@ -40,6 +44,16 @@ export function handleReplCommand(
 Follow-ups: client.queue (or /dense). After the current agent pass finishes,
 the session drains the queue and continues. Rapid lines within 1.5s collapse
 to dense-latest. Anything else is sent as a user message.`);
+    return { type: "handled" };
+  }
+
+  if (name === "context" || name === "ctx") {
+    console.log(formatContextUsageReport(client.getStatus().context));
+    return { type: "handled" };
+  }
+
+  if (name === "version" || name === "v") {
+    console.log(formatVersionLine());
     return { type: "handled" };
   }
 

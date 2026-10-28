@@ -16,6 +16,7 @@ const PUBLIC_EXPORTS = [
   "createEventTranslator",
   "createPermissionBridge",
   "formatContextUsageBreakdown",
+  "formatContextUsageReport",
   "formatContextUsageShort",
   "formatTokenCount",
   "isAbortError",

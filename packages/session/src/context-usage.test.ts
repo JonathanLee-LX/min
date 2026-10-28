@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeContextUsage,
   formatContextUsageBreakdown,
+  formatContextUsageReport,
   formatContextUsageShort,
   formatTokenCount,
   withContextUsage,
@@ -110,6 +111,10 @@ describe("computeContextUsage", () => {
     expect(formatContextUsageShort(usage)).toMatch(/^ctx \d+(\.\d)?k?\/32k \d+%$/);
     expect(formatContextUsageBreakdown(usage)).toMatch(/sys \d+%/);
     expect(formatContextUsageBreakdown(usage)).toMatch(/conv \d+%/);
+    expect(formatContextUsageReport(undefined)).toMatch(/no usage/);
+    expect(formatContextUsageReport(usage)).toMatch(/^ctx /);
+    expect(formatContextUsageReport(usage)).toMatch(/sys /);
+    expect(formatContextUsageReport(usage)).toMatch(/estimated/);
   });
 
   it("attaches usage onto an assemble-shaped result", () => {

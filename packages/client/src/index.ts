@@ -31,6 +31,7 @@ export type {
 } from "@min-agent/session";
 export {
   formatContextUsageBreakdown,
+  formatContextUsageReport,
   formatContextUsageShort,
   formatTokenCount,
 } from "@min-agent/session";

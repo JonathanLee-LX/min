@@ -66,6 +66,8 @@ Config files (later layers win):
 
 Commands:
   /help              show this help
+  /context           context window used/limit and part breakdown
+  /version           show min version
   /session           current session id, title, messages, queue
   /sessions          list saved sessions
   /open <id>         switch to a saved session

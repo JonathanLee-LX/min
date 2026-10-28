@@ -64,4 +64,36 @@ describe("handleReplCommand", () => {
       type: "compact",
     });
   });
+
+  it("prints /context and /version", () => {
+    const cli = fakeCli({
+      getStatus: () => ({
+        status: "idle" as const,
+        busy: false,
+        provider: "mock",
+        sessionId: "ses_test",
+        queueSize: 0,
+        cwd: "/tmp",
+        context: {
+          used: 100,
+          limit: 1000,
+          ratio: 0.1,
+          reservedOutput: 50,
+          estimated: true,
+          strategy: "trim",
+          parts: [
+            { id: "system" as const, label: "system", tokens: 40, share: 0.4 },
+            { id: "conversation" as const, label: "conversation", tokens: 60, share: 0.6 },
+            { id: "reserved" as const, label: "reserved", tokens: 50, share: 0.05 },
+          ],
+        },
+      }),
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(handleReplCommand(cli, "/context")).toEqual({ type: "handled" });
+    expect(log.mock.calls.at(-1)?.[0]).toMatch(/ctx /);
+    expect(handleReplCommand(cli, "/version")).toEqual({ type: "handled" });
+    expect(log.mock.calls.at(-1)?.[0]).toMatch(/^min /);
+    log.mockRestore();
+  });
 });

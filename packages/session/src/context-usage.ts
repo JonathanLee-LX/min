@@ -183,6 +183,36 @@ export function formatContextUsageBreakdown(usage: ContextUsage): string {
     .join(" · ");
 }
 
+/**
+ * Multi-line report for `/context`:
+ *   ctx 4.2k/32k 13%
+ *   strategy: hybrid
+ *   sys 400 10% · tools 800 19% · conv 3.0k 71%
+ *   reserved 1.0k
+ */
+export function formatContextUsageReport(usage: ContextUsage | undefined): string {
+  if (!usage) return "context: (no usage yet — send a message first)";
+  const lines = [formatContextUsageShort(usage)];
+  if (usage.strategy) lines.push(`strategy: ${usage.strategy}`);
+  const content = usage.parts.filter((part) => part.id !== "reserved" && part.tokens > 0);
+  if (content.length) {
+    lines.push(
+      content
+        .map(
+          (part) =>
+            `${shortLabel(part.id)} ${formatTokenCount(part.tokens)} ${Math.round(part.share * 100)}%`,
+        )
+        .join(" · "),
+    );
+  }
+  const reserved = usage.parts.find((part) => part.id === "reserved");
+  if (reserved && reserved.tokens > 0) {
+    lines.push(`reserved ${formatTokenCount(reserved.tokens)}`);
+  }
+  if (usage.estimated) lines.push("(estimated · chars÷4)");
+  return lines.join("\n");
+}
+
 export function formatTokenCount(tokens: number): string {
   if (tokens < 1000) return String(Math.max(0, Math.round(tokens)));
   if (tokens < 10_000) return `${(tokens / 1000).toFixed(1)}k`;
