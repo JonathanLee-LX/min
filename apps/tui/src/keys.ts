@@ -29,6 +29,14 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
   const enhanced = enhancedKey(chunk);
   if (enhanced) return enhanced;
 
+  const nav = navigation(chunk);
+  if (nav) return nav;
+
+  // Unhandled CSI / SS3 — never insert escape garbage as draft text.
+  if (/^\x1b\[[0-9;?]*[@-~]$/.test(chunk) || /^\x1bO[A-Z~]$/.test(chunk)) {
+    return plain("");
+  }
+
   if (chunk === "\r" || chunk === "\r\n") return flagged({ return: true });
   if (chunk === "\x1b\r" || chunk === "\x1b\n") return flagged({ return: true, meta: true });
   // In raw mode Enter is `\r`. `\n` is Ctrl+J.
@@ -43,9 +51,6 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
     const input = String.fromCharCode(chunk.charCodeAt(0) + "a".charCodeAt(0) - 1);
     return { input, key: flagged({ ctrl: true }).key };
   }
-
-  const nav = navigation(chunk);
-  if (nav) return nav;
 
   if (chunk.startsWith("\x1b") && chunk.length === 2) {
     const ch = chunk[1] ?? "";
@@ -63,30 +68,34 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
 
 /**
  * Kitty CSI-u / xterm modifyOtherKeys sequences.
- * Modifiers on Enter (Shift/Ctrl/Meta) are decoded here; the keybinding
- * table decides newline vs submit.
+ *
+ * With `enableFocusReporting` we turn on modifyOtherKeys + kitty flags, so
+ * Ctrl+C arrives as `CSI 27;5;99 ~` / `CSI 99;5 u` instead of `\x03`. Those
+ * must decode to `{ input:"c", ctrl:true }` or they get inserted as garbage
+ * and never hit the interrupt binding.
  */
 function enhancedKey(chunk: string): { input: string; key: InputKey } | null {
-  // CSI u: ESC [ code ; mods u  (Enter=13, Backspace=127, Tab=9, Escape=27)
+  // CSI u: ESC [ code ; mods u
   const csiU = /^\x1b\[(\d+)(?:;(\d+))?u$/.exec(chunk);
-  if (csiU) {
-    const code = Number(csiU[1]);
-    const flags = modifiers(csiU[2]);
-    if (code === 13) return flagged({ return: true, ...flags });
-    if (code === 127) return flagged({ backspace: true, ...flags });
-    if (code === 9) return flagged({ tab: true, ...flags });
-    if (code === 27) return flagged({ escape: true, ...flags });
-    return null;
-  }
+  if (csiU) return decodeEnhancedCode(Number(csiU[1]), modifiers(csiU[2]));
   // modifyOtherKeys: ESC [ 27 ; mods ; code ~
   const modOther = /^\x1b\[27;(\d+);(\d+)~$/.exec(chunk);
-  if (modOther) {
-    const flags = modifiers(modOther[1]);
-    const code = Number(modOther[2]);
-    if (code === 13) return flagged({ return: true, ...flags });
-    if (code === 127) return flagged({ backspace: true, ...flags });
-    if (code === 9) return flagged({ tab: true, ...flags });
-    if (code === 27) return flagged({ escape: true, ...flags });
+  if (modOther) return decodeEnhancedCode(Number(modOther[2]), modifiers(modOther[1]));
+  return null;
+}
+
+function decodeEnhancedCode(
+  code: number,
+  flags: Partial<InputKey>,
+): { input: string; key: InputKey } | null {
+  if (code === 13) return flagged({ return: true, ...flags });
+  if (code === 127) return flagged({ backspace: true, ...flags });
+  if (code === 9) return flagged({ tab: true, ...flags });
+  if (code === 27) return flagged({ escape: true, ...flags });
+  // Unicode code point for the key (e.g. 99 = "c" for Ctrl+C).
+  if (code >= 32 && code <= 126) {
+    const input = String.fromCharCode(code);
+    return { input, key: flagged(flags).key };
   }
   return null;
 }

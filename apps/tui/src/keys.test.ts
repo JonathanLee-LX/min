@@ -35,4 +35,15 @@ describe("actionFromChunk", () => {
     expect(actionFromChunk("\x1b[13;2u")).toEqual({ type: "edit", op: { op: "newline" } });
     expect(actionFromChunk("\x1b[27;2;13~")).toEqual({ type: "edit", op: { op: "newline" } });
   });
+
+  it("maps modifyOtherKeys / kitty Ctrl+C to interrupt (not insert)", () => {
+    expect(actionFromChunk("\x1b[27;5;99~")).toEqual({ type: "interrupt" });
+    expect(actionFromChunk("\x1b[99;5u")).toEqual({ type: "interrupt" });
+    expect(actionFromChunk("\x03")).toEqual({ type: "interrupt" });
+  });
+
+  it("swallows unknown CSI instead of inserting it as text", () => {
+    expect(actionFromChunk("\x1b[999;5u")).toEqual({ type: "ignore" });
+    expect(actionFromChunk("\x1b[27;5;1~")).toEqual({ type: "ignore" });
+  });
 });
