@@ -3,7 +3,7 @@
  *
  * When enabled, the host sends `\x1b[I` (focus in) / `\x1b[O` (focus out).
  * Unfocused tabs still receive timer/stream paints; pausing Ink updates while
- * unfocused stops the eraseLines flicker that shows up in background tabs.
+ * unfocused stops the log-update flicker that shows up in background tabs.
  */
 
 export const FOCUS_IN = "\x1b[I";

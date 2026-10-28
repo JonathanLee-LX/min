@@ -4,8 +4,8 @@ import { displayWidth, wrapText } from "./text.js";
 /**
  * Ink 5 IME caret sync.
  *
- * Full-height frames use clearTerminal (absolute CUP from top). Shorter
- * eraseLines frames leave the cursor under the output (relative climb).
+ * Normal paints use eraseLines (relative climb from under the frame).
+ * A rare clearTerminal / hard-clear write uses absolute CUP from top.
  */
 
 export interface ImeCaretAnchor {

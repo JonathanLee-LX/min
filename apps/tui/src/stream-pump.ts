@@ -4,8 +4,9 @@
  * Ink renders through React's legacy reconciler, so `setState` from a
  * network callback paints before it returns. Doing that on every token
  * holds the stream loop inside layout, and the screen advances at the
- * paint rate instead of the model's rate. A timer lets the current burst
- * land in the buffer first, then paints once.
+ * paint rate instead of the model's rate. A short timer lets the current
+ * burst land in the buffer first, then paints once — aligned with Ink's
+ * ~32ms throttled log-update so streaming does not thrash the screen.
  */
 export interface StreamPump {
   push(chunk: string): void;
@@ -14,7 +15,13 @@ export interface StreamPump {
   reset(): void;
 }
 
-export function createStreamPump(flush: (text: string) => void): StreamPump {
+/** Match Ink's throttledLog cadence (~32ms) when coalescing stream paints. */
+export const STREAM_PUMP_MS = 32;
+
+export function createStreamPump(
+  flush: (text: string) => void,
+  delayMs = STREAM_PUMP_MS,
+): StreamPump {
   let buffer = "";
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -31,7 +38,7 @@ export function createStreamPump(flush: (text: string) => void): StreamPump {
       timer = setTimeout(() => {
         timer = null;
         flush(buffer);
-      }, 0);
+      }, delayMs);
     },
     take() {
       clearTimer();

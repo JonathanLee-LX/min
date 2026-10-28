@@ -686,6 +686,12 @@ export function App({ args }: { args: TuiArgs }) {
   );
   const columns = size.columns;
   const termRows = size.rows;
+  /**
+   * Leave one free row so Ink's outputHeight stays < stdout.rows.
+   * Full-height frames take the clearTerminal path and flicker on every
+   * stream/spinner paint; eraseLines + resize hard-clear stay stable.
+   */
+  const paintRows = Math.max(1, termRows - 1);
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
@@ -709,7 +715,7 @@ export function App({ args }: { args: TuiArgs }) {
     inputRows +
     suggestRows +
     bottomStatusRows;
-  const logHeight = Math.max(1, termRows - reserved);
+  const logHeight = Math.max(1, paintRows - reserved);
   const rowsAboveComposer =
     headerRows + logHeight + activityRows + permBlockRows + 1; /* top rule */
   const rowsBelowComposer = 1 /* bottom rule */ + suggestRows + bottomStatusRows;
@@ -809,7 +815,7 @@ export function App({ args }: { args: TuiArgs }) {
 
   return (
     <ThemeProvider theme={inkChromeTheme}>
-    <Box flexDirection="column" paddingX={1} width={columns} height={termRows}>
+    <Box flexDirection="column" paddingX={1} width={columns} height={paintRows}>
       <Box flexDirection="column" flexShrink={0}>
         {banner.map((line, index) => (
           <Text key={`banner:${index}`} bold color={theme.chrome.brand} wrap="truncate">
@@ -925,11 +931,7 @@ function toDisplayLines(
   return lines;
 }
 
-/**
- * Use the full terminal height so Ink paints via clearTerminal
- * (`outputHeight >= stdout.rows`) instead of eraseLines — that path
- * leaves duplicate bottom chrome after a resize.
- */
+/** Raw terminal size. Layout uses `rows - 1` so Ink avoids clearTerminal. */
 function terminalSize(stdout: NodeJS.WriteStream): { columns: number; rows: number } {
   return {
     columns: Math.max(20, stdout.columns || 80),
