@@ -270,13 +270,26 @@ function paintBlocks(
           continue;
         }
       }
-      if (block.lang) push(paintSpans([{ text: block.lang, tone: "dim" }], false));
+      const fenceLabel = block.lang?.trim() ? `\`\`\`${block.lang.trim()}` : "```";
+      push(paintSpans([{ text: fenceLabel, tone: "dim" }], false));
+      const rail = "│ ";
+      const railWidth = displayWidth(rail);
+      const codeWidth = Math.max(1, bodyWidth - railWidth);
       const codeLines = source.length > 0 ? source : [""];
       for (const codeLine of codeLines) {
-        for (const wrapped of wrapText(codeLine.length > 0 ? codeLine : " ", bodyWidth)) {
-          push(paintSpans([{ text: wrapped || " ", tone: "code" }], false));
+        for (const wrapped of wrapText(codeLine.length > 0 ? codeLine : " ", codeWidth)) {
+          push(
+            paintSpans(
+              [
+                { text: rail, tone: "dim" },
+                { text: wrapped || " ", tone: "code" },
+              ],
+              false,
+            ),
+          );
         }
       }
+      if (block.closed) push(paintSpans([{ text: "```", tone: "dim" }], false));
       continue;
     }
     const bold = block.kind === "heading";

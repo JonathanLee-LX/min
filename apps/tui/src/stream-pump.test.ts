@@ -14,7 +14,7 @@ describe("createStreamPump", () => {
     pump.push("lo");
     pump.push(" there");
     expect(flushed).toEqual([]);
-    vi.advanceTimersByTime(32);
+    vi.advanceTimersByTime(48);
     expect(flushed).toEqual(["Hello there"]);
   });
 
@@ -23,9 +23,9 @@ describe("createStreamPump", () => {
     const flushed: string[] = [];
     const pump = createStreamPump((text) => flushed.push(text));
     pump.push("Hello");
-    vi.advanceTimersByTime(32);
+    vi.advanceTimersByTime(48);
     pump.push("!");
-    vi.advanceTimersByTime(32);
+    vi.advanceTimersByTime(48);
     expect(flushed).toEqual(["Hello", "Hello!"]);
   });
 

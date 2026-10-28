@@ -96,6 +96,7 @@ export function installImeCursorHook(
   if (!stdout.isTTY) return () => {};
   const originalWrite: StdoutWrite = stdout.write.bind(stdout);
   let syncing = false;
+  let lastKey = "";
 
   const writeRaw = (chunk: string) => {
     originalWrite(chunk);
@@ -114,11 +115,16 @@ export function installImeCursorHook(
     if (!syncing && mode) {
       const anchor = getAnchor();
       if (anchor) {
-        syncing = true;
-        try {
-          applyImeCursor(writeRaw, anchor, getColumns(), mode);
-        } finally {
-          syncing = false;
+        const key = `${mode}:${anchor.rowFromTop}:${anchor.column}:${anchor.rowsBelowCaret}:${getColumns()}`;
+        // Skip no-op re-parks — eraseLines frames fire often and re-CUP flickers.
+        if (key !== lastKey || mode === "absolute") {
+          lastKey = key;
+          syncing = true;
+          try {
+            applyImeCursor(writeRaw, anchor, getColumns(), mode);
+          } finally {
+            syncing = false;
+          }
         }
       }
     }

@@ -687,11 +687,11 @@ export function App({ args }: { args: TuiArgs }) {
   const columns = size.columns;
   const termRows = size.rows;
   /**
-   * Leave one free row so Ink's outputHeight stays < stdout.rows.
-   * Full-height frames take the clearTerminal path and flicker on every
-   * stream/spinner paint; eraseLines + resize hard-clear stay stable.
+   * Leave slack so Ink's outputHeight stays < stdout.rows.
+   * Full-height frames take clearTerminal and flicker; `-2` covers yoga
+   * rounding plus log-update's trailing newline bookkeeping.
    */
-  const paintRows = Math.max(1, termRows - 1);
+  const paintRows = Math.max(1, termRows - 2);
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
@@ -863,7 +863,11 @@ export function App({ args }: { args: TuiArgs }) {
                     bold={span.bold}
                     italic={tone.italicBody || span.italic}
                     color={spanColor(span.tone, tone.body, theme)}
-                    backgroundColor={tone.background ?? undefined}
+                    backgroundColor={
+                      span.tone === "code"
+                        ? (theme.markdown.codeBackground ?? tone.background)
+                        : tone.background
+                    }
                     dimColor={
                       tone.dimBody ||
                       span.tone === "dim" ||
@@ -880,7 +884,13 @@ export function App({ args }: { args: TuiArgs }) {
       </Box>
 
       {activity ? (
-        <ActivitySpinner activity={activity} focused={focused} theme={theme} />
+        <ActivitySpinner
+          activity={activity}
+          focused={focused}
+          theme={theme}
+          // Spinner ticks rewrite the whole Ink frame; freeze while tokens flow.
+          animate={!stream && !thinking}
+        />
       ) : null}
 
       {pendingPerm ? (

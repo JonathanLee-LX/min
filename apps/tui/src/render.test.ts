@@ -114,9 +114,10 @@ describe("paint markdown", () => {
       [{ key: "c", kind: "assistant", text: "```ts\nconst value = 1\n```" }],
       40,
     );
-    expect(code[0]?.spans[0]).toMatchObject({ text: "ts", tone: "dim" });
-    expect(code[1]?.body.trimEnd()).toBe("const value = 1");
-    expect(code[1]?.spans[0]?.tone).toBe("code");
+    expect(code[0]?.spans[0]).toMatchObject({ text: "```ts", tone: "dim" });
+    expect(code[1]?.body.trimEnd()).toBe("│ const value = 1");
+    expect(code[1]?.spans.map((span) => span.tone)).toEqual(["dim", "code"]);
+    expect(code[2]?.spans[0]).toMatchObject({ text: "```", tone: "dim" });
   });
 
   it("draws the streaming caret after the parsed text", () => {

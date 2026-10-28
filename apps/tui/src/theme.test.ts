@@ -75,9 +75,11 @@ describe("theme", () => {
 
   it("exposes markdown span accents", () => {
     expect(defaultTheme.markdown.code).toBe("#94e2d5");
+    expect(defaultTheme.markdown.codeBackground).toBe("#313244");
     expect(defaultTheme.markdown.link).toBe("#89dceb");
     const custom = createTheme({ markdown: { code: "#ff0" } });
     expect(custom.markdown.code).toBe("#ff0");
     expect(custom.markdown.link).toBe(defaultTheme.markdown.link);
+    expect(custom.markdown.codeBackground).toBe(defaultTheme.markdown.codeBackground);
   });
 });

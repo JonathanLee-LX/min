@@ -16,24 +16,31 @@ const SPINNER_TYPE: Record<ActivityPhase, "dots" | "line" | "dots12" | "arrow" |
 
 /**
  * Activity chrome built on `@inkjs/ui` Spinner, with min's rotating labels.
- * When the terminal is unfocused we freeze to a static glyph to avoid flicker.
+ *
+ * Freeze to a static glyph when unfocused, or when `animate` is false
+ * (e.g. while assistant text is streaming). Ink redraws the whole frame on
+ * every spinner tick; animating during stream paints causes visible flicker.
  */
 export function ActivitySpinner({
   activity,
   focused,
   theme,
+  animate = true,
 }: {
   activity: Activity;
   focused: boolean;
   theme: TuiTheme;
+  /** When false, show a static glyph instead of the Ink Spinner. */
+  animate?: boolean;
 }) {
+  const live = focused && animate;
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    if (!focused) return;
-    const ms = Math.max(50, activity.intervalMs * activity.labelHold);
+    if (!live) return;
+    const ms = Math.max(120, activity.intervalMs * activity.labelHold);
     const timer = setInterval(() => setTick((n) => n + 1), ms);
     return () => clearInterval(timer);
-  }, [focused, activity.intervalMs, activity.labelHold, activity.phase]);
+  }, [live, activity.intervalMs, activity.labelHold, activity.phase]);
 
   const label = activityLabel(activity, tick * activity.labelHold);
   const inkTheme = useMemo(
@@ -41,7 +48,7 @@ export function ActivitySpinner({
     [theme, activity.color],
   );
 
-  if (!focused) {
+  if (!live) {
     return (
       <Text color={activity.color}>
         · {label}

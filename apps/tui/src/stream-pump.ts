@@ -15,8 +15,8 @@ export interface StreamPump {
   reset(): void;
 }
 
-/** Match Ink's throttledLog cadence (~32ms) when coalescing stream paints. */
-export const STREAM_PUMP_MS = 32;
+/** Coalesce stream paints slightly slower than Ink's 32ms throttle. */
+export const STREAM_PUMP_MS = 48;
 
 export function createStreamPump(
   flush: (text: string) => void,

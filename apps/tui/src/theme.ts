@@ -57,6 +57,8 @@ export interface MarkdownStyle {
   strong?: ThemeColor;
   em?: ThemeColor;
   code?: ThemeColor;
+  /** Background behind inline/fenced code so it reads as a code chip. */
+  codeBackground?: ThemeColor;
   link?: ThemeColor;
 }
 
@@ -91,6 +93,8 @@ const mocha = {
   subtext: "#a6adc8",
   /** Darker muted tone for secondary / reasoning copy. */
   overlay: "#7f849c",
+  /** Surface behind inline / fenced code. */
+  surface: "#313244",
   green: "#a6e3a1",
   /**
    * Brand mint for the MIN banner / composer rules.
@@ -191,6 +195,7 @@ export const defaultTheme: TuiTheme = {
     strong: mocha.text,
     em: mocha.subtext,
     code: mocha.teal,
+    codeBackground: mocha.surface,
     link: mocha.sky,
   },
 };
