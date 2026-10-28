@@ -284,4 +284,32 @@ describe("createSession", () => {
     await agent.dispose();
   });
 
+  it("persistSnapshot writes the given messages through onBeforeSave", async () => {
+    const store = createMemoryStore();
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "unused" }]),
+    });
+    const beforeSave = vi.fn((snapshot) => snapshot);
+    const session = await createSession({
+      agent,
+      store,
+      id: "ses_shut",
+      hooks: { onBeforeSave: beforeSave },
+    });
+    await session.persistSnapshot({
+      meta: {
+        id: "ses_shut",
+        title: "frozen",
+        createdAt: "2020-01-01T00:00:00.000Z",
+        updatedAt: "2020-01-01T00:00:00.000Z",
+      },
+      messages: [userMessage("hello"), assistantMessage([textPart("partial")])],
+    });
+    expect(beforeSave).toHaveBeenCalledOnce();
+    const loaded = await store.load("ses_shut");
+    expect(loaded?.messages).toHaveLength(2);
+    expect(loaded?.meta.title).toBe("frozen");
+    await agent.dispose();
+  });
+
 });

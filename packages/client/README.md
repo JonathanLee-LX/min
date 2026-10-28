@@ -5,7 +5,11 @@
 对外只暴露：
 
 `send` · `abort` · `subscribe(ClientEvent)` · `queue` · `respondPermission` ·
-`listSessions` / `openSession` / `newSession` / `reset`.
+`listSessions` / `reset` / `compact` / `getSession` / `getStatus` / `dispose`.
+
+Interactive TUI / Web / REPL attach through `@min-agent/mind` (one client
+process per session). One-shot `min -p` still calls `createClient()` in-process.
+Switching sessions is a new process, not `openSession` / `newSession`.
 
 ## 实现目标
 
@@ -73,7 +77,8 @@ Busy `send` defaults to **queue** (session input queue). Pass `onBusySend: "reje
 | `permission` | ask UI; answer via `respondPermission` |
 | `queued` | busy-send enqueued |
 | `error` | failures / abort |
-| `session` | id / title / counts; `reason` = update\|open\|reset\|new; `messages` on open/reset/new for UI rebuild |
+| `permission_answer` | allow / deny / allow_session, broadcast to every frontend |
+| `session` | id / title / counts; `reason` = update\|open\|reset\|new\|compact; `messages` on reset/compact for UI rebuild |
 
 ## Escape hatch
 

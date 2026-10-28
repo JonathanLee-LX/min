@@ -1,13 +1,10 @@
 import { Alert, Badge, ThemeProvider } from "@inkjs/ui";
 import {
-  createAutoPermissionApprover,
-  createClient,
   type ClientEvent,
   type ClientStatus,
   type ContextUsage,
   type MinClient,
 } from "@min-agent/client";
-import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
@@ -25,6 +22,12 @@ import {
   type SessionListItem,
   type TuiCommand,
 } from "./commands.js";
+import {
+  attachTuiSession,
+  listTuiSessions,
+  type AttachedSession,
+  type ClientHandshake,
+} from "./session-host.js";
 import { contextReport } from "./context-view.js";
 import { formatVersionLine } from "./version.js";
 import {
@@ -137,6 +140,8 @@ export function App({ args }: { args: TuiArgs }) {
   const [gitBranch, setGitBranch] = useState<string | undefined>();
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
+  const attachedRef = useRef<AttachedSession | null>(null);
+  const unsubRef = useRef<(() => void) | undefined>(undefined);
   const focusedRef = useRef(true);
   const pendingStreamRef = useRef<string | null>(null);
   const pendingThinkingRef = useRef<string | null>(null);
@@ -246,151 +251,190 @@ export function App({ args }: { args: TuiArgs }) {
     }
   }, [focused]);
 
+  const syncQueue = useCallback(() => {
+    const live = clientRef.current;
+    if (live) setQueueSize(live.queue.size);
+  }, []);
+
+  const handleClientEvent = useCallback(
+    (event: ClientEvent) => {
+      if (event.type === "status") {
+        setStatusLabel(event.status);
+        setBusy(event.status !== "idle");
+        if (event.status !== "asking") setPendingPerm(null);
+        if (event.status === "idle") {
+          inflightTools.current.clear();
+          setToolName(null);
+          setContinuing(false);
+          thinkingPumpRef.current?.reset();
+          pendingThinkingRef.current = null;
+          setThinking("");
+        }
+        if (event.status === "asking") setContinuing(false);
+        syncQueue();
+        return;
+      }
+      if (event.type === "context") {
+        setContextUsage(event.usage);
+        return;
+      }
+      if (event.type === "thinking_delta") {
+        thinkingPumpRef.current?.push(event.text);
+        return;
+      }
+      if (event.type === "thinking_done") {
+        thinkingPumpRef.current?.reset();
+        pendingThinkingRef.current = null;
+        setThinking("");
+        if (event.text.trim()) pushLine("thinking", event.text.trim());
+        return;
+      }
+      if (event.type === "assistant_delta") {
+        pumpRef.current?.push(event.text);
+        return;
+      }
+      if (event.type === "assistant_done") {
+        pumpRef.current?.reset();
+        thinkingPumpRef.current?.reset();
+        pendingStreamRef.current = null;
+        pendingThinkingRef.current = null;
+        setContinuing(false);
+        setStream("");
+        setThinking("");
+        if (event.text) pushLine("assistant", event.text);
+        return;
+      }
+      if (event.type === "tool_start") {
+        inflightTools.current.set(event.toolCallId, event.name);
+        setToolName(event.name);
+        setContinuing(false);
+        pushLine("tool", summarizeToolCall(event.name, event.args));
+        return;
+      }
+      if (event.type === "tool_end") {
+        inflightTools.current.delete(event.toolCallId);
+        const names = [...inflightTools.current.values()];
+        setToolName(names.length > 0 ? names[names.length - 1]! : null);
+        const body = event.content.trim();
+        pushLine(
+          event.ok ? "tool-result" : "tool-error",
+          body || (event.ok ? "(no output)" : "(failed)"),
+        );
+        return;
+      }
+      if (event.type === "queued") {
+        setQueueSize(event.queueSize);
+        return;
+      }
+      if (event.type === "follow_up") {
+        setContinuing(true);
+        pushLine("notice", `follow-up: ${clip(event.texts.join(" | "), 160)}`);
+        syncQueue();
+        return;
+      }
+      if (event.type === "error") {
+        pushLine("error", event.aborted ? "aborted" : event.message);
+        return;
+      }
+      if (event.type === "permission") {
+        setPendingPerm({
+          id: event.id,
+          reason: event.reason,
+          toolCall: {
+            name: event.toolCall.name,
+            arguments: event.toolCall.arguments,
+          },
+          grantRoot: event.grantRoot,
+        });
+        return;
+      }
+      if (event.type === "permission_answer") {
+        setPendingPerm(null);
+        pushLine("notice", `permission ${event.answer}`);
+        return;
+      }
+      if (event.type === "session") {
+        if (event.messages) replaceLogs(event.messages);
+        syncQueue();
+      }
+    },
+    [pushLine, replaceLogs, syncQueue],
+  );
+
+  const applyHandshake = useCallback(
+    (handshake: ClientHandshake, announce: boolean) => {
+      replaceLogs(handshake.session.messages);
+      pumpRef.current?.reset();
+      thinkingPumpRef.current?.reset();
+      pendingStreamRef.current = null;
+      pendingThinkingRef.current = null;
+      setStream(handshake.turn.text);
+      setThinking(handshake.turn.thinking);
+      const pending = handshake.pendingPermissions[0];
+      setPendingPerm(
+        pending
+          ? {
+              id: pending.id,
+              reason: pending.reason,
+              toolCall: {
+                name: pending.toolCall.name,
+                arguments: pending.toolCall.arguments,
+              },
+              grantRoot: pending.grantRoot,
+            }
+          : null,
+      );
+      setQueueSize(handshake.status.queueSize);
+      setStatusLabel(handshake.status.status);
+      setBusy(handshake.status.busy);
+      setContextUsage(handshake.status.context);
+      inflightTools.current.clear();
+      setToolName(null);
+      setContinuing(false);
+      if (announce) {
+        pushLine(
+          "sys",
+          `provider=${handshake.status.provider}  session=${handshake.status.sessionId}  cwd=${handshake.status.cwd}`,
+        );
+      }
+    },
+    [pushLine, replaceLogs],
+  );
+
+  const mountAttachment = useCallback(
+    (attached: AttachedSession, announce: boolean) => {
+      unsubRef.current?.();
+      attachedRef.current = attached;
+      clientRef.current = attached.client;
+      unsubRef.current = attached.client.subscribe(handleClientEvent);
+      applyHandshake(attached.handshake, announce);
+      setClient(attached.client);
+    },
+    [applyHandshake, handleClientEvent],
+  );
+
+  const switchAttachment = useCallback(
+    async (sessionId?: string, announce = true) => {
+      const next = await attachTuiSession(args, sessionId);
+      const previous = attachedRef.current;
+      mountAttachment(next, announce);
+      if (previous && previous !== next) await previous.release();
+      return next;
+    },
+    [args, mountAttachment],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    let unsub: (() => void) | undefined;
-
-    const syncQueue = () => {
-      const live = clientRef.current;
-      if (live) setQueueSize(live.queue.size);
-    };
 
     (async () => {
       try {
-        await loadProviderExtensions();
-        const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
-        const created = await createClient({
-          cwd: args.cwd,
-          provider: resolveProvider({
-            provider: args.provider,
-            model: args.model,
-          }),
-          sessionId: args.sessionId,
-          noTools: args.noTools,
-          allowBash: args.yes || args.auto,
-          askWrite: false,
-          applyRootGrant: true,
-          persistPermissionGrants: !args.auto,
-          autoApprovePermission: autoMode
-            ? createAutoPermissionApprover({
-                mode: autoMode,
-                allowRootGrant: args.auto,
-              })
-            : undefined,
-        });
+        const attached = await attachTuiSession(args, args.sessionId);
         if (cancelled) {
-          await created.dispose();
+          await attached.release();
           return;
         }
-        clientRef.current = created;
-        unsub = created.subscribe((event: ClientEvent) => {
-          if (event.type === "status") {
-            setStatusLabel(event.status);
-            setBusy(event.status !== "idle");
-            if (event.status !== "asking") setPendingPerm(null);
-            if (event.status === "idle") {
-              inflightTools.current.clear();
-              setToolName(null);
-              setContinuing(false);
-              thinkingPumpRef.current?.reset();
-              pendingThinkingRef.current = null;
-              setThinking("");
-            }
-            if (event.status === "asking") setContinuing(false);
-            syncQueue();
-            return;
-          }
-          if (event.type === "context") {
-            setContextUsage(event.usage);
-            return;
-          }
-          if (event.type === "thinking_delta") {
-            thinkingPumpRef.current?.push(event.text);
-            return;
-          }
-          if (event.type === "thinking_done") {
-            thinkingPumpRef.current?.reset();
-            pendingThinkingRef.current = null;
-            setThinking("");
-            if (event.text.trim()) pushLine("thinking", event.text.trim());
-            return;
-          }
-          if (event.type === "assistant_delta") {
-            pumpRef.current?.push(event.text);
-            return;
-          }
-          if (event.type === "assistant_done") {
-            pumpRef.current?.reset();
-            thinkingPumpRef.current?.reset();
-            pendingStreamRef.current = null;
-            pendingThinkingRef.current = null;
-            setContinuing(false);
-            setStream("");
-            setThinking("");
-            if (event.text) pushLine("assistant", event.text);
-            return;
-          }
-          if (event.type === "tool_start") {
-            inflightTools.current.set(event.toolCallId, event.name);
-            setToolName(event.name);
-            setContinuing(false);
-            pushLine("tool", summarizeToolCall(event.name, event.args));
-            return;
-          }
-          if (event.type === "tool_end") {
-            inflightTools.current.delete(event.toolCallId);
-            const names = [...inflightTools.current.values()];
-            setToolName(names.length > 0 ? names[names.length - 1]! : null);
-            const body = event.content.trim();
-            pushLine(
-              event.ok ? "tool-result" : "tool-error",
-              body || (event.ok ? "(no output)" : "(failed)"),
-            );
-            return;
-          }
-          if (event.type === "queued") {
-            setQueueSize(event.queueSize);
-            return;
-          }
-          if (event.type === "follow_up") {
-            setContinuing(true);
-            pushLine("notice", `follow-up: ${clip(event.texts.join(" | "), 160)}`);
-            syncQueue();
-            return;
-          }
-          if (event.type === "error") {
-            pushLine("error", event.aborted ? "aborted" : event.message);
-            return;
-          }
-          if (event.type === "permission") {
-            setPendingPerm({
-              id: event.id,
-              reason: event.reason,
-              toolCall: {
-                name: event.toolCall.name,
-                arguments: event.toolCall.arguments,
-              },
-              grantRoot: event.grantRoot,
-            });
-            return;
-          }
-          if (event.type === "session") {
-            if (event.messages) replaceLogs(event.messages);
-            syncQueue();
-          }
-        });
-        const snapshot = created.getSession();
-        replaceLogs(snapshot.messages);
-        const status = created.getStatus();
-        pushLine(
-          "sys",
-          `provider=${status.provider}  session=${status.sessionId}  cwd=${status.cwd}`,
-        );
-        setQueueSize(status.queueSize);
-        setStatusLabel(status.status);
-        setBusy(status.status !== "idle");
-        setContextUsage(status.context);
-        setClient(created);
+        mountAttachment(attached, true);
       } catch (err) {
         if (!cancelled) setError(messageOf(err));
       }
@@ -398,10 +442,12 @@ export function App({ args }: { args: TuiArgs }) {
 
     return () => {
       cancelled = true;
-      unsub?.();
-      const live = clientRef.current;
+      unsubRef.current?.();
+      unsubRef.current = undefined;
       clientRef.current = null;
-      if (live) void live.dispose();
+      const attached = attachedRef.current;
+      attachedRef.current = null;
+      if (attached) void attached.release();
     };
   }, [
     args.auto,
@@ -411,8 +457,7 @@ export function App({ args }: { args: TuiArgs }) {
     args.provider,
     args.sessionId,
     args.yes,
-    pushLine,
-    replaceLogs,
+    mountAttachment,
   ]);
 
   const runCommand = useCallback(
@@ -450,7 +495,7 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "sessions") {
         try {
-          const metas = await live.listSessions();
+          const metas = await listTuiSessions(args.cwd);
           pushLine("sys", formatSessionList(metas, live.getSession().id));
         } catch (err) {
           pushLine("error", messageOf(err));
@@ -459,7 +504,7 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "resume-pick") {
         try {
-          const metas = await live.listSessions();
+          const metas = await listTuiSessions(args.cwd);
           const currentId = live.getSession().id;
           if (metas.length === 0) {
             pushLine("sys", "(no saved sessions)");
@@ -470,11 +515,7 @@ export function App({ args }: { args: TuiArgs }) {
             metas.findIndex((meta) => meta.id === currentId),
           );
           setSessionPicker({
-            sessions: metas.map((meta) => ({
-              id: meta.id,
-              title: meta.title,
-              updatedAt: meta.updatedAt,
-            })),
+            sessions: metas,
             selected: selected >= 0 ? selected : 0,
             currentId,
           });
@@ -487,8 +528,8 @@ export function App({ args }: { args: TuiArgs }) {
       if (command.type === "resume") {
         try {
           setSessionPicker(null);
-          await live.openSession(command.id);
-          pushLine("sys", `resumed ${live.getSession().id}`);
+          const next = await switchAttachment(command.id, false);
+          pushLine("sys", `resumed ${next.sessionId}`);
         } catch (err) {
           pushLine("error", messageOf(err));
         }
@@ -496,8 +537,8 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "new") {
         try {
-          await live.newSession();
-          pushLine("sys", `new session ${live.getSession().id}`);
+          const next = await switchAttachment(undefined, false);
+          pushLine("sys", `new session ${next.sessionId}`);
         } catch (err) {
           pushLine("error", messageOf(err));
         }
@@ -547,7 +588,7 @@ export function App({ args }: { args: TuiArgs }) {
         }
       }
     },
-    [exit, pushLine],
+    [args.cwd, exit, pushLine, switchAttachment],
   );
 
   const submitLine = useCallback(
@@ -629,11 +670,9 @@ export function App({ args }: { args: TuiArgs }) {
         }
         setSessionPicker(null);
         void (async () => {
-          const live = clientRef.current;
-          if (!live) return;
           try {
-            await live.openSession(pick.id);
-            pushLine("sys", `resumed ${live.getSession().id}`);
+            const next = await switchAttachment(pick.id, false);
+            pushLine("sys", `resumed ${next.sessionId}`);
           } catch (err) {
             pushLine("error", messageOf(err));
           }

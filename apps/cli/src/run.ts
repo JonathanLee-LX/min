@@ -4,6 +4,7 @@ import {
   type MinClient,
   type PermissionAnswer,
 } from "@min-agent/client";
+import { listWorkspaceSessions } from "@min-agent/mind";
 import {
   loadProviderExtensions,
   resolveProvider,
@@ -59,22 +60,26 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   return { client, args };
 }
 
-/** List sessions through @min-agent/client (same store Runtime would use). */
+/** List workspace history plus live client processes via mind. Does not spawn clients. */
 export async function listSessions(args: CliArgs): Promise<void> {
-  const cli = await createCliClient({ ...args, noTools: true });
-  try {
-    const metas = await cli.client.listSessions();
-    const dir = sessionDirFor(args);
-    if (!metas.length) {
-      console.log(`(no sessions in ${dir})`);
-      return;
+  const listed = await listWorkspaceSessions(args.cwd);
+  const dir = sessionDirFor(args);
+  if (!listed.live.length && !listed.history.length) {
+    console.log(`(no sessions in ${dir})`);
+    return;
+  }
+  if (listed.live.length) {
+    console.log("live:");
+    for (const live of listed.live) {
+      console.log(`* ${live.sessionId}  pid=${live.pid}  ${live.cwd}`);
     }
-    for (const m of metas) {
+  }
+  if (listed.history.length) {
+    if (listed.live.length) console.log("history:");
+    for (const m of listed.history) {
       const title = m.title ? `  ${m.title}` : "";
       console.log(`${m.id}  ${m.updatedAt}${title}`);
     }
-  } finally {
-    await cli.client.dispose();
   }
 }
 
@@ -134,11 +139,15 @@ export async function runTurn(
       void (async () => {
         try {
           const answer = await resolvePermissionInteractive(args, rl, event);
-          // applyRootGrant is false on CLI so we control grantRoot here.
+          // In-process CLI owns grantRoot. A client process applies it itself.
           if (answer !== "deny" && event.grantRoot) {
-            client.advanced.runtime.permissions?.grantRoot(event.grantRoot, {
-              persist: answer === "allow_session" && !args.auto,
-            });
+            try {
+              client.advanced.runtime.permissions?.grantRoot(event.grantRoot, {
+                persist: answer === "allow_session" && !args.auto,
+              });
+            } catch {
+              // remote client has no runtime escape hatch
+            }
           }
           client.respondPermission(event.id, answer);
         } catch {

@@ -20,6 +20,9 @@ importers:
       '@min-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@min-agent/mind':
+        specifier: workspace:*
+        version: link:../../packages/mind
       '@min-agent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -63,6 +66,9 @@ importers:
       '@min-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@min-agent/mind':
+        specifier: workspace:*
+        version: link:../../packages/mind
       '@min-agent/render':
         specifier: workspace:*
         version: link:../../packages/render
@@ -106,6 +112,9 @@ importers:
       '@min-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@min-agent/mind':
+        specifier: workspace:*
+        version: link:../../packages/mind
       '@min-agent/render':
         specifier: workspace:*
         version: link:../../packages/render
@@ -348,6 +357,43 @@ importers:
       vitest:
         specifier: ^3.1.1
         version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+
+  packages/mind:
+    dependencies:
+      '@min-agent/client':
+        specifier: workspace:*
+        version: link:../client
+      '@min-agent/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@min-agent/session':
+        specifier: workspace:*
+        version: link:../session
+    devDependencies:
+      '@min-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@min-agent/tools':
+        specifier: workspace:*
+        version: link:../tools
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.5
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
 
   packages/providers:
     dependencies:

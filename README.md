@@ -28,6 +28,7 @@ min-web
 | `apps/tui` | `min-tui` (also the default `min` UI) |
 | `apps/webui` | `min-web` |
 | `@min-agent/client` | UI facade |
+| `@min-agent/mind` | Machine-wide supervisor + per-session client processes |
 | `@min-agent/config` | Layered user/project config |
 | `@min-agent/render` | Markdown → `RenderBlock` (TUI + Web) |
 | `@min-agent/runtime` | Host composition |
@@ -70,6 +71,7 @@ packages/
   session/   @min-agent/session  conversation sessions + context budget + input queue
   runtime/   @min-agent/runtime  shared composition layer for CLI / TUI
   client/    @min-agent/client   UI facade: send / subscribe / queue / permission
+  mind/      @min-agent/mind     machine-wide supervisor; one client process per session
   config/    @min-agent/config   layered user/project config (versioned JSON)
   render/    @min-agent/render   Markdown → RenderBlock (shared by TUI / Web)
 apps/

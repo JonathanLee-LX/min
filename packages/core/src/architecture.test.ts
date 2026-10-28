@@ -33,6 +33,7 @@ const PUBLIC_EXPORTS = [
   "messageText",
   "messageToolCalls",
   "mockProvider",
+  "snapshotAgentInFlight",
   "systemMessage",
   "textPart",
   "toolCallPart",

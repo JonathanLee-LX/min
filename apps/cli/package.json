@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@min-agent/client": "workspace:*",
+    "@min-agent/mind": "workspace:*",
     "@min-agent/runtime": "workspace:*",
     "@min-agent/core": "workspace:*",
     "@min-agent/session": "workspace:*",

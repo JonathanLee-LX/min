@@ -20,6 +20,7 @@ type ClientEvent =
   | { type: "tool_start"; name: string; args: Record<string, unknown> }
   | { type: "tool_end"; preview: string; ok: boolean; name?: string }
   | { type: "permission"; id: string; reason: string }
+  | { type: "permission_answer"; id: string; answer: string }
   | { type: "queued"; queueSize: number }
   | { type: "follow_up"; texts: readonly string[] }
   | { type: "error"; message: string; aborted?: boolean }
@@ -98,6 +99,11 @@ export default function App() {
         setPerm({ id: event.id, reason: event.reason });
         return;
       }
+      if (event.type === "permission_answer") {
+        setPerm(null);
+        push({ kind: "sys", text: `permission ${event.answer}` });
+        return;
+      }
       if (event.type === "queued") {
         push({ kind: "sys", text: `queued (${event.queueSize})` });
         return;
@@ -116,6 +122,23 @@ export default function App() {
       }
       if (event.type === "session") {
         setSessionId(event.id);
+        if (event.messages) {
+          const next: ChatLine[] = [];
+          for (const message of event.messages) {
+            const rec = message as {
+              role?: string;
+              content?: Array<{ type?: string; text?: string }>;
+            };
+            const text = (rec.content ?? [])
+              .filter((part) => part.type === "text" && part.text)
+              .map((part) => part.text)
+              .join("");
+            if (!text) continue;
+            if (rec.role === "user") next.push({ id: nid(), kind: "user", text });
+            else if (rec.role === "assistant") next.push({ id: nid(), kind: "assistant", text });
+          }
+          setLines(next);
+        }
       }
     };
     es.onerror = () => setStatus("reconnecting");

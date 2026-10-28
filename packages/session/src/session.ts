@@ -123,6 +123,11 @@ export interface Session {
   }): Promise<CompactHistoryResult>;
   reset(messages?: Message[]): void;
   export(): SessionSnapshot;
+  /**
+   * Replace canonical history and persist through `onBeforeSave`.
+   * Used by the client-process stop path after assembling a shutdown snapshot.
+   */
+  persistSnapshot(snapshot: SessionSnapshot): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -379,6 +384,12 @@ export async function createSession(
 
     export() {
       return { meta: { ...meta }, messages: [...messages] };
+    },
+
+    async persistSnapshot(snapshot) {
+      meta = { ...snapshot.meta };
+      messages = [...snapshot.messages];
+      await persist();
     },
 
     async dispose() {

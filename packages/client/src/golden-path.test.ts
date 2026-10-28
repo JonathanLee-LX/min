@@ -229,7 +229,7 @@ describe("Client golden paths", () => {
 });
 
 describe("Client session surface", () => {
-  it("listSessions / openSession / newSession with transcript replay", async () => {
+  it("listSessions and reset keep the same session id", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "min-client-ses-"));
     try {
       const client = await createClient({
@@ -245,33 +245,8 @@ describe("Client session surface", () => {
       const idA = client.getSession().id;
       expect(idA).toBeTruthy();
 
-      await client.newSession();
-      const newEv = events.filter((e) => e.type === "session").at(-1);
-      expect(newEv).toMatchObject({
-        type: "session",
-        reason: "new",
-        messageCount: 0,
-      });
-      expect(newEv && "messages" in newEv && newEv.messages).toEqual([]);
-      const idB = client.getSession().id;
-      expect(idB).not.toBe(idA);
-
-      await client.send("second session");
       const listed = await client.listSessions();
-      expect(listed.map((m) => m.id).sort()).toEqual([idA, idB].sort());
-
-      await client.openSession(idA);
-      const openEv = events.filter((e) => e.type === "session").at(-1);
-      expect(openEv).toMatchObject({
-        type: "session",
-        reason: "open",
-        id: idA,
-      });
-      expect(
-        openEv && "messages" in openEv ? openEv.messages?.length : 0,
-      ).toBeGreaterThan(0);
-      expect(client.getSession().id).toBe(idA);
-      expect(client.getSession().messageCount).toBeGreaterThan(0);
+      expect(listed.map((m) => m.id)).toContain(idA);
 
       client.reset();
       const resetEv = events.filter((e) => e.type === "session").at(-1);
@@ -280,6 +255,8 @@ describe("Client session surface", () => {
         reason: "reset",
         messageCount: 0,
       });
+      expect(client.getSession().id).toBe(idA);
+      expect(client.getSession().messages).toEqual([]);
 
       await client.dispose();
     } finally {

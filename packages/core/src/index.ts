@@ -1,4 +1,9 @@
-export { createAgent, type Agent, type CreateAgentOptions } from "./agent.js";
+export {
+  createAgent,
+  snapshotAgentInFlight,
+  type Agent,
+  type CreateAgentOptions,
+} from "./agent.js";
 export {
   assistantMessage,
   lastAssistantText,

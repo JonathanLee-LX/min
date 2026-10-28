@@ -1,15 +1,25 @@
-import type { RunEvent, ToolCallPart } from "@min-agent/core";
+import {
+  snapshotAgentInFlight,
+  userMessage,
+  type RunEvent,
+  type ToolCallPart,
+} from "@min-agent/core";
 import {
   createRuntime,
   type Runtime,
   type RuntimeOptions,
 } from "@min-agent/runtime";
-import { defineSessionExtension } from "@min-agent/session";
+import {
+  defineSessionExtension,
+  type SessionSnapshot,
+} from "@min-agent/session";
 import { createEventTranslator, isAbortError } from "./events.js";
 import { createPermissionBridge } from "./permission-bridge.js";
+import { buildShutdownSnapshot } from "./snapshot.js";
 import type {
   ClientEvent,
   ClientEventHandler,
+  ClientHandshake,
   ClientOptions,
   ClientSessionInfo,
   ClientStatus,
@@ -19,6 +29,33 @@ import type {
   SendOptions,
   SessionEventReason,
 } from "./types.js";
+
+/** Suggested cap for `onBeforeShutdown`; counts toward mind's SIGTERM wait. */
+export const SHUTDOWN_HOOK_MS = 2_000;
+
+interface ClientInternals {
+  handshake: () => ClientHandshake;
+  shutdown: () => Promise<SessionSnapshot>;
+}
+
+const internalsOf = new WeakMap<MinClient, ClientInternals>();
+
+/** Snapshot for a newly attached frontend (committed messages + live turn). */
+export function clientHandshake(client: MinClient): ClientHandshake {
+  const internals = internalsOf.get(client);
+  if (!internals) throw new Error("clientHandshake requires a createClient instance");
+  return internals.handshake();
+}
+
+/**
+ * SIGTERM stop path: freeze, abort, `onBeforeShutdown`, persist, dispose.
+ * Persist failure still resolves so the process can exit.
+ */
+export async function shutdownClient(client: MinClient): Promise<SessionSnapshot> {
+  const internals = internalsOf.get(client);
+  if (!internals) throw new Error("shutdownClient requires a createClient instance");
+  return internals.shutdown();
+}
 
 interface PermissionRequest {
   toolCall: ToolCallPart;
@@ -34,6 +71,7 @@ interface FactoryOpts {
   applyRootGrant: boolean;
   persistPermissionGrants: boolean;
   permissionTimeoutMs: number;
+  onBeforeShutdown?: ClientOptions["onBeforeShutdown"];
 }
 
 export async function createClient(
@@ -87,6 +125,8 @@ export async function createClient(
   let status: ClientStatus = "idle";
   let abortController: AbortController | undefined;
   let runLock = false;
+  let currentPrompt = "";
+  let shuttingDown = false;
 
   const emit = (event: ClientEvent) => {
     const next = factory.mapEvent ? factory.mapEvent(event) : event;
@@ -132,28 +172,6 @@ export async function createClient(
     });
   };
 
-  const assertOwnedRuntime = (action: string) => {
-    if (options.runtime) {
-      throw new Error(
-        `${action} requires createClient to own the Runtime (do not inject runtime)`,
-      );
-    }
-  };
-
-  const rebuildRuntime = async (sessionId: string | undefined) => {
-    await runtime.session.dispose();
-    await runtime.agent.dispose();
-    factory.runtimeOpts = {
-      ...factory.runtimeOpts,
-      sessionId,
-    };
-    runtime = await createRuntime({
-      ...factory.runtimeOpts,
-      sessionId,
-      sessionExtensions: withBridge(factory.runtimeOpts.sessionExtensions),
-    });
-  };
-
   const permissionsBridge = createPermissionBridge({
     timeoutMs: factory.permissionTimeoutMs,
     onAsk: (pending) => {
@@ -165,6 +183,9 @@ export async function createClient(
         toolCall: pending.toolCall,
         grantRoot: pending.grantRoot,
       });
+    },
+    onResolved: (id, answer) => {
+      emit({ type: "permission_answer", id, answer });
     },
   });
 
@@ -248,6 +269,7 @@ export async function createClient(
     }
 
     runLock = true;
+    currentPrompt = prompt;
     translator.reset();
     abortController = new AbortController();
     const external = opts.signal;
@@ -301,8 +323,9 @@ export async function createClient(
       external?.removeEventListener("abort", onAbort);
       permissionsBridge.rejectAll("deny");
       abortController = undefined;
+      currentPrompt = "";
       runLock = false;
-      setStatus("idle");
+      if (!shuttingDown) setStatus("idle");
     }
   };
 
@@ -347,26 +370,6 @@ export async function createClient(
       return store.list();
     },
 
-    async openSession(id: string) {
-      if (runLock) {
-        throw new Error("cannot switch session while busy");
-      }
-      assertOwnedRuntime("openSession");
-      const trimmed = id.trim();
-      if (!trimmed) throw new Error("session id required");
-      await rebuildRuntime(trimmed);
-      emitSession("open", { includeMessages: true });
-    },
-
-    async newSession() {
-      if (runLock) {
-        throw new Error("cannot start a new session while busy");
-      }
-      assertOwnedRuntime("newSession");
-      await rebuildRuntime(undefined);
-      emitSession("new", { includeMessages: true });
-    },
-
     async compact(opts = {}) {
       if (runLock) {
         throw new Error("cannot compact while busy");
@@ -388,7 +391,63 @@ export async function createClient(
     },
   };
 
+  const handshake = (): ClientHandshake => ({
+    session: getSession(),
+    status: getStatus(),
+    turn: { text: turnBuf.text, thinking: turnBuf.thinking },
+    pendingPermissions: permissionsBridge.list(),
+    queue: queueApi.peek(),
+  });
+
+  const shutdown = async (): Promise<SessionSnapshot> => {
+    shuttingDown = true;
+    const committed = runtime.session.export();
+    const inflight =
+      snapshotAgentInFlight(runtime.agent) ??
+      (currentPrompt
+        ? [...committed.messages, userMessage(currentPrompt)]
+        : undefined);
+    const snapshot = buildShutdownSnapshot({
+      committed,
+      inflight,
+      turnText: turnBuf.text,
+      queued: queueApi.peek(),
+    });
+    abortController?.abort();
+    permissionsBridge.rejectAll("deny");
+
+    const hook = factory.onBeforeShutdown;
+    if (hook) {
+      try {
+        await Promise.race([
+          Promise.resolve(hook(snapshot)),
+          sleep(SHUTDOWN_HOOK_MS),
+        ]);
+      } catch {
+        // Hook cannot cancel exit.
+      }
+    }
+
+    try {
+      await runtime.session.persistSnapshot(snapshot);
+    } catch {
+      // Persist failure still exits so SIGTERM is not held.
+    }
+    try {
+      await runtime.agent.dispose();
+    } catch {
+      // ignore
+    }
+    listeners.clear();
+    return snapshot;
+  };
+
+  internalsOf.set(client, { handshake, shutdown });
   return client;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function resolveFactory(options: ClientOptions): FactoryOpts {
@@ -422,5 +481,6 @@ function resolveFactory(options: ClientOptions): FactoryOpts {
     applyRootGrant: options.applyRootGrant ?? true,
     persistPermissionGrants: options.persistPermissionGrants !== false,
     permissionTimeoutMs: options.permissionTimeoutMs ?? 120_000,
+    onBeforeShutdown: options.onBeforeShutdown,
   };
 }

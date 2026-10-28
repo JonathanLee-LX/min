@@ -20,6 +20,20 @@ describe("createPermissionBridge", () => {
     expect(bridge.size).toBe(0);
   });
 
+  it("lists pending asks and reports resolve via onResolved", async () => {
+    const onAsk = vi.fn();
+    const onResolved = vi.fn();
+    const bridge = createPermissionBridge({ timeoutMs: 0, onAsk, onResolved });
+    const p = bridge.ask({ toolCall, reason: "run bash" });
+    expect(bridge.list()).toHaveLength(1);
+    expect(bridge.list()[0]?.reason).toBe("run bash");
+    const id = onAsk.mock.calls[0]![0].id as string;
+    expect(bridge.respond(id, "deny")).toBe(true);
+    await p;
+    expect(onResolved).toHaveBeenCalledWith(id, "deny");
+    expect(bridge.list()).toEqual([]);
+  });
+
   it("times out to deny", async () => {
     vi.useFakeTimers();
     const bridge = createPermissionBridge({

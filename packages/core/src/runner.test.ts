@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createAgent } from "./agent.js";
+import { createAgent, snapshotAgentInFlight } from "./agent.js";
 import { mockProvider } from "./provider.js";
 import { defineTool } from "./tools.js";
 
@@ -133,6 +133,42 @@ describe("Runner / createAgent", () => {
       },
     });
     expect(thinking).toEqual(["plan"]);
+    await agent.dispose();
+  });
+
+  it("exposes in-flight messages (including finished tools) before abort clears them", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const agent = await createAgent({
+      provider: mockProvider([
+        {
+          toolCalls: [{ id: "c1", name: "slow", arguments: {} }],
+        },
+        { text: "done" },
+      ]),
+      tools: [
+        defineTool({
+          name: "slow",
+          description: "slow",
+          inputSchema: z.object({}),
+          async execute() {
+            await gate;
+            return { content: "tool-ok" };
+          },
+        }),
+      ],
+    });
+
+    const running = agent.run("go");
+    await new Promise((r) => setTimeout(r, 30));
+    const snap = snapshotAgentInFlight(agent);
+    expect(snap?.some((m) => m.role === "user")).toBe(true);
+    expect(snap?.some((m) => m.role === "assistant")).toBe(true);
+    release();
+    await running;
+    expect(snapshotAgentInFlight(agent)).toBeUndefined();
     await agent.dispose();
   });
 

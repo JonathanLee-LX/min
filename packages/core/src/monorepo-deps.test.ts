@@ -25,6 +25,11 @@ const ALLOWED: Record<string, readonly string[]> = {
     "@min-agent/tools",
   ],
   "@min-agent/client": ["@min-agent/core", "@min-agent/runtime", "@min-agent/session"],
+  "@min-agent/mind": [
+    "@min-agent/client",
+    "@min-agent/runtime",
+    "@min-agent/session",
+  ],
   "@min-agent/render": [],
 };
 

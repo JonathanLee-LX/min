@@ -15,5 +15,12 @@ export default defineConfig({
   esbuildOptions(options) {
     options.jsx = "automatic";
   },
-  external: ["@min-agent/client", "@min-agent/runtime", "ink", "react"],
+  external: [
+    "@min-agent/client",
+    "@min-agent/config",
+    "@min-agent/mind",
+    "@min-agent/runtime",
+    "ink",
+    "react",
+  ],
 });

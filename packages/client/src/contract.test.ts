@@ -11,6 +11,9 @@ import type { ClientEvent } from "./types.js";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const PUBLIC_EXPORTS = [
+  "SHUTDOWN_HOOK_MS",
+  "buildShutdownSnapshot",
+  "clientHandshake",
   "createAutoPermissionApprover",
   "createClient",
   "createEventTranslator",
@@ -21,6 +24,7 @@ const PUBLIC_EXPORTS = [
   "formatTokenCount",
   "isAbortError",
   "previewArgs",
+  "shutdownClient",
 ].sort();
 
 const CLIENT_EVENT_TYPES = [
@@ -30,6 +34,7 @@ const CLIENT_EVENT_TYPES = [
   "error",
   "follow_up",
   "permission",
+  "permission_answer",
   "queued",
   "session",
   "status",
@@ -112,8 +117,6 @@ describe("client architecture contracts", () => {
         "getSession",
         "getStatus",
         "listSessions",
-        "newSession",
-        "openSession",
         "queue",
         "reset",
         "respondPermission",

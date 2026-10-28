@@ -39,8 +39,11 @@ describe("routeSubmit", () => {
     expect(routeSubmit("/quit", false)).toEqual({ type: "command", command: { type: "exit" } });
     expect(routeSubmit("/q", false)).toEqual({ type: "command", command: { type: "exit" } });
     expect(commandSuggestions("/qui").map((command) => command.name)).toEqual(["quit"]);
-    for (const line of ["/resume abc", "/resume", "/open abc", "/new", "/reset", "/compact"]) {
+    for (const line of ["/reset", "/compact"]) {
       expect(routeSubmit(line, true).type).toBe("busy-blocked");
+    }
+    for (const line of ["/resume abc", "/resume", "/open abc", "/new"]) {
+      expect(routeSubmit(line, true).type).toBe("command");
     }
     expect(routeSubmit("/compact", false)).toEqual({
       type: "command",

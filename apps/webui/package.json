@@ -2,7 +2,7 @@
   "name": "@min-agent/webui",
   "version": "0.1.0-alpha.4",
   "license": "MIT",
-  "description": "B/S Web UI for min — Node server (MinClient) + Vite/React/shadcn",
+  "description": "B/S Web UI for min — Node HTTP/SSE bridge to a client process + Vite/React/shadcn",
   "type": "module",
   "bin": {
     "min-web": "./dist/server.js"
@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@min-agent/client": "workspace:*",
+    "@min-agent/mind": "workspace:*",
     "@min-agent/render": "workspace:*",
     "@min-agent/runtime": "workspace:*",
     "@radix-ui/react-scroll-area": "^1.2.3",

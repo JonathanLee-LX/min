@@ -21,6 +21,7 @@
     "@inkjs/ui": "^2.0.0",
     "@min-agent/client": "workspace:*",
     "@min-agent/config": "workspace:*",
+    "@min-agent/mind": "workspace:*",
     "@min-agent/render": "workspace:*",
     "@min-agent/runtime": "workspace:*",
     "beautiful-mermaid": "^1.1.3",

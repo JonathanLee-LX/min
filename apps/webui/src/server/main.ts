@@ -1,10 +1,5 @@
-import {
-  createAutoPermissionApprover,
-  createClient,
-  type ClientEvent,
-  type MinClient,
-} from "@min-agent/client";
-import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
+import type { ClientEvent, ClientHandshake } from "@min-agent/client";
+import { attachSession, type AttachedSession } from "@min-agent/mind";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -12,10 +7,10 @@ import { fileURLToPath } from "node:url";
 import { loadEnvFiles } from "./load-env.js";
 
 /**
- * B/S MVP process model:
+ * B/S process model:
  * - Browser is isolated (no MinClient, no API keys).
- * - This Node process holds MinClient + serves HTTP/SSE (+ static UI in prod).
- * - Future: optional worker/child process for Client crash isolation; same HTTP contract.
+ * - This Node process is a lease + HTTP/SSE bridge to a client process.
+ * - mind owns create/lookup/destroy; events and send go to the client socket.
  */
 
 loadEnvFiles();
@@ -27,42 +22,69 @@ const CWD = process.env.MIN_CWD ?? process.env.INIT_CWD ?? process.cwd();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, "web");
 
-let clientPromise: Promise<MinClient> | undefined;
-const sseClients = new Set<ServerResponse>();
+let sessionId = process.env.MIN_SESSION?.trim() || undefined;
 
-async function getClient(): Promise<MinClient> {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      await loadProviderExtensions();
-      const c = await createClient({
-        cwd: CWD,
-        provider: resolveProvider({
-          provider: process.env.PROVIDER,
-          model: process.env.MODEL,
-        }),
-        noTools: process.env.MIN_NO_TOOLS === "1",
-        allowBash:
-          process.env.MIN_AUTO === "1" || process.env.MIN_YES === "1",
-        applyRootGrant: true,
-        persistPermissionGrants: process.env.MIN_AUTO !== "1",
-        autoApprovePermission:
-          process.env.MIN_AUTO === "1"
-            ? createAutoPermissionApprover({ mode: "auto" })
-            : process.env.MIN_YES === "1"
-              ? createAutoPermissionApprover({ mode: "yes" })
-              : undefined /* interactive via /api/permission */,
-      });
-      c.subscribe((event) => broadcast(event));
-      return c;
-    })();
-  }
-  return clientPromise;
+function permissionMode() {
+  if (process.env.MIN_AUTO === "1") return "auto" as const;
+  if (process.env.MIN_YES === "1") return "yes" as const;
+  return "ask" as const;
 }
 
-function broadcast(event: ClientEvent): void {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of sseClients) {
-    res.write(payload);
+function attachOpts() {
+  return {
+    cwd: CWD,
+    provider: process.env.PROVIDER,
+    model: process.env.MODEL,
+    sessionId,
+    permissionMode: permissionMode(),
+    autoApprove: process.env.MIN_AUTO === "1" || process.env.MIN_YES === "1",
+    noTools: process.env.MIN_NO_TOOLS === "1",
+  };
+}
+
+async function attachCurrent(): Promise<AttachedSession> {
+  const attached = await attachSession(attachOpts());
+  sessionId = attached.sessionId;
+  return attached;
+}
+
+async function withClient<T>(fn: (client: AttachedSession["client"]) => Promise<T>): Promise<T> {
+  const attached = await attachCurrent();
+  try {
+    return await fn(attached.client);
+  } finally {
+    await attached.release();
+  }
+}
+
+function writeSse(res: ServerResponse, event: unknown): void {
+  res.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+function replayHandshake(res: ServerResponse, handshake: ClientHandshake): void {
+  writeSse(res, {
+    type: "session",
+    id: handshake.session.id,
+    title: handshake.session.title,
+    messageCount: handshake.session.messageCount,
+    reason: "open",
+    messages: handshake.session.messages,
+  });
+  writeSse(res, { type: "status", status: handshake.status.status });
+  if (handshake.turn.thinking) {
+    writeSse(res, { type: "thinking_delta", text: handshake.turn.thinking });
+  }
+  if (handshake.turn.text) {
+    writeSse(res, { type: "assistant_delta", text: handshake.turn.text });
+  }
+  for (const pending of handshake.pendingPermissions) {
+    writeSse(res, {
+      type: "permission",
+      id: pending.id,
+      reason: pending.reason,
+      toolCall: pending.toolCall,
+      grantRoot: pending.grantRoot,
+    });
   }
 }
 
@@ -149,8 +171,8 @@ async function handler(
     }
 
     if (method === "GET" && pathname === "/api/status") {
-      const client = await getClient();
-      sendJson(res, 200, client.getStatus());
+      const status = await withClient((client) => Promise.resolve(client.getStatus()));
+      sendJson(res, 200, status);
       return;
     }
 
@@ -161,13 +183,14 @@ async function handler(
         Connection: "keep-alive",
       });
       res.write(": ok\n\n");
-      sseClients.add(res);
-      const status = (await getClient()).getStatus();
-      res.write(
-        `data: ${JSON.stringify({ type: "session", id: status.sessionId, messageCount: 0 })}\n\n`,
-      );
+      const attached = await attachCurrent();
+      replayHandshake(res, attached.handshake);
+      const unsub = attached.client.subscribe((event: ClientEvent) => {
+        writeSse(res, event);
+      });
       req.on("close", () => {
-        sseClients.delete(res);
+        unsub();
+        void attached.release();
       });
       return;
     }
@@ -179,14 +202,14 @@ async function handler(
         sendJson(res, 400, { error: "text required" });
         return;
       }
-      const client = await getClient();
-      // Respond immediately; progress goes over SSE.
       sendJson(res, 202, { ok: true });
-      void client.send(text).catch((err) => {
-        broadcast({
-          type: "error",
-          message: err instanceof Error ? err.message : String(err),
-        });
+      void withClient(async (client) => {
+        try {
+          await client.send(text);
+        } catch (err) {
+          // SSE subscribers see ClientEvent error from the process.
+          void err;
+        }
       });
       return;
     }
@@ -201,9 +224,11 @@ async function handler(
         sendJson(res, 400, { error: "text required" });
         return;
       }
-      const client = await getClient();
-      client.queue.push(text, body.mode ? { mode: body.mode } : undefined);
-      sendJson(res, 200, { queueSize: client.queue.size });
+      const queueSize = await withClient(async (client) => {
+        client.queue.push(text, body.mode ? { mode: body.mode } : undefined);
+        return client.queue.size;
+      });
+      sendJson(res, 200, { queueSize });
       return;
     }
 
@@ -216,22 +241,25 @@ async function handler(
         sendJson(res, 400, { error: "id and answer required" });
         return;
       }
-      const client = await getClient();
-      client.respondPermission(body.id, body.answer);
+      await withClient(async (client) => {
+        client.respondPermission(body.id!, body.answer!);
+      });
       sendJson(res, 200, { ok: true });
       return;
     }
 
     if (method === "POST" && pathname === "/api/abort") {
-      const client = await getClient();
-      client.abort();
+      await withClient(async (client) => {
+        client.abort();
+      });
       sendJson(res, 200, { ok: true });
       return;
     }
 
     if (method === "POST" && pathname === "/api/reset") {
-      const client = await getClient();
-      client.reset();
+      await withClient(async (client) => {
+        client.reset();
+      });
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -260,16 +288,10 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.error(`min-web listening on http://${HOST}:${PORT}`);
-  console.error(`cwd=${CWD}  (browser is isolated; MinClient lives in this process)`);
+  console.error(`cwd=${CWD}  (browser is isolated; client process is behind mind)`);
 });
 
 async function shutdown(): Promise<void> {
-  for (const res of sseClients) res.end();
-  sseClients.clear();
-  if (clientPromise) {
-    const c = await clientPromise;
-    await c.dispose();
-  }
   server.close();
 }
 

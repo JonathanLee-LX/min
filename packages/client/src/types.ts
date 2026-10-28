@@ -1,6 +1,6 @@
 import type { Message, ToolCallPart } from "@min-agent/core";
 import type { Runtime, RuntimeOptions } from "@min-agent/runtime";
-import type { InputQueueMode, SessionMeta } from "@min-agent/session";
+import type { InputQueueMode, SessionMeta, SessionSnapshot } from "@min-agent/session";
 
 /** Client lifecycle / interaction status exposed to UIs. */
 export type ClientStatus = "idle" | "running" | "asking";
@@ -79,6 +79,11 @@ export type ClientEvent =
       toolCall: ToolCallPart;
       grantRoot?: string;
     }
+  | {
+      type: "permission_answer";
+      id: string;
+      answer: PermissionAnswer;
+    }
   | { type: "queued"; text: string; queueSize: number }
   | { type: "error"; message: string; aborted?: boolean }
   | {
@@ -92,7 +97,7 @@ export type ClientEvent =
       messageCount: number;
       reason: SessionEventReason;
       /**
-       * Full transcript when switching/clearing sessions so UIs can rebuild
+       * Full transcript when clearing or compacting so UIs can rebuild
        * without calling getSession(). Omitted on per-turn `update`.
        */
       messages?: readonly Message[];
@@ -167,6 +172,33 @@ export interface ClientOptions {
 
   /** Deny unanswered permission asks after this many ms. Default 120_000. */
   permissionTimeoutMs?: number;
+
+  /**
+   * Client-process stop path only: called with the assembled shutdown snapshot
+   * after freeze/abort and before persist. Not invoked on a normal turn persist.
+   * Cannot cancel exit; throw or timeout (2s) and persist still proceeds.
+   */
+  onBeforeShutdown?: (snapshot: SessionSnapshot) => void | Promise<void>;
+}
+
+/** Pending permission as seen by a newly attached frontend. */
+export interface HandshakePermission {
+  id: string;
+  reason: string;
+  toolCall: ToolCallPart;
+  grantRoot?: string;
+}
+
+/**
+ * First message on a client-process connection, then live `ClientEvent`s.
+ * Thinking is included here and is not written to the session file.
+ */
+export interface ClientHandshake {
+  session: ClientSessionInfo;
+  status: ClientStatusSnapshot;
+  turn: { text: string; thinking: string };
+  pendingPermissions: readonly HandshakePermission[];
+  queue: readonly string[];
 }
 
 /**
@@ -188,20 +220,17 @@ export interface MinClient {
 
   respondPermission(id: string, answer: PermissionAnswer): void;
 
+  /**
+   * Clear messages and the queue for this same session id. Does not mint a
+   * new id — switching sessions is a new client process via mind.
+   */
   reset(): void;
   getSession(): ClientSessionInfo;
+  /**
+   * List stored sessions for this process's workspace store.
+   * Interactive hosts list via mind instead of this method.
+   */
   listSessions(): Promise<SessionMeta[]>;
-  /**
-   * Switch to another stored session id.
-   * Disposes the current session handle and rebuilds via Runtime options.
-   * Emits `session` with `reason: "open"` and full `messages`.
-   */
-  openSession(id: string): Promise<void>;
-  /**
-   * Start a fresh session (new id). Requires Client-owned Runtime.
-   * Emits `session` with `reason: "new"`.
-   */
-  newSession(): Promise<void>;
 
   /**
    * Explicit on-demand history compact (LLM summary + rewrite store).
@@ -218,7 +247,7 @@ export interface MinClient {
   }>;
 
   /**
-   * Escape hatch for advanced hosts. Prefer not to use from ordinary UI code.
+   * Escape hatch for in-process hosts. Not present on the client-process wire.
    */
   readonly advanced: {
     runtime: Runtime;

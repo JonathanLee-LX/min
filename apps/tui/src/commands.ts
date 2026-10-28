@@ -128,7 +128,8 @@ export function cycleCommandIndex(
   return direction === "down" ? (at + 1) % count : (at - 1 + count) % count;
 }
 
-const BUSY_BLOCKED = new Set(["resume", "resume-pick", "new", "reset", "compact"]);
+/** Mutations of the current client process. /new and /resume attach another process. */
+const BUSY_BLOCKED = new Set(["reset", "compact"]);
 
 export function parseTuiCommand(line: string): TuiCommand {
   const trimmed = line.trim();

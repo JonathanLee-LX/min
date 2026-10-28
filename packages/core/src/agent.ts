@@ -1,7 +1,17 @@
 import type { ModelProvider } from "./provider.js";
 import { Runner } from "./runner.js";
 import { ToolRegistry, type Tool } from "./tools.js";
-import type { RunInput, RunResult } from "./types.js";
+import type { Message, RunInput, RunResult } from "./types.js";
+
+const inflightOf = new WeakMap<Agent, () => Message[] | undefined>();
+
+/**
+ * In-progress Runner messages for an Agent created by `createAgent`.
+ * Does not add keys to the Agent object (permissions stay off that surface).
+ */
+export function snapshotAgentInFlight(agent: Agent): Message[] | undefined {
+  return inflightOf.get(agent)?.();
+}
 
 export interface CreateAgentOptions {
   provider: ModelProvider;
@@ -33,7 +43,7 @@ export async function createAgent(opts: CreateAgentOptions): Promise<Agent> {
     maxTokens: opts.maxTokens,
   });
 
-  return {
+  const agent: Agent = {
     provider: opts.provider,
     tools,
     async run(input) {
@@ -42,4 +52,6 @@ export async function createAgent(opts: CreateAgentOptions): Promise<Agent> {
     },
     async dispose() {},
   };
+  inflightOf.set(agent, () => runner.snapshotInFlight());
+  return agent;
 }

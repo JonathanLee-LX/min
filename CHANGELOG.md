@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+Interactive sessions run in a dedicated **client process** supervised by a
+machine-wide **mind** daemon (`~/.min/mind/mind.sock`).
+
+- TUI, Web, and `min -i` lease a session, then talk to the client socket
+  directly. Events and `send` do not pass through mind.
+- One-shot `min -p` still calls `createClient()` in-process.
+- `MinClient` no longer switches ids (`openSession` / `newSession` removed).
+  `/new` and `/resume` ask mind for another process.
+- A second frontend on the same `sessionId` shares the event stream, including
+  permission allow/deny. SIGTERM of mind does not stop live clients.
+
 ## 0.1.0-alpha.4
 
 TUI composer, Markdown, and paint.

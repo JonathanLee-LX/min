@@ -25,7 +25,28 @@ export interface RunnerOptions {
 }
 
 export class Runner {
+  private inflight: Message[] | undefined;
+  private pendingToolResults: ReturnType<typeof toolResultPart>[] = [];
+
   constructor(private readonly opts: RunnerOptions) {}
+
+  /**
+   * Copy of the in-progress run (committed turns plus finished tool results
+   * in the current batch). Undefined when no run is active.
+   * Partial assistant text still streaming is not included — hosts keep that
+   * in their own turn buffer.
+   */
+  snapshotInFlight(): Message[] | undefined {
+    if (!this.inflight) return undefined;
+    const messages = this.inflight.map((message) => ({
+      role: message.role,
+      content: message.content.map((part) => ({ ...part })),
+    }));
+    if (this.pendingToolResults.length > 0) {
+      messages.push(toolMessage(this.pendingToolResults.map((part) => ({ ...part }))));
+    }
+    return messages;
+  }
 
   async run(input: RunInput): Promise<RunResult> {
     const maxTurns = input.maxTurns ?? this.opts.maxTurns ?? 16;
@@ -35,6 +56,8 @@ export class Runner {
       typeof input.input === "string"
         ? [userMessage(input.input)]
         : [...input.input];
+    this.inflight = messages;
+    this.pendingToolResults = [];
 
     const emit = async (event: RunEvent) => {
       await input.onEvent?.(event);
@@ -74,6 +97,7 @@ export class Runner {
         }
 
         const results = [];
+        this.pendingToolResults = [];
         for (const call of toolCalls) {
           await emit({ type: "tool_call", toolCall: call });
 
@@ -95,12 +119,17 @@ export class Runner {
             isError: toolResult.isError,
           });
 
-          results.push(
-            toolResultPart(call.id, toolResult.content, toolResult.isError),
+          const part = toolResultPart(
+            call.id,
+            toolResult.content,
+            toolResult.isError,
           );
+          results.push(part);
+          this.pendingToolResults.push(part);
         }
 
         messages.push(toolMessage(results));
+        this.pendingToolResults = [];
       }
 
       // Cap hit mid tool-loop: last message is tool results awaiting another complete.
@@ -123,6 +152,9 @@ export class Runner {
       const error = err instanceof Error ? err : new Error(String(err));
       await emit({ type: "error", error });
       throw error;
+    } finally {
+      this.inflight = undefined;
+      this.pendingToolResults = [];
     }
   }
 
