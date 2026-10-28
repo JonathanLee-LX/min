@@ -61,7 +61,7 @@ import {
   CommandSelect,
   commandSelectRows,
   Composer,
-  composerContentRowCount,
+  composerBodyRowCount,
   ContextMeter,
   contextMeterRows,
   inkThemeFromTui,
@@ -679,8 +679,8 @@ export function App({ args }: { args: TuiArgs }) {
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
-  /** Soft-wrapped + hard-newline rows; min 2 (= 2× line height for one line). */
-  const inputRows = composerContentRowCount(editor.text, innerWidth);
+  /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
+  const inputRows = composerBodyRowCount(editor.text, innerWidth);
   const composerBorderRows = 2;
   const suggestRows = commandSelectRows(suggestions.length);
   const activityRows = activity ? 1 : 0;

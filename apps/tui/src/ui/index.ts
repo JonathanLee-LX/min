@@ -3,6 +3,8 @@ export { CommandSelect, commandSelectRows } from "./CommandSelect.js";
 export {
   Composer,
   COMPOSER_MIN_ROWS,
+  COMPOSER_PADDING_Y,
+  composerBodyRowCount,
   composerContentRowCount,
   composerContentRows,
   composerPadTop,

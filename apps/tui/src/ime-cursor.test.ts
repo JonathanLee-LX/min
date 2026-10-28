@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyImeCursor, composerCaretAnchor } from "./ime-cursor.js";
 
 describe("composerCaretAnchor", () => {
-  it("places the caret on the lower row of a 2× empty composer", () => {
+  it("places the caret after top padding in a single-line body", () => {
+    // body = pad(1) + content(1) + pad(1) = 3
     expect(
       composerCaretAnchor({
         paddingX: 1,
@@ -10,14 +11,14 @@ describe("composerCaretAnchor", () => {
         text: "",
         cursor: 0,
         columns: 40,
-        inputRows: 2,
+        inputRows: 3,
         rowsAboveComposer: 10,
         rowsBelowComposer: 1,
       }),
-    ).toEqual({ column: 3, rowFromTop: 11, rowsBelowCaret: 1 });
+    ).toEqual({ column: 3, rowFromTop: 11, rowsBelowCaret: 2 });
   });
 
-  it("accounts for wide CJK cells and vertical padding", () => {
+  it("accounts for wide CJK cells under top padding", () => {
     expect(
       composerCaretAnchor({
         paddingX: 1,
@@ -25,14 +26,15 @@ describe("composerCaretAnchor", () => {
         text: "你好",
         cursor: 1,
         columns: 40,
-        inputRows: 2,
+        inputRows: 3,
         rowsAboveComposer: 5,
         rowsBelowComposer: 0,
       }),
-    ).toEqual({ column: 1 + 2 + 2, rowFromTop: 6, rowsBelowCaret: 0 });
+    ).toEqual({ column: 1 + 2 + 2, rowFromTop: 6, rowsBelowCaret: 1 });
   });
 
-  it("follows soft-wrapped rows without extra pad once filled", () => {
+  it("follows soft-wrapped rows inside the padded body", () => {
+    // body = pad(1) + 2 wrap rows + pad(1) = 4; caret on second wrap row
     expect(
       composerCaretAnchor({
         paddingX: 1,
@@ -40,11 +42,11 @@ describe("composerCaretAnchor", () => {
         text: "abcdefgh",
         cursor: 5,
         columns: 4,
-        inputRows: 2,
+        inputRows: 4,
         rowsAboveComposer: 2,
         rowsBelowComposer: 0,
       }),
-    ).toEqual({ column: 1 + 1, rowFromTop: 3, rowsBelowCaret: 0 });
+    ).toEqual({ column: 1 + 1, rowFromTop: 4, rowsBelowCaret: 1 });
   });
 });
 
