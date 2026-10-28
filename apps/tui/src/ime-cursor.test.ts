@@ -70,4 +70,23 @@ describe("applyImeCursor", () => {
     );
     expect(chunks.join("")).toBe("\x1b[?25h\x1b[3A\x1b[5G");
   });
+
+  it("parks empty-composer caret above the bottom chrome", () => {
+    // After Enter the draft is empty; rowsBelow includes bottom rule + status.
+    const anchor = composerCaretAnchor({
+      paddingX: 1,
+      chatBar: "",
+      text: "",
+      cursor: 0,
+      columns: 80,
+      inputRows: 1,
+      rowsAboveComposer: 20,
+      rowsBelowComposer: 2,
+    });
+    expect(anchor).toEqual({ column: 1, rowFromTop: 20, rowsBelowCaret: 2 });
+    const chunks: string[] = [];
+    applyImeCursor((chunk) => chunks.push(chunk), anchor, 80, "relative");
+    // Climb past log-update's trailing newline + bottom chrome onto the body.
+    expect(chunks.join("")).toBe("\x1b[?25h\x1b[3A\x1b[2G");
+  });
 });
