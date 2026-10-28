@@ -124,6 +124,19 @@ function parseUi(value: unknown): UiConfig | undefined {
   if (typeof raw.theme === "string" && raw.theme.trim()) out.theme = raw.theme.trim();
   const overrides = parseThemeOverrides(raw.themeOverrides);
   if (overrides) out.themeOverrides = overrides;
+  const keybindings = parseKeybindings(raw.keybindings);
+  if (keybindings) out.keybindings = keybindings;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseKeybindings(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [chord, command] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof chord !== "string" || !chord.trim()) continue;
+    if (typeof command !== "string") continue;
+    out[chord.trim()] = command.trim();
+  }
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

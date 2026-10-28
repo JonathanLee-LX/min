@@ -1,3 +1,8 @@
+import {
+  DEFAULT_KEYBINDINGS,
+  lookupKeybinding,
+  type KeybindingTable,
+} from "./keybindings.js";
 import { displayWidth, nextBound, previousBound } from "./text.js";
 
 export interface EditorState {
@@ -120,57 +125,23 @@ export function editorCaret(state: EditorState): {
   };
 }
 
+/**
+ * Map one decoded key event to an editor action.
+ *
+ * Bindable chords go through {@link lookupKeybinding} so defaults
+ * (Enter=submit, Shift+Enter=newline) and future `ui.keybindings`
+ * overrides share one table. Unbound printable input inserts text.
+ */
 export function inputAction(
   input: string,
   key: InputKey,
-  draft: { text: string; cursor: number } = { text: "", cursor: 0 },
+  bindings: KeybindingTable = DEFAULT_KEYBINDINGS,
 ): InputAction {
-  if (key.ctrl && input === "c") return { type: "interrupt" };
-  // Escape aborts a running turn while the composer is focused (does not quit).
-  if (key.escape) return { type: "interrupt" };
-  if (key.ctrl && input === "o") return { type: "toggle-tool-output" };
-  if (key.pageUp) return { type: "scroll", direction: "up" };
-  if (key.pageDown) return { type: "scroll", direction: "down" };
-  // Ctrl+J / Alt+Enter always insert a newline (reliable in IDE terminals).
-  if (key.ctrl && input === "j") return { type: "edit", op: { op: "newline" } };
-  if (key.return && key.meta) return { type: "edit", op: { op: "newline" } };
-  // Ctrl+Enter submits when the terminal reports it (modifyOtherKeys / kitty).
-  if (key.return && key.ctrl) return { type: "submit" };
-  // Shift+Enter → newline when the host forwards it.
-  if (key.return && key.shift) return { type: "edit", op: { op: "newline" } };
-  if (key.return) {
-    // Plain Enter: newline by default. Double-Enter (cursor on an empty
-    // trailing line with existing content) submits — this works even when
-    // the IDE steals Shift+Enter and never sends a distinct sequence.
-    if (shouldSubmitOnPlainEnter(draft.text, draft.cursor)) {
-      return { type: "submit" };
-    }
-    return { type: "edit", op: { op: "newline" } };
-  }
-  if (key.backspace) return { type: "edit", op: { op: "backspace" } };
-  if (key.delete) return { type: "edit", op: { op: "delete" } };
-  if (key.leftArrow) return { type: "edit", op: { op: "left" } };
-  if (key.rightArrow) return { type: "edit", op: { op: "right" } };
-  if (key.upArrow) return { type: "edit", op: { op: "up" } };
-  if (key.downArrow) return { type: "edit", op: { op: "down" } };
-  if (key.ctrl && input === "a") return { type: "edit", op: { op: "home" } };
-  if (key.ctrl && input === "e") return { type: "edit", op: { op: "end" } };
-  if (key.ctrl && input === "u") return { type: "edit", op: { op: "killLineStart" } };
-  if (key.ctrl && input === "w") return { type: "edit", op: { op: "backspaceWord" } };
-  if (key.tab) return { type: "complete" };
+  const bound = lookupKeybinding(input, key, bindings);
+  if (bound) return bound;
   if (key.ctrl || key.meta) return { type: "ignore" };
   if (!input) return { type: "ignore" };
   return { type: "edit", op: { op: "insert", text: input } };
-}
-
-/**
- * Double-Enter send: draft already ends with a newline, caret is at the
- * end on that empty line, and there is non-whitespace content to submit.
- */
-export function shouldSubmitOnPlainEnter(text: string, cursor: number): boolean {
-  if (!text.trim()) return false;
-  if (!text.endsWith("\n")) return false;
-  return cursor >= text.length;
 }
 
 function insert(state: EditorState, chunk: string): EditorState {

@@ -1,4 +1,5 @@
 import { inputAction, type InputAction, type InputKey } from "./editor.js";
+import { DEFAULT_KEYBINDINGS, type KeybindingTable } from "./keybindings.js";
 
 /**
  * Turn one raw stdin chunk into the editor action.
@@ -10,10 +11,10 @@ import { inputAction, type InputAction, type InputKey } from "./editor.js";
  */
 export function actionFromChunk(
   chunk: string,
-  draft: { text: string; cursor: number } = { text: "", cursor: 0 },
+  bindings: KeybindingTable = DEFAULT_KEYBINDINGS,
 ): InputAction {
   const decoded = decodeInput(chunk);
-  return inputAction(decoded.input, decoded.key, draft);
+  return inputAction(decoded.input, decoded.key, bindings);
 }
 
 export function decodeInput(chunk: string): { input: string; key: InputKey } {
@@ -62,8 +63,8 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
 
 /**
  * Kitty CSI-u / xterm modifyOtherKeys sequences.
- * Shift/Ctrl/Meta modifiers on Enter are decoded here; `inputAction`
- * decides newline vs submit (plain Enter = newline, Ctrl+Enter = submit).
+ * Modifiers on Enter (Shift/Ctrl/Meta) are decoded here; the keybinding
+ * table decides newline vs submit.
  */
 function enhancedKey(chunk: string): { input: string; key: InputKey } | null {
   // CSI u: ESC [ code ; mods u  (Enter=13, Backspace=127, Tab=9, Escape=27)

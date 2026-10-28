@@ -38,10 +38,16 @@ Missing files are fine. Each file is a **sparse** document: only set what you ov
       "roles": {
         "user": { "background": "green", "body": "black" }
       }
+    },
+    "keybindings": {
+      "enter": "submit",
+      "shift+enter": "newline"
     }
   },
   "extensions": {}
 }
 ```
+
+`ui.keybindings` is a sparse chord → command map. The TUI merges it onto built-in defaults (Enter sends, Shift+Enter inserts a newline). Known commands include `submit`, `newline`, `interrupt`, `complete`, `scroll-up`, `scroll-down`, and the editor motions.
 
 Hosts call `loadMinConfig({ cwd })`, then apply CLI flags with `applyFlagOverrides`.

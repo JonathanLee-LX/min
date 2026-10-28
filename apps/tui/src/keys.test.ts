@@ -14,11 +14,7 @@ describe("actionFromChunk", () => {
   });
 
   it("still maps enter, arrows, page keys, and paste", () => {
-    expect(actionFromChunk("\r", { text: "hi", cursor: 2 })).toEqual({
-      type: "edit",
-      op: { op: "newline" },
-    });
-    expect(actionFromChunk("\r", { text: "hi\n", cursor: 3 })).toEqual({ type: "submit" });
+    expect(actionFromChunk("\r")).toEqual({ type: "submit" });
     expect(actionFromChunk("\n")).toEqual({ type: "edit", op: { op: "newline" } });
     expect(actionFromChunk("\x1b\r")).toEqual({ type: "edit", op: { op: "newline" } });
     expect(actionFromChunk("\x1b[A")).toEqual({ type: "edit", op: { op: "up" } });

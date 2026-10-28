@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive min-tui under a PTY and accept composer newline / height / soft wrap."""
+"""Drive min-tui under a PTY and accept composer height / Shift+Enter newline / Enter submit."""
 
 from __future__ import annotations
 
@@ -68,7 +68,6 @@ def find_composer(lines: list[str]) -> tuple[int, int, list[str]] | None:
 
 
 def last_frame(raw: str) -> list[str]:
-    """Prefer the last clear-screen frame so we don't merge scrolled history."""
     parts = re.split(r"\x1b\[2J|\x1b\[H\x1b\[2J|\x1b\[2J\x1b\[H|\x1b\[H", raw)
     screen = strip_ansi(parts[-1] if parts else raw)
     return screen.splitlines()
@@ -125,12 +124,16 @@ def main() -> int:
     _, _, between = comp
     dump_composer("EMPTY COMPOSER", between)
     empty_ok = len(between) >= 2
+    # No keybinding hint text inside the empty composer.
+    joined_empty = "\n".join(between)
+    no_hint_ok = "换行" not in joined_empty and "发送" not in joined_empty and "Enter" not in joined_empty
     print(f"empty_min_height_ok={empty_ok}")
+    print(f"no_hint_text_ok={no_hint_ok}")
 
-    # Plain Enter inserts a newline (hello / world on separate lines).
+    # hello + Shift+Enter + world → two lines in composer
     write_keys(fd, b"hello")
     buf += read_available(fd, 0.8)
-    write_keys(fd, b"\r")  # plain Enter → newline
+    write_keys(fd, b"\x1b[27;2;13~")  # modifyOtherKeys Shift+Enter
     buf += read_available(fd, 0.8)
     write_keys(fd, b"world")
     buf += read_available(fd, 1.0)
@@ -139,48 +142,30 @@ def main() -> int:
     comp = find_composer(lines)
     assert comp is not None
     _, _, between = comp
-    dump_composer("AFTER Enter newline", between)
+    dump_composer("AFTER Shift+Enter newline", between)
     joined = "\n".join(between)
-    enter_newline_ok = "hello" in joined and "world" in joined and (
+    shift_newline_ok = "hello" in joined and "world" in joined and (
         any("hello" in x and "world" not in x for x in between)
         and any("world" in x for x in between)
     )
-    print(f"enter_newline_ok={enter_newline_ok}")
+    print(f"shift_enter_newline_ok={shift_newline_ok}")
 
-    # Trailing Enter should grow another empty content row (still not submit).
-    write_keys(fd, b"\r")
-    buf += read_available(fd, 1.0)
-    lines = last_frame(buf.decode("utf-8", "replace"))
-    comp = find_composer(lines)
-    assert comp is not None
-    _, _, between = comp
-    dump_composer("AFTER trailing Enter", between)
-    grow_ok = len(between) >= 3 and "hello" in "\n".join(between) and "world" in "\n".join(
-        between
-    )
-    print(f"trailing_enter_grows_ok={grow_ok}")
-
-    # Second Enter on the empty trailing line submits.
+    # Plain Enter submits
     write_keys(fd, b"\r")
     buf += read_available(fd, 1.5)
     lines = last_frame(buf.decode("utf-8", "replace"))
     comp = find_composer(lines)
     assert comp is not None
     _, _, between = comp
-    dump_composer("AFTER double-Enter submit", between)
-    cleared = all(
-        ("换行" in x or "发送" in x or not x.strip() or x.strip() == "") for x in between
-    ) or (
-        "hello" not in "\n".join(between) and "world" not in "\n".join(between)
-    )
-    # Also require the submitted text appears in the transcript above.
+    dump_composer("AFTER Enter submit", between)
+    cleared = "hello" not in "\n".join(between) and "world" not in "\n".join(between)
     full = "\n".join(lines)
     submitted = "hello" in full and "world" in full
-    print(f"double_enter_submit_ok={cleared and submitted}")
+    enter_submit_ok = cleared and submitted
+    print(f"enter_submit_ok={enter_submit_ok}")
 
-    # Soft wrap: longer than composer inner width (COLS-2 padding) must
-    # occupy ≥2 content rows without a hard newline.
-    long_len = (COLS - 2) + 20  # clearly past one wrapped row
+    # Soft wrap
+    long_len = (COLS - 2) + 20
     write_keys(fd, b"A" * long_len, pause=0.02)
     buf += read_available(fd, 1.5)
     lines = last_frame(buf.decode("utf-8", "replace"))
@@ -191,20 +176,7 @@ def main() -> int:
     a_count = sum(x.count("A") for x in between)
     a_rows = len([x for x in between if "A" in x])
     soft_wrap_ok = a_count >= long_len and a_rows >= 2
-    print(f"soft_wrap_ok={soft_wrap_ok} a_count={a_count} a_rows={a_rows} need={long_len}")
-
-    # Ctrl+Enter submits remaining draft (modifyOtherKeys).
-    write_keys(fd, b"\x1b[27;5;13~")
-    buf += read_available(fd, 1.2)
-    lines = last_frame(buf.decode("utf-8", "replace"))
-    comp = find_composer(lines)
-    assert comp is not None
-    _, _, between = comp
-    dump_composer("AFTER Ctrl+Enter submit", between)
-    ctrl_enter_ok = "A" not in "\n".join(between) or a_count < 10
-    # Prefer: A's gone from composer (submitted).
-    ctrl_enter_ok = sum(x.count("A") for x in between) < 10
-    print(f"ctrl_enter_submit_ok={ctrl_enter_ok}")
+    print(f"soft_wrap_ok={soft_wrap_ok} a_count={a_count} a_rows={a_rows}")
 
     write_keys(fd, b"\x03")
     time.sleep(0.2)
@@ -219,11 +191,10 @@ def main() -> int:
 
     checks = {
         "empty_min_height_ok": empty_ok,
-        "enter_newline_ok": enter_newline_ok,
-        "trailing_enter_grows_ok": grow_ok,
-        "double_enter_submit_ok": cleared and submitted,
+        "no_hint_text_ok": no_hint_ok,
+        "shift_enter_newline_ok": shift_newline_ok,
+        "enter_submit_ok": enter_submit_ok,
         "soft_wrap_ok": soft_wrap_ok,
-        "ctrl_enter_submit_ok": ctrl_enter_ok,
     }
     print("\n=== SUMMARY ===")
     for name, ok in checks.items():

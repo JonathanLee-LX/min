@@ -51,6 +51,24 @@ describe("merge and load", () => {
     expect(merged.ui?.themeOverrides?.frames).toEqual({ chatBar: "| " });
   });
 
+  it("merges ui.keybindings sparsely across layers", () => {
+    const merged = mergeDocuments(
+      {
+        version: 1,
+        ui: { keybindings: { enter: "submit", "ctrl+j": "newline" } },
+      },
+      {
+        version: 1,
+        ui: { keybindings: { enter: "newline", "shift+enter": "submit" } },
+      },
+    );
+    expect(merged.ui?.keybindings).toEqual({
+      enter: "newline",
+      "ctrl+j": "newline",
+      "shift+enter": "submit",
+    });
+  });
+
   it("loads user then project then env then flags", () => {
     const root = mkdtempSync(path.join(tmpdir(), "min-config-"));
     const userDir = path.join(root, "user");

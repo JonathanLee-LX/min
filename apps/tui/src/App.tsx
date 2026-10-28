@@ -35,6 +35,7 @@ import {
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { createKeyBuffer } from "./key-buffer.js";
+import { resolveKeybindings } from "./keybindings.js";
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
@@ -81,7 +82,7 @@ export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { setRawMode, internal_eventEmitter } = useStdin();
-  const theme = useMemo(() => {
+  const { theme, keybindings } = useMemo(() => {
     const { config } = resolveMinConfig(
       { cwd: args.cwd },
       {
@@ -90,7 +91,10 @@ export function App({ args }: { args: TuiArgs }) {
         ...(args.model ? { model: args.model } : {}),
       },
     );
-    return themeFromConfig(config.ui);
+    return {
+      theme: themeFromConfig(config.ui),
+      keybindings: resolveKeybindings(config.ui.keybindings),
+    };
   }, [args.cwd, args.theme, args.provider, args.model]);
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -564,7 +568,7 @@ export function App({ args }: { args: TuiArgs }) {
 
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
-    const action = inputAction(input, key, { text: editor.text, cursor: editor.cursor });
+    const action = inputAction(input, key, keybindings);
     if (action.type === "interrupt") {
       const live = clientRef.current;
       if (live?.getStatus().busy) {
@@ -873,7 +877,6 @@ export function App({ args }: { args: TuiArgs }) {
         columns={innerWidth}
         color={userTone.body}
         borderColor={theme.chrome.brand}
-        hint="Enter 换行 · Enter×2 发送 · Ctrl+Enter 发送"
       />
       {suggestions.length > 0 ? (
         <CommandSelect

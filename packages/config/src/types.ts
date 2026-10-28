@@ -38,6 +38,12 @@ export interface UiConfig {
   /** Registered theme id, or a local override id. */
   theme?: string;
   themeOverrides?: ThemeOverrideConfig;
+  /**
+   * Sparse chord → command overrides for the TUI composer.
+   * Hosts merge these onto built-in defaults (Enter=submit, Shift+Enter=newline).
+   * Chords are case-insensitive (`shift+enter`); unknown commands are ignored.
+   */
+  keybindings?: Record<string, string>;
 }
 
 /**

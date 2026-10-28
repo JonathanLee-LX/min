@@ -112,9 +112,14 @@ function mergeUi(base?: UiConfig, overlay?: UiConfig): UiConfig | undefined {
   if (!base && !overlay) return undefined;
   const theme = overlay?.theme ?? base?.theme;
   const themeOverrides = mergeThemeOverrides(base?.themeOverrides, overlay?.themeOverrides);
+  const keybindings =
+    base?.keybindings || overlay?.keybindings
+      ? { ...(base?.keybindings ?? {}), ...(overlay?.keybindings ?? {}) }
+      : undefined;
   const out: UiConfig = {};
   if (theme) out.theme = theme;
   if (themeOverrides) out.themeOverrides = themeOverrides;
+  if (keybindings && Object.keys(keybindings).length > 0) out.keybindings = keybindings;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

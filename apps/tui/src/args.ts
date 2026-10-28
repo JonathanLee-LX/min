@@ -77,9 +77,9 @@ Commands:
   /exit              quit
 
 Keys:
-  Enter              insert a newline (Enter again on an empty line to send)
-  Ctrl+Enter         send, or queue while the agent is running
-  Shift+Enter / Alt+Enter / Ctrl+J  also insert a newline
+  Enter              send, or queue while the agent is running
+  Shift+Enter        insert a newline
+  Alt+Enter / Ctrl+J also insert a newline
   Up/Down            previous line, or input history at the ends
   PageUp/PageDown    scroll the transcript
   Ctrl+O             expand / collapse tool output
@@ -88,6 +88,9 @@ Keys:
   Ctrl+A / Ctrl+E    start / end of line
   Ctrl+W / Ctrl+U    delete the previous word / to the line start
   y / n / a          answer a permission prompt (no answer denies in 2 minutes)
+
+Keybindings can be overridden in config.json under ui.keybindings
+(chord → command), e.g. { "enter": "submit", "shift+enter": "newline" }.
 `;
 }
 
