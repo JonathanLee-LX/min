@@ -13,10 +13,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { TuiArgs } from "./args.js";
 import { minBannerLines, minBannerRows } from "./banner.js";
 import {
-  TUI_COMMANDS,
   TUI_HELP,
   applyCommandCompletion,
   commandSuggestions,
+  cycleCommandIndex,
   formatCompact,
   formatQueue,
   formatSession,
@@ -101,6 +101,8 @@ export function App({ args }: { args: TuiArgs }) {
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);
+  /** Highlight index while the slash command menu is open. */
+  const [completeIndex, setCompleteIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [statusLabel, setStatusLabel] = useState<ClientStatus>("idle");
   const [queueSize, setQueueSize] = useState(0);
@@ -551,31 +553,6 @@ export function App({ args }: { args: TuiArgs }) {
     setPendingPerm(null);
   }, [pendingPerm]);
 
-  const handleCommandSelect = useCallback(
-    (name: string) => {
-      const spec = TUI_COMMANDS.find((command) => command.name === name);
-      if (!spec) return;
-      if (spec.arg) {
-        const next = `/${spec.name} `;
-        setEditor((current) => ({ ...current, text: next, cursor: next.length }));
-        return;
-      }
-      setEditor((current) => {
-        const committed = commitEditor({
-          ...current,
-          text: `/${spec.name}`,
-          cursor: `/${spec.name}`.length,
-        });
-        queueMicrotask(() => {
-          setScroll(0);
-          void submitLine(committed.text);
-        });
-        return committed.state;
-      });
-    },
-    [submitLine],
-  );
-
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
     const action = inputAction(input, key, keybindings);
@@ -611,25 +588,48 @@ export function App({ args }: { args: TuiArgs }) {
       }
       return;
     }
-    const slashOpen = commandSuggestions(editor.text).length > 0;
-    if (slashOpen && (key.upArrow || key.downArrow || key.return)) {
-      // CommandSelect owns ↑↓/Enter while the slash menu is open.
+    const slashMatches = commandSuggestions(editor.text);
+    const slashOpen = slashMatches.length > 0;
+    if (slashOpen && (key.upArrow || key.downArrow)) {
+      setCompleteIndex((current) =>
+        cycleCommandIndex(current, slashMatches.length, key.downArrow ? "down" : "up"),
+      );
       return;
     }
     if (slashOpen && (key.tab || action.type === "complete")) {
-      // Tab completes the first filtered match; Enter selects via Select.
-      const next = applyCommandCompletion(editor.text, 0);
+      const next = applyCommandCompletion(editor.text, completeIndex);
       if (next === null) return;
       setEditor((current) => ({ ...current, text: next, cursor: next.length }));
+      setCompleteIndex(0);
+      return;
+    }
+    if (slashOpen && action.type === "submit") {
+      const pick = slashMatches[
+        ((completeIndex % slashMatches.length) + slashMatches.length) % slashMatches.length
+      ]!;
+      if (pick.arg) {
+        const next = `/${pick.name} `;
+        setEditor((current) => ({ ...current, text: next, cursor: next.length }));
+        setCompleteIndex(0);
+        return;
+      }
+      const line = `/${pick.name}`;
+      const committed = commitEditor({ ...editor, text: line, cursor: line.length });
+      setEditor(committed.state);
+      setCompleteIndex(0);
+      setScroll(0);
+      void submitLine(committed.text);
       return;
     }
     if (action.type === "complete") {
-      const next = applyCommandCompletion(editor.text, 0);
+      const next = applyCommandCompletion(editor.text, completeIndex);
       if (next === null) return;
       setEditor((current) => ({ ...current, text: next, cursor: next.length }));
+      setCompleteIndex(0);
       return;
     }
     if (action.type === "edit") {
+      setCompleteIndex(0);
       setEditor((current) => reduceEditor(current, action.op));
       return;
     }
@@ -637,6 +637,7 @@ export function App({ args }: { args: TuiArgs }) {
       if (!clientRef.current) return;
       const committed = commitEditor(editor);
       setEditor(committed.state);
+      setCompleteIndex(0);
       if (!committed.text) return;
       setScroll(0);
       void submitLine(committed.text);
@@ -694,6 +695,10 @@ export function App({ args }: { args: TuiArgs }) {
   const paintRows = Math.max(1, termRows - 2);
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
+  const selectedComplete =
+    suggestions.length > 0
+      ? ((completeIndex % suggestions.length) + suggestions.length) % suggestions.length
+      : 0;
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
   /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
   const inputRows = composerBodyRowCount(editor.text, innerWidth);
@@ -921,27 +926,21 @@ export function App({ args }: { args: TuiArgs }) {
         color={userTone.body}
         borderColor={theme.chrome.brand}
       />
-      <Box
-        key={suggestions.length > 0 ? "slash-open" : "slash-closed"}
-        flexDirection="column"
-        flexShrink={0}
-      >
-        {suggestions.length > 0 ? (
-          <CommandSelect
-            suggestions={suggestions}
-            highlightText={slashHighlight || undefined}
-            onSelect={handleCommandSelect}
-          />
-        ) : null}
-        <ContextMeter
-          cwd={cwdPath}
-          model={modelId}
-          usage={contextUsage}
-          branch={gitBranch}
-          theme={theme}
-          dim={theme.chrome.statusDim}
+      {suggestions.length > 0 ? (
+        <CommandSelect
+          suggestions={suggestions}
+          selectedIndex={selectedComplete}
+          highlightText={slashHighlight || undefined}
         />
-      </Box>
+      ) : null}
+      <ContextMeter
+        cwd={cwdPath}
+        model={modelId}
+        usage={contextUsage}
+        branch={gitBranch}
+        theme={theme}
+        dim={theme.chrome.statusDim}
+      />
     </Box>
     </ThemeProvider>
   );

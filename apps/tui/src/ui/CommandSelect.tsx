@@ -1,39 +1,62 @@
-import { Select } from "@inkjs/ui";
+import { Box, Text } from "ink";
 import type { CommandSpec } from "../commands.js";
 
 const VISIBLE = 8;
 
 /**
- * Slash-command menu on `@inkjs/ui` Select.
- * Host should ignore ↑↓/Enter/Tab while this is mounted so Select owns those keys.
+ * Slash-command menu as plain Ink Text rows.
+ * Avoid `@inkjs/ui` Select — its unmount left ghost rows under eraseLines.
+ * The host owns ↑↓/Enter/Tab while this is mounted.
  */
 export function CommandSelect({
   suggestions,
+  selectedIndex = 0,
   highlightText,
-  onSelect,
-  isDisabled = false,
 }: {
   suggestions: readonly CommandSpec[];
+  /** Which match is highlighted (host cycles with ↑↓). */
+  selectedIndex?: number;
   /** Typed command prefix without leading slash, for label highlighting. */
   highlightText?: string;
-  onSelect: (name: string) => void;
-  isDisabled?: boolean;
 }) {
   if (suggestions.length === 0) return null;
-  const options = suggestions.map((command) => ({
-    label: `/${command.name}${command.hint ? `  ${command.hint}` : ""}`,
-    value: command.name,
-  }));
-  const optionKey = options.map((option) => option.value).join("\0");
+  const visible = suggestions.slice(0, VISIBLE);
+  const selected =
+    ((selectedIndex % visible.length) + visible.length) % visible.length;
+  const needle = (highlightText ?? "").toLowerCase();
+
   return (
-    <Select
-      key={optionKey}
-      options={options}
-      visibleOptionCount={Math.min(VISIBLE, options.length)}
-      highlightText={highlightText || undefined}
-      onChange={onSelect}
-      isDisabled={isDisabled}
-    />
+    <Box flexDirection="column" flexShrink={0}>
+      {visible.map((command, index) => {
+        const label = `/${command.name}`;
+        const hint = command.hint ? `  ${command.hint}` : "";
+        const focused = index === selected;
+        const prefixLen =
+          needle && command.name.startsWith(needle) ? needle.length + 1 : 0;
+        return (
+          <Box key={command.name} height={1} flexShrink={0}>
+            <Text color={focused ? "cyan" : undefined} bold={focused} wrap="truncate">
+              {focused ? "› " : "  "}
+              {prefixLen > 0 ? (
+                <>
+                  <Text bold color={focused ? "cyan" : "white"}>
+                    {label.slice(0, prefixLen)}
+                  </Text>
+                  <Text>{label.slice(prefixLen)}</Text>
+                </>
+              ) : (
+                label
+              )}
+              {hint ? (
+                <Text dimColor={!focused} color={focused ? "cyan" : undefined}>
+                  {hint}
+                </Text>
+              ) : null}
+            </Text>
+          </Box>
+        );
+      })}
+    </Box>
   );
 }
 
