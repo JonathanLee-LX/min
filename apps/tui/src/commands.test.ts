@@ -73,7 +73,9 @@ describe("routeSubmit", () => {
 
 describe("command completion", () => {
   it("lists slash matches and completes the selected one", () => {
+    expect(commandSuggestions("")).toEqual([]);
     expect(commandSuggestions("hello")).toEqual([]);
+    expect(commandSuggestions("/").map((command) => command.name)).toContain("help");
     expect(commandSuggestions("/he").map((command) => command.name)).toEqual(["help"]);
     expect(commandSuggestions("/con").map((command) => command.name)).toEqual(["context"]);
     expect(commandSuggestions("/ver").map((command) => command.name)).toEqual(["version"]);

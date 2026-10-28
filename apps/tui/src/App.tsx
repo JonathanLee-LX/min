@@ -881,6 +881,19 @@ export function App({ args }: { args: TuiArgs }) {
             </Box>
           );
         })}
+        {/*
+          Paint blank rows for the unused viewport. Empty Ink Box space is not
+          cleared on eraseLines, so dismissing the slash Select would otherwise
+          leave ghost command rows in the taller transcript area.
+        */}
+        {Array.from(
+          { length: Math.max(0, logHeight - layout.visible.length) },
+          (_, index) => (
+            <Box key={`log-pad:${index}`} height={1} flexShrink={0}>
+              <Text> </Text>
+            </Box>
+          ),
+        )}
       </Box>
 
       {activity ? (
@@ -908,21 +921,27 @@ export function App({ args }: { args: TuiArgs }) {
         color={userTone.body}
         borderColor={theme.chrome.brand}
       />
-      {suggestions.length > 0 ? (
-        <CommandSelect
-          suggestions={suggestions}
-          highlightText={slashHighlight || undefined}
-          onSelect={handleCommandSelect}
+      <Box
+        key={suggestions.length > 0 ? "slash-open" : "slash-closed"}
+        flexDirection="column"
+        flexShrink={0}
+      >
+        {suggestions.length > 0 ? (
+          <CommandSelect
+            suggestions={suggestions}
+            highlightText={slashHighlight || undefined}
+            onSelect={handleCommandSelect}
+          />
+        ) : null}
+        <ContextMeter
+          cwd={cwdPath}
+          model={modelId}
+          usage={contextUsage}
+          branch={gitBranch}
+          theme={theme}
+          dim={theme.chrome.statusDim}
         />
-      ) : null}
-      <ContextMeter
-        cwd={cwdPath}
-        model={modelId}
-        usage={contextUsage}
-        branch={gitBranch}
-        theme={theme}
-        dim={theme.chrome.statusDim}
-      />
+      </Box>
     </Box>
     </ThemeProvider>
   );

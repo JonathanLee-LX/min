@@ -80,6 +80,8 @@ Keys:
 
 /** Slash command names matching a draft that has no arguments yet. */
 export function commandSuggestions(text: string): CommandSpec[] {
+  // Empty / non-slash drafts must yield nothing so the panel unmounts.
+  if (!text.startsWith("/")) return [];
   const match = /^\/([^\s]*)$/.exec(text);
   if (!match) return [];
   const prefix = (match[1] ?? "").toLowerCase();
