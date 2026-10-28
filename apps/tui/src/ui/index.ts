@@ -13,3 +13,4 @@ export {
 export { ContextMeter, contextMeterRows } from "./ContextMeter.js";
 export { inkThemeFromTui } from "./ink-theme.js";
 export { PermissionPrompt, permissionPromptRows } from "./PermissionPrompt.js";
+export { SessionSelect, sessionSelectRows } from "./SessionSelect.js";

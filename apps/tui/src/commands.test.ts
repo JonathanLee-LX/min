@@ -39,7 +39,7 @@ describe("routeSubmit", () => {
     expect(routeSubmit("/quit", false)).toEqual({ type: "command", command: { type: "exit" } });
     expect(routeSubmit("/q", false)).toEqual({ type: "command", command: { type: "exit" } });
     expect(commandSuggestions("/qui").map((command) => command.name)).toEqual(["quit"]);
-    for (const line of ["/open abc", "/new", "/reset", "/compact"]) {
+    for (const line of ["/resume abc", "/resume", "/open abc", "/new", "/reset", "/compact"]) {
       expect(routeSubmit(line, true).type).toBe("busy-blocked");
     }
     expect(routeSubmit("/compact", false)).toEqual({
@@ -50,8 +50,16 @@ describe("routeSubmit", () => {
 
   it("treats an unknown slash line as a prompt", () => {
     expect(parseTuiCommand("/nope")).toEqual({ type: "prompt", text: "/nope" });
-    expect(parseTuiCommand("/open")).toEqual({ type: "open-usage" });
-    expect(parseTuiCommand("/open session-1")).toEqual({ type: "open", id: "session-1" });
+    expect(parseTuiCommand("/resume")).toEqual({ type: "resume-pick" });
+    expect(parseTuiCommand("/resume session-1")).toEqual({
+      type: "resume",
+      id: "session-1",
+    });
+    expect(parseTuiCommand("/open")).toEqual({ type: "resume-pick" });
+    expect(parseTuiCommand("/open session-1")).toEqual({
+      type: "resume",
+      id: "session-1",
+    });
     expect(parseTuiCommand("/dense")).toEqual({ type: "dense-usage" });
     expect(parseTuiCommand("/ctx")).toEqual({ type: "context" });
     expect(parseTuiCommand("/v")).toEqual({ type: "version" });
@@ -79,13 +87,18 @@ describe("command completion", () => {
     expect(commandSuggestions("/he").map((command) => command.name)).toEqual(["help"]);
     expect(commandSuggestions("/con").map((command) => command.name)).toEqual(["context"]);
     expect(commandSuggestions("/ver").map((command) => command.name)).toEqual(["version"]);
+    expect(commandSuggestions("/re").map((command) => command.name)).toEqual([
+      "resume",
+      "reset",
+    ]);
+    expect(commandSuggestions("/resu").map((command) => command.name)).toEqual(["resume"]);
     expect(commandSuggestions("/s").map((command) => command.name)).toEqual([
       "session",
       "sessions",
     ]);
-    expect(commandSuggestions("/open x")).toEqual([]);
+    expect(commandSuggestions("/resume x")).toEqual([]);
     expect(applyCommandCompletion("/he", 0)).toBe("/help");
-    expect(applyCommandCompletion("/op", 0)).toBe("/open ");
+    expect(applyCommandCompletion("/resu", 0)).toBe("/resume ");
     expect(applyCommandCompletion("/s", 1)).toBe("/sessions");
     expect(commandGhost("/s", 0)).toBe("ession");
     expect(commandGhost("/s", 1)).toBe("essions");
@@ -94,7 +107,7 @@ describe("command completion", () => {
   it("fills the selected command when browsing without a trailing space", () => {
     expect(selectCommandCompletion("/", 0)).toBe("/help");
     expect(selectCommandCompletion("/s", 1)).toBe("/sessions");
-    expect(selectCommandCompletion("/op", 0)).toBe("/open");
+    expect(selectCommandCompletion("/resu", 0)).toBe("/resume");
     expect(cycleCommandIndex(0, 3, "down")).toBe(1);
     expect(cycleCommandIndex(0, 3, "up")).toBe(2);
     expect(cycleCommandIndex(2, 3, "down")).toBe(0);

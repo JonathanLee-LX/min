@@ -70,7 +70,7 @@ Commands:
   /version           show min version
   /session           current session id, title, messages, queue
   /sessions          list saved sessions
-  /open <id>         switch to a saved session
+  /resume            pick a saved session (↑↓ Enter); or /resume <id>
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear conversation history

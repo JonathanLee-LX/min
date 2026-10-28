@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>@min/cli — Project Structure</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2430; --line: #30363d;
+    --fg: #e6edf3; --dim: #8b949e; --accent: #58a6ff; --green: #3fb950;
+    --purple: #bc8cff; --orange: #d29922; --pink: #f778ba;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 72px;
+    background: radial-gradient(circle at 20% 0%, #172033 0%, var(--bg) 55%);
+    color: var(--fg);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.3px; }
+  h1 code { color: var(--accent); font-size: 24px; }
+  .sub { color: var(--dim); margin: 0 0 32px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1.2px;
+       color: var(--dim); margin: 40px 0 16px; font-weight: 600; }
+
+  .layer {
+    position: relative; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px 18px;
+  }
+  .layer-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .layer-head .tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; background: #ffffff10; color: var(--dim);
+  }
+  .layer-head strong { font-size: 14px; }
+  .layer-head em { color: var(--dim); font-style: normal; font-size: 12.5px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .node {
+    flex: 1 1 170px; min-width: 150px; background: var(--panel2);
+    border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .node b { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 13px; font-weight: 600; }
+  .node span { display: block; color: var(--dim); font-size: 12px; margin-top: 3px; }
+  .node.entry { border-left-color: var(--green); }
+  .node.mode  { border-left-color: var(--purple); }
+  .node.util  { border-left-color: var(--orange); }
+  .node.dep   { border-left-color: var(--pink); }
+
+  .connector { position: relative; display: grid; place-items: center; height: 34px; }
+  .connector::before {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 2px;
+    background: linear-gradient(var(--line), #58a6ff66);
+  }
+  .connector span {
+    position: relative; z-index: 1; background: var(--bg); border: 1px solid var(--line);
+    color: var(--dim); border-radius: 999px; padding: 1px 10px; font-size: 11.5px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .connector span::before { content: "▼ "; color: var(--accent); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { .split { grid-template-columns: 1fr; } }
+
+  pre.tree {
+    margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px; overflow-x: auto; color: #c9d1d9; font-size: 12.8px; line-height: 1.7;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .tree .d { color: var(--accent); }
+  .tree .c { color: #6e7681; }
+  .tree .g { color: var(--green); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; background: #ffffff06; }
+  tr:last-child td { border-bottom: 0; }
+  td code, .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: var(--accent); }
+  td.role { color: var(--dim); }
+
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+          background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .flow .step { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+                padding: 7px 11px; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
+  .flow .arrow { color: var(--accent); font-size: 15px; }
+  .flow .note { color: var(--dim); font-size: 12px; width: 100%; margin-top: 2px; }
+  footer { color: #6e7681; font-size: 12px; margin-top: 44px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1><code>@min/cli</code> — project structure</h1>
+  <p class="sub">Minimal one-shot + REPL front end for the <span class="mono">min</span> agent harness · TypeScript · ESM · Node ≥ 20</p>
+
+  <h2>Layered diagram</h2>
+
+  <div class="layer">
+    <div class="layer-head"><span class="tag">Entry</span><strong>Process bootstrap</strong><em>bin min → dist/cli.js</em></div>
+    <div class="row">
+      <div class="node entry"><b>src/cli.ts</b><span>main(): dispatch help / REPL / one-shot; Ctrl+C wiring; readline</span></div>
+    </div>
+  </div>
+
+  <div class="connector"><span>parseArgs(argv)</span></div>
+
+  <div class="layer">
+    <div class="layer-head"><span class="tag">Setup</span><strong>Config &amp; environment</strong></div>
+    <div class="row">
+      <div class="node"><b>src/args.ts</b><span>CliArgs type, flag parsing, helpText()</span></div>
+      <div class="node"><b>src/load-env.ts</b><span>Loads .env from cwd / INIT_CWD / parents / ~/.config/min</span></div>
+    </div>
+  </div>
+
+  <div class="connector"><span>CliArgs → createCliClient()</span></div>
+
+  <div class="layer">
+    <div class="layer-head"><span class="tag">Modes</span><strong>Interaction surfaces</strong></div>
+    <div class="split">
+      <div class="node mode"><b>src/run.ts</b><span>Builds MinClient, one-shot runTurn(), session dirs, permission prompts</span></div>
+      <div class="node mode"><b>src/repl.ts</b><span>Slash commands: /session /open /new /compact /reset /help /exit</span></div>
+    </div>
+  </div>
+
+  <div class="connector"><span>events · abort · extensions</span></div>
+
+  <div class="layer">
+    <div class="layer-head"><span class="tag">Support</span><strong>Cross-cutting CLI services</strong></div>
+    <div class="row">
+      <div class="node util"><b>src/events.ts</b><span>RunEvent → terminal printer (text, tools, permissions)</span></div>
+      <div class="node util"><b>src/interrupt.ts</b><span>withSigintAbort() / isAbortError() — abort a run on Ctrl+C</span></div>
+      <div class="node util"><b>src/session-extensions.ts</b><span>Context-budget logging hook on session runs</span></div>
+      <div class="node util"><b>src/provider.ts</b><span>Re-exports resolveProvider from @min/runtime</span></div>
+    </div>
+  </div>
+
+  <div class="connector"><span>workspace:*</span></div>
+
+  <div class="layer">
+    <div class="layer-head"><span class="tag">Deps</span><strong>Internal harness packages</strong></div>
+    <div class="row">
+      <div class="node dep"><b>@min/client</b><span>createClient / MinClient — run + permissions API</span></div>
+      <div class="node dep"><b>@min/runtime</b><span>Provider resolution, session directory layout</span></div>
+      <div class="node dep"><b>@min/core</b><span>RunEvent &amp; shared protocol types</span></div>
+      <div class="node dep"><b>@min/session</b><span>Session extensions, compaction/assemble info</span></div>
+      <div class="node dep"><b>@min/skills</b><span>Skill loading for the agent</span></div>
+      <div class="node dep"><b>@min/tools</b><span>Tool surface (bash, write_file, …) &amp; permissions</span></div>
+    </div>
+  </div>
+
+  <h2>Runtime flow</h2>
+  <div class="flow">
+    <div class="step">min "do X"</div><div class="arrow">→</div>
+    <div class="step">cli.ts</div><div class="arrow">→</div>
+    <div class="step">parseArgs</div><div class="arrow">→</div>
+    <div class="step">loadEnvFiles</div><div class="arrow">→</div>
+    <div class="step">createCliClient</div><div class="arrow">→</div>
+    <div class="step">runTurn</div><div class="arrow">→</div>
+    <div class="step">@min/client → harness</div>
+    <div class="note">Streamed <span class="mono">RunEvent</span>s are rendered by events.ts; Ctrl+C aborts via interrupt.ts; conversation state persists under <span class="mono">.min/sessions/</span>.</div>
+  </div>
+
+  <h2>Files &amp; roles</h2>
+  <table>
+    <thead><tr><th>Path</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/cli.ts</code></td><td class="role">Entry point &amp; mode dispatch (help, REPL, one-shot)</td></tr>
+      <tr><td><code>src/args.ts</code></td><td class="role">CLI flag parsing &amp; help text</td></tr>
+      <tr><td><code>src/run.ts</code></td><td class="role">Client construction, single turn execution, session listing/dirs</td></tr>
+      <tr><td><code>src/repl.ts</code></td><td class="role">Slash-command handling for the interactive REPL</td></tr>
+      <tr><td><code>src/events.ts</code></td><td class="role">Terminal rendering of run events</td></tr>
+      <tr><td><code>src/interrupt.ts</code></td><td class="role">SIGINT abort plumbing</td></tr>
+      <tr><td><code>src/load-env.ts</code></td><td class="role">.env discovery/loading without overriding existing vars</td></tr>
+      <tr><td><code>src/provider.ts</code></td><td class="role">Provider resolution re-export</td></tr>
+      <tr><td><code>src/session-extensions.ts</code></td><td class="role">Context budget / compaction logging extension</td></tr>
+      <tr><td><code>src/args.test.ts</code>, <code>src/repl.test.ts</code></td><td class="role">Vitest suites for arg parsing &amp; REPL commands</td></tr>
+      <tr><td><code>tsup.config.ts</code></td><td class="role">ESM bundle → <span class="mono">dist/cli.js</span> with shebang; internal deps external</td></tr>
+      <tr><td><code>vitest.config.ts</code></td><td class="role">Test include pattern (<span class="mono">src/**/*.test.ts</span>)</td></tr>
+      <tr><td><code>tsconfig.json</code></td><td class="role">Extends monorepo base; src → dist, typecheck only</td></tr>
+      <tr><td><code>package.json</code></td><td class="role">bin <span class="mono">min</span>, scripts (dev/build/test/typecheck), workspace deps</td></tr>
+      <tr><td><code>dist/cli.js</code></td><td class="role">Built artifact actually linked as the global <span class="mono">min</span> binary</td></tr>
+      <tr><td><code>.min/sessions/</code></td><td class="role">Local persisted conversation sessions (runtime data)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Directory tree</h2>
+  <pre class="tree"><span class="d">apps/cli/</span>
+├── package.json          <span class="c"># @min/cli, bin: min → dist/cli.js</span>
+├── tsconfig.json         <span class="c"># extends ../../tsconfig.base.json</span>
+├── tsup.config.ts        <span class="c"># esm bundle, sourcemap, shebang</span>
+├── vitest.config.ts      <span class="c"># unit tests</span>
+├── README.md
+├── <span class="d">src/</span>
+│   ├── cli.ts            <span class="c"># entry: dispatch modes</span>
+│   ├── args.ts           <span class="c"># flags + help</span>
+│   ├── args.test.ts
+│   ├── run.ts            <span class="c"># client + one-shot turn</span>
+│   ├── repl.ts           <span class="c"># slash commands</span>
+│   ├── repl.test.ts
+│   ├── events.ts         <span class="c"># event rendering</span>
+│   ├── interrupt.ts      <span class="c"># SIGINT abort</span>
+│   ├── load-env.ts       <span class="c"># .env loading</span>
+│   ├── provider.ts       <span class="c"># provider re-export</span>
+│   └── session-extensions.ts
+├── <span class="d">dist/</span>                  <span class="c"># build output → cli.js (+ map)</span>
+└── <span class="d">.min/</span>
+    └── <span class="d">sessions/</span>           <span class="c"># ses_*.json persisted conversations</span>
+</pre>
+
+  <footer>Generated from the current workspace tree · open with any browser: <span class="mono">docs/structure.html</span></footer>
+</div>
+</body>
+</html>

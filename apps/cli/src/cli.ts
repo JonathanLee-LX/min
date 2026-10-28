@@ -78,12 +78,21 @@ export async function runCli(args: CliArgs): Promise<void> {
         }
         continue;
       }
-      if (cmd?.type === "open") {
+      if (cmd?.type === "resume-list") {
+        try {
+          await listSessionsViaClient(cli);
+          console.log("usage: /resume <session-id>");
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
+      if (cmd?.type === "resume") {
         try {
           await cli.client.openSession(cmd.id);
           const s = cli.client.getSession();
           console.log(
-            `opened ${s.id}  messages=${s.messageCount}  title=${s.title ?? "(untitled)"}`,
+            `resumed ${s.id}  messages=${s.messageCount}  title=${s.title ?? "(untitled)"}`,
           );
         } catch (err) {
           console.error(err instanceof Error ? err.message : err);

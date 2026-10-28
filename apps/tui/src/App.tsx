@@ -22,6 +22,7 @@ import {
   formatSession,
   formatSessionList,
   routeSubmit,
+  type SessionListItem,
   type TuiCommand,
 } from "./commands.js";
 import { contextReport } from "./context-view.js";
@@ -69,7 +70,15 @@ import {
   inkThemeFromTui,
   PermissionPrompt,
   permissionPromptRows,
+  SessionSelect,
+  sessionSelectRows,
 } from "./ui/index.js";
+
+interface SessionPickerState {
+  sessions: SessionListItem[];
+  selected: number;
+  currentId: string;
+}
 
 const LOG_CAP = 2000;
 
@@ -116,6 +125,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [stream, setStream] = useState("");
   const [thinking, setThinking] = useState("");
   const [pendingPerm, setPendingPerm] = useState<PendingPermission | null>(null);
+  const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null);
   const [toolName, setToolName] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
   const [scroll, setScroll] = useState(0);
@@ -447,14 +457,38 @@ export function App({ args }: { args: TuiArgs }) {
         }
         return;
       }
-      if (command.type === "open-usage") {
-        pushLine("sys", "usage: /open <session-id>");
+      if (command.type === "resume-pick") {
+        try {
+          const metas = await live.listSessions();
+          const currentId = live.getSession().id;
+          if (metas.length === 0) {
+            pushLine("sys", "(no saved sessions)");
+            return;
+          }
+          const selected = Math.max(
+            0,
+            metas.findIndex((meta) => meta.id === currentId),
+          );
+          setSessionPicker({
+            sessions: metas.map((meta) => ({
+              id: meta.id,
+              title: meta.title,
+              updatedAt: meta.updatedAt,
+            })),
+            selected: selected >= 0 ? selected : 0,
+            currentId,
+          });
+          setEditor(createEditor());
+        } catch (err) {
+          pushLine("error", messageOf(err));
+        }
         return;
       }
-      if (command.type === "open") {
+      if (command.type === "resume") {
         try {
+          setSessionPicker(null);
           await live.openSession(command.id);
-          pushLine("sys", `opened ${live.getSession().id}`);
+          pushLine("sys", `resumed ${live.getSession().id}`);
         } catch (err) {
           pushLine("error", messageOf(err));
         }
@@ -562,6 +596,53 @@ export function App({ args }: { args: TuiArgs }) {
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
     const action = inputAction(input, key, keybindings);
+    if (sessionPicker) {
+      if (key.escape || (action.type === "interrupt" && key.escape)) {
+        setSessionPicker(null);
+        return;
+      }
+      if (action.type === "interrupt") {
+        // Ctrl+C quits even while picking.
+        exit();
+        return;
+      }
+      if (key.upArrow || key.downArrow) {
+        const count = sessionPicker.sessions.length;
+        setSessionPicker((current) => {
+          if (!current || count <= 0) return current;
+          return {
+            ...current,
+            selected: cycleCommandIndex(
+              current.selected,
+              count,
+              key.downArrow ? "down" : "up",
+            ),
+          };
+        });
+        return;
+      }
+      if (action.type === "submit" || key.return) {
+        const pick = sessionPicker.sessions[sessionPicker.selected];
+        if (!pick) {
+          setSessionPicker(null);
+          return;
+        }
+        setSessionPicker(null);
+        void (async () => {
+          const live = clientRef.current;
+          if (!live) return;
+          try {
+            await live.openSession(pick.id);
+            pushLine("sys", `resumed ${live.getSession().id}`);
+          } catch (err) {
+            pushLine("error", messageOf(err));
+          }
+        })();
+        return;
+      }
+      // Ignore composer edits while the picker owns the keyboard.
+      return;
+    }
     if (action.type === "interrupt") {
       const live = clientRef.current;
       if (live?.getStatus().busy) {
@@ -709,8 +790,12 @@ export function App({ args }: { args: TuiArgs }) {
   /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
   const inputRows = composerBodyRowCount(editor.text, innerWidth);
   const composerBorderRows = 2;
-  const slashOpenRows = commandSelectRows(suggestions.length);
-  const suggestRows = slashOpenRows > 0 ? slashOpenRows : slashFillRows;
+  const slashOpenRows = sessionPicker ? 0 : commandSelectRows(suggestions.length);
+  const sessionPickRows = sessionPicker
+    ? sessionSelectRows(sessionPicker.sessions.length)
+    : 0;
+  const suggestRows =
+    sessionPickRows > 0 ? sessionPickRows : slashOpenRows > 0 ? slashOpenRows : slashFillRows;
   const activityRows = activity ? 1 : 0;
   const modelId = client?.getStatus().provider ?? "";
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
@@ -950,7 +1035,13 @@ export function App({ args }: { args: TuiArgs }) {
         color={userTone.body}
         borderColor={theme.chrome.brand}
       />
-      {slashOpenRows > 0 ? (
+      {sessionPicker ? (
+        <SessionSelect
+          sessions={sessionPicker.sessions}
+          currentId={sessionPicker.currentId}
+          selectedIndex={sessionPicker.selected}
+        />
+      ) : slashOpenRows > 0 ? (
         <CommandSelect
           suggestions={suggestions}
           selectedIndex={selectedComplete}

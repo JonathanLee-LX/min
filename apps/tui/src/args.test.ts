@@ -24,7 +24,7 @@ describe("tui parseArgs", () => {
   it("documents session commands and multiline keys", () => {
     const help = helpText();
     expect(help).toContain("/sessions");
-    expect(help).toContain("/open <id>");
+    expect(help).toContain("/resume");
     expect(help).toContain("/context");
     expect(help).toContain("/version");
     expect(help).toContain("Shift+Enter");

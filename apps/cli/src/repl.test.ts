@@ -53,10 +53,15 @@ describe("handleReplCommand", () => {
     const cli = fakeCli();
     expect(handleReplCommand(cli, "/sessions")).toEqual({ type: "sessions" });
     expect(handleReplCommand(cli, "/new")).toEqual({ type: "new" });
-    expect(handleReplCommand(cli, "/open ses_abc")).toEqual({
-      type: "open",
+    expect(handleReplCommand(cli, "/resume ses_abc")).toEqual({
+      type: "resume",
       id: "ses_abc",
     });
+    expect(handleReplCommand(cli, "/open ses_abc")).toEqual({
+      type: "resume",
+      id: "ses_abc",
+    });
+    expect(handleReplCommand(cli, "/resume")).toEqual({ type: "resume-list" });
   });
 
   it("routes /compact", () => {

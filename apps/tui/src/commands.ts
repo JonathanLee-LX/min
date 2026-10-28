@@ -12,8 +12,8 @@ export type TuiCommand =
   | { type: "version" }
   | { type: "session" }
   | { type: "sessions" }
-  | { type: "open"; id: string }
-  | { type: "open-usage" }
+  | { type: "resume"; id: string }
+  | { type: "resume-pick" }
   | { type: "new" }
   | { type: "compact" }
   | { type: "reset" }
@@ -41,7 +41,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "version", hint: "show min version" },
   { name: "session", hint: "current session id, title, messages, queue" },
   { name: "sessions", hint: "list saved sessions" },
-  { name: "open", hint: "switch to a saved session", arg: true },
+  { name: "resume", hint: "resume a saved session (list or id)", arg: true },
   { name: "new", hint: "start a fresh session" },
   { name: "compact", hint: "summarize older turns and rewrite stored history" },
   { name: "reset", hint: "clear conversation history" },
@@ -57,7 +57,7 @@ export const TUI_HELP = `Commands:
   /version           show min version
   /session           current session id, title, messages, queue
   /sessions          list saved sessions
-  /open <id>         switch to a saved session
+  /resume            pick a saved session (↑↓ Enter); or /resume <id>
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear conversation history
@@ -128,7 +128,7 @@ export function cycleCommandIndex(
   return direction === "down" ? (at + 1) % count : (at - 1 + count) % count;
 }
 
-const BUSY_BLOCKED = new Set(["open", "new", "reset", "compact"]);
+const BUSY_BLOCKED = new Set(["resume", "resume-pick", "new", "reset", "compact"]);
 
 export function parseTuiCommand(line: string): TuiCommand {
   const trimmed = line.trim();
@@ -141,9 +141,10 @@ export function parseTuiCommand(line: string): TuiCommand {
   if (name === "version" || name === "v") return { type: "version" };
   if (name === "session") return { type: "session" };
   if (name === "sessions") return { type: "sessions" };
-  if (name === "open") {
+  // `/open` kept as a parse alias for `/resume`.
+  if (name === "resume" || name === "open") {
     const id = rest.join(" ").trim();
-    return id ? { type: "open", id } : { type: "open-usage" };
+    return id ? { type: "resume", id } : { type: "resume-pick" };
   }
   if (name === "new") return { type: "new" };
   if (name === "compact") return { type: "compact" };
@@ -164,7 +165,8 @@ export function routeSubmit(line: string, busy: boolean): SubmitRoute {
     return busy ? { type: "queue", text: command.text } : { type: "send", text: command.text };
   }
   if (busy && BUSY_BLOCKED.has(command.type)) {
-    return { type: "busy-blocked", name: command.type };
+    const name = command.type === "resume-pick" ? "resume" : command.type;
+    return { type: "busy-blocked", name };
   }
   return { type: "command", command };
 }

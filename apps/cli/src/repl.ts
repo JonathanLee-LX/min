@@ -7,7 +7,8 @@ export type ReplAction =
   | { type: "prompt"; text: string }
   | { type: "handled" }
   | { type: "sessions" }
-  | { type: "open"; id: string }
+  | { type: "resume"; id: string }
+  | { type: "resume-list" }
   | { type: "new" }
   | { type: "compact" };
 
@@ -33,7 +34,7 @@ export function handleReplCommand(
   /version           show min version
   /session           show current session id / title / message count
   /sessions          list saved sessions (via Client)
-  /open <id>         switch to a saved session
+  /resume            list sessions; /resume <id> switch
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear in-memory conversation history
@@ -98,13 +99,10 @@ to dense-latest. Anything else is sent as a user message.`);
     return { type: "sessions" };
   }
 
-  if (name === "open") {
+  if (name === "resume" || name === "open") {
     const id = rest.join(" ").trim();
-    if (!id) {
-      console.log("usage: /open <session-id>");
-      return { type: "handled" };
-    }
-    return { type: "open", id };
+    if (!id) return { type: "resume-list" };
+    return { type: "resume", id };
   }
 
   if (name === "new") {
