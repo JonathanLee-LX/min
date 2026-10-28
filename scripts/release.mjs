@@ -245,7 +245,7 @@ function stage(version) {
     homepage: `${repositoryUrl}#readme`,
     bugs: { url: `${repositoryUrl}/issues` },
     bin: {
-      min: "dist/cli.js",
+      min: "dist/min.js",
       "min-tui": "dist/tui.js",
       "min-web": "dist/webui/server.js",
     },
@@ -258,7 +258,7 @@ function stage(version) {
   cpSync("LICENSE", join(stageDir, "LICENSE"));
   writeFileSync(
     join(stageDir, "README.md"),
-    `# ${PUBLISH_NAME}\n\nThe full min build: \`min\`, \`min-tui\`, and \`min-web\`.\n\nWorkspace modules are packed inside this tarball. They are not published as separate npm packages.\n\n\`\`\`bash\nnpm install -g ${PUBLISH_NAME}@${distTag(version)}\nmin --help\n\`\`\`\n`,
+    `# ${PUBLISH_NAME}\n\nThe full min build: \`min\` (TUI by default), \`min -p\` (one-shot), \`min-tui\`, and \`min-web\`.\n\nWorkspace modules are packed inside this tarball. They are not published as separate npm packages.\n\n\`\`\`bash\nnpm install -g ${PUBLISH_NAME}@${distTag(version)}\nmin\nmin -p "your prompt"\n\`\`\`\n`,
   );
   console.error(`staged ${stageDir}`);
   console.error(`dependencies ${Object.keys(dependencies).join(", ")}`);

@@ -5,15 +5,15 @@
   "description": "Minimal CLI for the min agent harness",
   "type": "module",
   "bin": {
-    "min": "./dist/cli.js"
+    "min": "./dist/min.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsup",
-    "dev": "tsx src/cli.ts",
-    "start": "tsx src/cli.ts",
+    "dev": "tsx src/min.ts",
+    "start": "tsx src/min.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

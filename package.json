@@ -19,10 +19,10 @@
     "typecheck": "pnpm -r --filter=@min-agent/* run typecheck",
     "example": "pnpm --filter=@min-agent/example-basic start",
     "example:queue": "pnpm --filter=@min-agent/example-input-queue-scenarios start",
-    "min": "pnpm --filter=@min-agent/cli exec tsx src/cli.ts",
+    "min": "pnpm --filter=@min-agent/cli exec tsx src/min.ts",
     "min-tui": "pnpm --filter=@min-agent/tui exec tsx src/tui.tsx",
     "min-web": "pnpm --filter=@min-agent/webui dev",
-    "link:cli": "pnpm --filter=@min-agent/cli run build && pnpm --filter=@min-agent/cli exec pnpm link --global",
+    "link:cli": "pnpm --filter=@min-agent/cli run build && pnpm --filter=@min-agent/tui run build && pnpm --filter=@min-agent/cli exec pnpm link --global && pnpm --filter=@min-agent/tui exec pnpm link --global",
     "link:tui": "pnpm --filter=@min-agent/tui run build && pnpm --filter=@min-agent/tui exec pnpm link --global",
     "publish:alpha": "pnpm build && node scripts/release.mjs publish 0.1.0-alpha.3"
   },

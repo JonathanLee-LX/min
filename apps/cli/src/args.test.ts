@@ -1,20 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { parseArgs } from "./args.js";
+import { helpText, parseArgs } from "./args.js";
 
 describe("parseArgs", () => {
-  it("parses one-shot prompt and flags", () => {
+  it("parses one-shot -p prompt and flags", () => {
     const args = parseArgs([
       "--provider",
       "deepseek",
       "--cwd",
       "/tmp/ws",
-      "list",
-      "files",
+      "-p",
+      "list files",
     ]);
     expect(args.provider).toBe("deepseek");
     expect(args.cwd).toBe("/tmp/ws");
     expect(args.prompt).toBe("list files");
     expect(args.repl).toBe(false);
+  });
+
+  it("accepts --prompt= and appends leftover positionals", () => {
+    expect(parseArgs(["--prompt=hi", "there"])).toMatchObject({
+      prompt: "hi there",
+    });
   });
 
   it("parses session and context budget flags", () => {
@@ -55,12 +61,17 @@ describe("parseArgs", () => {
   });
 
   it("parses --auto and implies yes + bash + root-grant", () => {
-    expect(parseArgs(["--auto", "go"])).toMatchObject({
+    expect(parseArgs(["--auto", "-p", "go"])).toMatchObject({
       auto: true,
       yes: true,
       allowBash: true,
       allowRootGrant: true,
       prompt: "go",
     });
+  });
+
+  it("documents -p one-shot in help", () => {
+    expect(helpText()).toContain('-p, --prompt');
+    expect(helpText()).toContain('min -p "your prompt"');
   });
 });

@@ -1,27 +1,12 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { helpText, parseArgs } from "./args.js";
+import { helpText, parseArgs, type CliArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
 import { handleReplCommand, listSessionsViaClient } from "./repl.js";
 import { createCliClient, listSessions, runTurn } from "./run.js";
 
-loadEnvFiles();
-
-async function main(): Promise<void> {
-  let args;
-  try {
-    args = parseArgs(process.argv.slice(2));
-  } catch (err) {
-    console.error(err instanceof Error ? err.message : err);
-    process.exitCode = 1;
-    return;
-  }
-
-  if (args.help) {
-    console.log(helpText());
-    return;
-  }
-
+/** Run the one-shot / REPL CLI with already-parsed args. */
+export async function runCli(args: CliArgs): Promise<void> {
   if (args.listSessions) {
     await listSessions(args);
     return;
@@ -154,7 +139,30 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
-  process.exitCode = 1;
-});
+/** Direct `min` CLI entry (one-shot / REPL only). Prefer the `min` dispatcher. */
+async function main(): Promise<void> {
+  loadEnvFiles();
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (args.help) {
+    console.log(helpText());
+    return;
+  }
+
+  await runCli(args);
+}
+
+const entry = process.argv[1] ?? "";
+if (entry.endsWith("cli.ts") || entry.endsWith("cli.js")) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : err);
+    process.exitCode = 1;
+  });
+}

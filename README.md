@@ -16,15 +16,16 @@ Since `0.1.0-alpha.2`: model thinking streams into the TUI (`think` lines), Deep
 
 ```bash
 npm install -g @min-agent/min@alpha
-min --help
+min                      # terminal UI (default)
+min -p "your prompt"     # one-shot CLI
 min-tui
 min-web
 ```
 
 | Module | Role |
 |---------|------|
-| `apps/cli` | `min` command |
-| `apps/tui` | `min-tui` |
+| `apps/cli` | `min` dispatcher + one-shot/REPL (`min -p` / `min -i`) |
+| `apps/tui` | `min-tui` (also the default `min` UI) |
 | `apps/webui` | `min-web` |
 | `@min-agent/client` | UI facade |
 | `@min-agent/config` | Layered user/project config |
@@ -162,14 +163,15 @@ pnpm install
 pnpm build
 pnpm test
 pnpm example          # mock provider, no API key needed
-pnpm min -- "list files here"   # CLI with workspace tools (mock if no key)
+pnpm min                        # terminal UI (default)
+pnpm min -- -p "list files here"  # one-shot CLI (mock if no key)
 pnpm min -- -i                  # interactive REPL
-pnpm min-tui                    # terminal chat UI
+pnpm min-tui                    # terminal UI (explicit)
 pnpm min-web                    # Web UI (API :43127 + Vite :43128)
 
 # Global `min` on PATH (requires `pnpm setup` once so PNPM_HOME is exported)
-pnpm link:cli
-min --help
+pnpm link:cli                   # links min + min-tui
+min -h
 ```
 
 Live providers (optional):
@@ -178,7 +180,7 @@ Live providers (optional):
 PROVIDER=anthropic ANTHROPIC_API_KEY=... pnpm example
 PROVIDER=openai OPENAI_API_KEY=... pnpm example
 PROVIDER=deepseek DEEPSEEK_API_KEY=... pnpm example
-DEEPSEEK_API_KEY=... pnpm min -- "summarize README.md"
+DEEPSEEK_API_KEY=... pnpm min -- -p "summarize README.md"
 ```
 
 DeepSeek defaults to the OpenAI-compatible **Responses** API (`deepseekProvider` in `@min-agent/providers`). Set `DEEPSEEK_API=chat` to use Chat Completions instead.

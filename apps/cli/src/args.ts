@@ -145,6 +145,14 @@ export function parseArgs(argv: string[]): CliArgs {
       args.model = argv[++i];
     } else if (a === "--skills") {
       args.skillsDir = argv[++i];
+    } else if (a === "-p" || a === "--prompt") {
+      const text = argv[++i];
+      if (text === undefined) throw new Error("-p / --prompt requires text");
+      args.prompt = args.prompt ? `${args.prompt} ${text}` : text;
+    } else if (a.startsWith("--prompt=")) {
+      const text = a.slice("--prompt=".length);
+      if (!text) throw new Error("--prompt= requires text");
+      args.prompt = args.prompt ? `${args.prompt} ${text}` : text;
     } else if (a.startsWith("-")) {
       throw new Error(`Unknown flag: ${a}`);
     } else {
@@ -152,8 +160,10 @@ export function parseArgs(argv: string[]): CliArgs {
     }
   }
 
+  // Extra positionals append to -p text (or form the prompt for direct `cli` entry).
   if (positional.length) {
-    args.prompt = positional.join(" ");
+    const extra = positional.join(" ");
+    args.prompt = args.prompt ? `${args.prompt} ${extra}` : extra;
   }
 
   if (envFlagTrue(process.env.MIN_AUTO)) {
@@ -169,14 +179,18 @@ export function parseArgs(argv: string[]): CliArgs {
 }
 
 export function helpText(): string {
-  return `min — minimal agent CLI
+  return `min — CLI (one-shot / REPL)
 
 Usage:
-  min [options] "your prompt"     one-shot
+  min -p "your prompt"            one-shot
+  min --prompt "your prompt"      same as -p
   min -i                          interactive REPL
   min --list-sessions             list saved conversation sessions
 
+  (default \`min\` with no -p/-i opens the TUI)
+
 Options:
+  -p, --prompt <text> one-shot user message
   --provider <name>   mock | deepseek | openai | anthropic
   --model <id>        provider model id
   --cwd <dir>         primary sandbox root (default: .)
