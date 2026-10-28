@@ -82,8 +82,11 @@ const mocha = {
   /** Darker muted tone for secondary / reasoning copy. */
   overlay: "#7f849c",
   green: "#a6e3a1",
-  /** Soft mint for the MIN banner wordmark. */
-  lightGreen: "#b4f0a7",
+  /**
+   * Brand mint for the MIN banner / composer rules.
+   * Darker than Catppuccin Mocha green so it stays readable on light terminals.
+   */
+  lightGreen: "#4e9a57",
   blue: "#89b4fa",
   yellow: "#f9e2af",
   peach: "#fab387",
