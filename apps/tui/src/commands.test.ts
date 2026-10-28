@@ -28,6 +28,9 @@ describe("routeSubmit", () => {
       command: { type: "dense", text: "keep this" },
     });
     expect(routeSubmit("/exit", true)).toEqual({ type: "command", command: { type: "exit" } });
+    expect(routeSubmit("/quit", false)).toEqual({ type: "command", command: { type: "exit" } });
+    expect(routeSubmit("/q", false)).toEqual({ type: "command", command: { type: "exit" } });
+    expect(commandSuggestions("/qui").map((command) => command.name)).toEqual(["quit"]);
     for (const line of ["/open abc", "/new", "/reset", "/compact"]) {
       expect(routeSubmit(line, true).type).toBe("busy-blocked");
     }

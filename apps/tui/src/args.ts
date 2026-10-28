@@ -74,7 +74,7 @@ Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /dense <text>      queue text as a dense-latest supplement
-  /exit              quit
+  /exit /quit        quit
 
 Keys:
   Enter              send, or queue while the agent is running

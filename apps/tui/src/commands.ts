@@ -44,6 +44,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "queue", hint: "show the follow-up queue" },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
   { name: "exit", hint: "quit" },
+  { name: "quit", hint: "quit" },
 ];
 
 export const TUI_HELP = `Commands:
@@ -56,7 +57,7 @@ export const TUI_HELP = `Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /dense <text>      queue text as a dense-latest supplement
-  /exit              quit
+  /exit /quit        quit
 
 Keys:
   Enter              send, or queue while the agent is running
