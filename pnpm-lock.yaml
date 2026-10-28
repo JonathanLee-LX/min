@@ -85,6 +85,9 @@ importers:
       '@types/react':
         specifier: ^18.3.18
         version: 18.3.31
+      ansi-escapes:
+        specifier: ^7.3.0
+        version: 7.3.0
       tsup:
         specifier: ^8.4.0
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)

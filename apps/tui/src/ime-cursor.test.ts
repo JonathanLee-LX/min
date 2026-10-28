@@ -1,9 +1,11 @@
+import { clearTerminal, eraseLines } from "ansi-escapes";
 import { describe, expect, it } from "vitest";
 import {
   applyImeCursor,
   composerCaretAnchor,
   installImeCursorHook,
   rewriteEraseLinesFrame,
+  type ImeCaretAnchor,
   SYNC_BEGIN,
   SYNC_END,
 } from "./ime-cursor.js";
@@ -150,3 +152,132 @@ describe("installImeCursorHook", () => {
     expect(writes.at(-1)).toBe("\x1b[?25l");
   });
 });
+
+/**
+ * Flicker regression. Ink's log-update clears every previous row with CSI 2K
+ * before drawing the next frame. Terminals paint that wipe immediately, so
+ * stream and spinner ticks flash. These cases feed ansi-escapes' own
+ * `eraseLines` (the bytes Ink writes) through the hook.
+ */
+describe("paint flicker regression", () => {
+  it("does not full-line-wipe successive log-update frames", () => {
+    const writes: string[] = [];
+    const stdout = captureStdout(writes);
+    const restore = installImeCursorHook(stdout, () => caret(2), () => 80);
+
+    let lineCount = 0;
+    const sent: string[] = [];
+    for (const frame of ["hi", "hello", "hello!"]) {
+      const next = logUpdateChunk(lineCount, frame);
+      lineCount = next.lineCount;
+      sent.push(next.chunk);
+      stdout.write(next.chunk);
+    }
+    restore();
+
+    // Nothing to erase on the first paint, so the hook leaves it alone.
+    expect(sent[0]).toBe("hi\n");
+    expect(writes[0]).toBe("hi\n");
+    expect(sent[1]).toContain("\x1b[2K");
+    expect(sent[2]).toContain("\x1b[2K");
+    expectStablePaint(writes[1] ?? "", "hello");
+    expectStablePaint(writes[2] ?? "", "hello!");
+  });
+
+  it("drops a shorter row without wiping the frame", () => {
+    const writes: string[] = [];
+    const stdout = captureStdout(writes);
+    const restore = installImeCursorHook(stdout, () => caret(2), () => 80);
+
+    const first = logUpdateChunk(0, "hello world");
+    stdout.write(first.chunk);
+    const second = logUpdateChunk(first.lineCount, "hi");
+    stdout.write(second.chunk);
+    restore();
+
+    expect(second.chunk).toContain("\x1b[2K");
+    expectStablePaint(writes[1] ?? "", "hi");
+    expect(writes[1]).toContain("\x1b[K");
+  });
+
+  it("parks the caret in the same write after the composer collapses", () => {
+    let rowsBelow = 8;
+    const writes: string[] = [];
+    const stdout = captureStdout(writes);
+    const restore = installImeCursorHook(
+      stdout,
+      () => caret(rowsBelow),
+      () => 80,
+    );
+
+    const opened = logUpdateChunk(0, "/resume");
+    stdout.write(opened.chunk);
+    const menu = logUpdateChunk(opened.lineCount, "/resume");
+    stdout.write(menu.chunk);
+    rowsBelow = 2;
+    const submitted = logUpdateChunk(menu.lineCount, "");
+    stdout.write(submitted.chunk);
+    restore();
+
+    expect(menu.chunk).toContain("\x1b[2K");
+    expect(submitted.chunk).toContain("\x1b[2K");
+    expectStablePaint(writes[1] ?? "", "/resume");
+    expect(writes[1]).toContain("\x1b[?25h\x1b[9A\x1b[2G");
+    expectStablePaint(writes[2] ?? "", "");
+    // Empty composer: climb past the trailing newline and the two chrome rows.
+    expect(writes[2]).toContain("\x1b[?25h\x1b[3A\x1b[2G");
+    expect(writes[2]?.startsWith(`${SYNC_BEGIN}\x1b[9B`)).toBe(true);
+  });
+
+  it("keeps a hard clear and the caret in one write", () => {
+    const writes: string[] = [];
+    const stdout = captureStdout(writes);
+    const restore = installImeCursorHook(stdout, () => caret(2), () => 80);
+    stdout.write(`${clearTerminal}hello\n`);
+    restore();
+
+    expect(writes[0]?.startsWith(SYNC_BEGIN)).toBe(true);
+    expect(writes[0]?.endsWith(SYNC_END)).toBe(true);
+    expect(writes[0]).toContain(clearTerminal);
+    expect(writes[0]).toContain("hello");
+    expect(writes[0]).toContain("\x1b[?25h\x1b[21;2H");
+    expect(writes[0]?.indexOf("\x1b[?25h")).toBeLessThan(writes[0]?.lastIndexOf(SYNC_END) ?? -1);
+  });
+});
+
+/** Ink log-update: erase the previous frame, then write `frame` plus a newline. */
+function logUpdateChunk(
+  previousLineCount: number,
+  frame: string,
+): { chunk: string; lineCount: number } {
+  const output = `${frame}\n`;
+  return {
+    chunk: eraseLines(previousLineCount) + output,
+    lineCount: output.split("\n").length,
+  };
+}
+
+function caret(rowsBelowCaret: number): ImeCaretAnchor {
+  return { column: 1, rowFromTop: 20, rowsBelowCaret };
+}
+
+function captureStdout(writes: string[]): NodeJS.WriteStream {
+  return {
+    isTTY: true,
+    write(chunk: string) {
+      writes.push(String(chunk));
+      return true;
+    },
+  } as NodeJS.WriteStream;
+}
+
+/** A finished paint: one synchronized write, no CSI 2K wipe, caret inside it. */
+function expectStablePaint(write: string, text: string): void {
+  expect(write.startsWith(SYNC_BEGIN)).toBe(true);
+  expect(write.endsWith(SYNC_END)).toBe(true);
+  expect(write).not.toContain("\x1b[2K");
+  if (text) expect(write).toContain(text);
+  const caretAt = write.indexOf("\x1b[?25h");
+  expect(caretAt).toBeGreaterThan(SYNC_BEGIN.length);
+  expect(caretAt).toBeLessThan(write.lastIndexOf(SYNC_END));
+}
