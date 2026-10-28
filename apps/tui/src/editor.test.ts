@@ -122,11 +122,19 @@ describe("inputAction", () => {
       type: "edit",
       op: { op: "newline" },
     });
-    expect(inputAction("", key({ return: true, ctrl: true }))).toEqual({
+    // Plain Enter inserts a newline when the draft does not already end with one.
+    expect(inputAction("", key({ return: true }), { text: "hello", cursor: 5 })).toEqual({
       type: "edit",
       op: { op: "newline" },
     });
-    expect(inputAction("", key({ return: true }))).toEqual({ type: "submit" });
+    // Double-Enter submits once the draft ends with a newline.
+    expect(inputAction("", key({ return: true }), { text: "hello\n", cursor: 6 })).toEqual({
+      type: "submit",
+    });
+    // Ctrl+Enter always submits.
+    expect(inputAction("", key({ return: true, ctrl: true }), { text: "hello", cursor: 5 })).toEqual({
+      type: "submit",
+    });
     expect(inputAction("", key({ pageUp: true }))).toEqual({ type: "scroll", direction: "up" });
     expect(inputAction("", key({ pageDown: true }))).toEqual({ type: "scroll", direction: "down" });
     expect(inputAction("c", key({ ctrl: true }))).toEqual({ type: "interrupt" });

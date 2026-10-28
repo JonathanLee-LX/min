@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""Drive min-tui under a PTY and accept composer newline / height / soft wrap."""
+
+from __future__ import annotations
+
+import fcntl
+import os
+import pty
+import re
+import select
+import struct
+import sys
+import termios
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+TUI = ROOT / "apps" / "tui"
+ROWS = 36
+COLS = 80
+
+
+def strip_ansi(text: str) -> str:
+    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", text)
+    text = re.sub(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", "", text)
+    text = re.sub(r"\x1b[()><=].", "", text)
+    text = text.replace("\r", "")
+    return text
+
+
+def read_available(fd: int, timeout: float = 0.3) -> bytes:
+    out = b""
+    end = time.time() + timeout
+    while time.time() < end:
+        ready, _, _ = select.select([fd], [], [], max(0.0, end - time.time()))
+        if not ready:
+            if out:
+                break
+            continue
+        try:
+            chunk = os.read(fd, 65536)
+        except OSError:
+            break
+        if not chunk:
+            break
+        out += chunk
+        end = max(end, time.time() + 0.08)
+    return out
+
+
+def set_winsize(fd: int) -> None:
+    winsize = struct.pack("HHHH", ROWS, COLS, 0, 0)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+
+
+def write_keys(fd: int, data: bytes, pause: float = 0.05) -> None:
+    os.write(fd, data)
+    time.sleep(pause)
+
+
+def find_composer(lines: list[str]) -> tuple[int, int, list[str]] | None:
+    rule = re.compile(r"^─{20,}\s*$")
+    idxs = [i for i, line in enumerate(lines) if rule.match(line.strip())]
+    if len(idxs) < 2:
+        return None
+    top, bottom = idxs[-2], idxs[-1]
+    return top, bottom, lines[top + 1 : bottom]
+
+
+def last_frame(raw: str) -> list[str]:
+    """Prefer the last clear-screen frame so we don't merge scrolled history."""
+    parts = re.split(r"\x1b\[2J|\x1b\[H\x1b\[2J|\x1b\[2J\x1b\[H|\x1b\[H", raw)
+    screen = strip_ansi(parts[-1] if parts else raw)
+    return screen.splitlines()
+
+
+def dump_composer(label: str, between: list[str]) -> None:
+    print(f"\n=== {label} ===")
+    print(f"content_rows={len(between)}")
+    for i, line in enumerate(between):
+        print(f"  [{i}] {line!r}")
+
+
+def main() -> int:
+    env = dict(os.environ)
+    env["TERM"] = "xterm-256color"
+    env["COLORTERM"] = "truecolor"
+    env["FORCE_COLOR"] = "1"
+    env.pop("CI", None)
+    env.pop("NO_COLOR", None)
+    for key in list(env):
+        if key.startswith("GITHUB_") or key in {"TF_BUILD", "BUILDKITE", "CIRCLECI"}:
+            env.pop(key, None)
+
+    tsx = TUI / "node_modules" / ".bin" / "tsx"
+    cmd = [
+        "/bin/sh",
+        "-c",
+        f'exec "{tsx}" src/tui.tsx --provider mock --no-tools --cwd "{ROOT}"',
+    ]
+
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.environ.clear()
+        os.environ.update(env)
+        set_winsize(sys.stdout.fileno())
+        os.chdir(TUI)
+        os.execv(cmd[0], cmd)
+
+    set_winsize(fd)
+    buf = b""
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        buf += read_available(fd, 0.4)
+        if find_composer(last_frame(buf.decode("utf-8", "replace"))):
+            break
+    else:
+        print("BOOT FAILED; raw tail:")
+        print(strip_ansi(buf.decode("utf-8", "replace"))[-2000:])
+        return 2
+
+    lines = last_frame(buf.decode("utf-8", "replace"))
+    comp = find_composer(lines)
+    assert comp is not None
+    _, _, between = comp
+    dump_composer("EMPTY COMPOSER", between)
+    empty_ok = len(between) >= 2
+    print(f"empty_min_height_ok={empty_ok}")
+
+    # Plain Enter inserts a newline (hello / world on separate lines).
+    write_keys(fd, b"hello")
+    buf += read_available(fd, 0.8)
+    write_keys(fd, b"\r")  # plain Enter → newline
+    buf += read_available(fd, 0.8)
+    write_keys(fd, b"world")
+    buf += read_available(fd, 1.0)
+
+    lines = last_frame(buf.decode("utf-8", "replace"))
+    comp = find_composer(lines)
+    assert comp is not None
+    _, _, between = comp
+    dump_composer("AFTER Enter newline", between)
+    joined = "\n".join(between)
+    enter_newline_ok = "hello" in joined and "world" in joined and (
+        any("hello" in x and "world" not in x for x in between)
+        and any("world" in x for x in between)
+    )
+    print(f"enter_newline_ok={enter_newline_ok}")
+
+    # Trailing Enter should grow another empty content row (still not submit).
+    write_keys(fd, b"\r")
+    buf += read_available(fd, 1.0)
+    lines = last_frame(buf.decode("utf-8", "replace"))
+    comp = find_composer(lines)
+    assert comp is not None
+    _, _, between = comp
+    dump_composer("AFTER trailing Enter", between)
+    grow_ok = len(between) >= 3 and "hello" in "\n".join(between) and "world" in "\n".join(
+        between
+    )
+    print(f"trailing_enter_grows_ok={grow_ok}")
+
+    # Second Enter on the empty trailing line submits.
+    write_keys(fd, b"\r")
+    buf += read_available(fd, 1.5)
+    lines = last_frame(buf.decode("utf-8", "replace"))
+    comp = find_composer(lines)
+    assert comp is not None
+    _, _, between = comp
+    dump_composer("AFTER double-Enter submit", between)
+    cleared = all(
+        ("换行" in x or "发送" in x or not x.strip() or x.strip() == "") for x in between
+    ) or (
+        "hello" not in "\n".join(between) and "world" not in "\n".join(between)
+    )
+    # Also require the submitted text appears in the transcript above.
+    full = "\n".join(lines)
+    submitted = "hello" in full and "world" in full
+    print(f"double_enter_submit_ok={cleared and submitted}")
+
+    # Soft wrap: longer than composer inner width (COLS-2 padding) must
+    # occupy ≥2 content rows without a hard newline.
+    long_len = (COLS - 2) + 20  # clearly past one wrapped row
+    write_keys(fd, b"A" * long_len, pause=0.02)
+    buf += read_available(fd, 1.5)
+    lines = last_frame(buf.decode("utf-8", "replace"))
+    comp = find_composer(lines)
+    assert comp is not None
+    _, _, between = comp
+    dump_composer("SOFT WRAP", between)
+    a_count = sum(x.count("A") for x in between)
+    a_rows = len([x for x in between if "A" in x])
+    soft_wrap_ok = a_count >= long_len and a_rows >= 2
+    print(f"soft_wrap_ok={soft_wrap_ok} a_count={a_count} a_rows={a_rows} need={long_len}")
+
+    # Ctrl+Enter submits remaining draft (modifyOtherKeys).
+    write_keys(fd, b"\x1b[27;5;13~")
+    buf += read_available(fd, 1.2)
+    lines = last_frame(buf.decode("utf-8", "replace"))
+    comp = find_composer(lines)
+    assert comp is not None
+    _, _, between = comp
+    dump_composer("AFTER Ctrl+Enter submit", between)
+    ctrl_enter_ok = "A" not in "\n".join(between) or a_count < 10
+    # Prefer: A's gone from composer (submitted).
+    ctrl_enter_ok = sum(x.count("A") for x in between) < 10
+    print(f"ctrl_enter_submit_ok={ctrl_enter_ok}")
+
+    write_keys(fd, b"\x03")
+    time.sleep(0.2)
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
+        pass
+
+    checks = {
+        "empty_min_height_ok": empty_ok,
+        "enter_newline_ok": enter_newline_ok,
+        "trailing_enter_grows_ok": grow_ok,
+        "double_enter_submit_ok": cleared and submitted,
+        "soft_wrap_ok": soft_wrap_ok,
+        "ctrl_enter_submit_ok": ctrl_enter_ok,
+    }
+    print("\n=== SUMMARY ===")
+    for name, ok in checks.items():
+        print(f"{name}={ok}")
+    if not all(checks.values()):
+        print("PROBE FAILED", file=sys.stderr)
+        return 1
+    print("PROBE OK")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

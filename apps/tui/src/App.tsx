@@ -564,7 +564,7 @@ export function App({ args }: { args: TuiArgs }) {
 
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
-    const action = inputAction(input, key);
+    const action = inputAction(input, key, { text: editor.text, cursor: editor.cursor });
     if (action.type === "interrupt") {
       const live = clientRef.current;
       if (live?.getStatus().busy) {
@@ -873,6 +873,7 @@ export function App({ args }: { args: TuiArgs }) {
         columns={innerWidth}
         color={userTone.body}
         borderColor={theme.chrome.brand}
+        hint="Enter 换行 · Enter×2 发送 · Ctrl+Enter 发送"
       />
       {suggestions.length > 0 ? (
         <CommandSelect

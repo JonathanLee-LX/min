@@ -59,9 +59,10 @@ export const TUI_HELP = `Commands:
   /exit              quit
 
 Keys:
-  Enter              send, or queue while the agent is running
+  Enter              insert a newline (Enter again on empty line to send)
+  Ctrl+Enter         send, or queue while the agent is running
   Tab                complete a /command
-  Shift+Enter / Alt+Enter / Ctrl+J  insert a newline
+  Shift+Enter / Alt+Enter / Ctrl+J  also insert a newline
   Up/Down            previous line, or input history at the ends
   PageUp/PageDown    scroll the transcript
   Ctrl+O             expand / collapse tool output

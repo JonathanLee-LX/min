@@ -8,9 +8,12 @@ import { inputAction, type InputAction, type InputKey } from "./editor.js";
  * delete, so a press at the end of the line removes nothing. Forward delete
  * is the separate sequence `\x1b[3~`.
  */
-export function actionFromChunk(chunk: string): InputAction {
+export function actionFromChunk(
+  chunk: string,
+  draft: { text: string; cursor: number } = { text: "", cursor: 0 },
+): InputAction {
   const decoded = decodeInput(chunk);
-  return inputAction(decoded.input, decoded.key);
+  return inputAction(decoded.input, decoded.key, draft);
 }
 
 export function decodeInput(chunk: string): { input: string; key: InputKey } {
@@ -59,7 +62,8 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
 
 /**
  * Kitty CSI-u / xterm modifyOtherKeys sequences.
- * Shift+Enter → newline (via inputAction), plain Enter → submit.
+ * Shift/Ctrl/Meta modifiers on Enter are decoded here; `inputAction`
+ * decides newline vs submit (plain Enter = newline, Ctrl+Enter = submit).
  */
 function enhancedKey(chunk: string): { input: string; key: InputKey } | null {
   // CSI u: ESC [ code ; mods u  (Enter=13, Backspace=127, Tab=9, Escape=27)

@@ -120,19 +120,33 @@ export function editorCaret(state: EditorState): {
   };
 }
 
-export function inputAction(input: string, key: InputKey): InputAction {
+export function inputAction(
+  input: string,
+  key: InputKey,
+  draft: { text: string; cursor: number } = { text: "", cursor: 0 },
+): InputAction {
   if (key.ctrl && input === "c") return { type: "interrupt" };
   // Escape aborts a running turn while the composer is focused (does not quit).
   if (key.escape) return { type: "interrupt" };
   if (key.ctrl && input === "o") return { type: "toggle-tool-output" };
   if (key.pageUp) return { type: "scroll", direction: "up" };
   if (key.pageDown) return { type: "scroll", direction: "down" };
-  // Newline: Shift/Alt/Ctrl+Enter, or Ctrl+J. Plain Enter submits.
-  if (key.return && (key.meta || key.shift || key.ctrl)) {
+  // Ctrl+J / Alt+Enter always insert a newline (reliable in IDE terminals).
+  if (key.ctrl && input === "j") return { type: "edit", op: { op: "newline" } };
+  if (key.return && key.meta) return { type: "edit", op: { op: "newline" } };
+  // Ctrl+Enter submits when the terminal reports it (modifyOtherKeys / kitty).
+  if (key.return && key.ctrl) return { type: "submit" };
+  // Shift+Enter → newline when the host forwards it.
+  if (key.return && key.shift) return { type: "edit", op: { op: "newline" } };
+  if (key.return) {
+    // Plain Enter: newline by default. Double-Enter (cursor on an empty
+    // trailing line with existing content) submits — this works even when
+    // the IDE steals Shift+Enter and never sends a distinct sequence.
+    if (shouldSubmitOnPlainEnter(draft.text, draft.cursor)) {
+      return { type: "submit" };
+    }
     return { type: "edit", op: { op: "newline" } };
   }
-  if (key.ctrl && input === "j") return { type: "edit", op: { op: "newline" } };
-  if (key.return) return { type: "submit" };
   if (key.backspace) return { type: "edit", op: { op: "backspace" } };
   if (key.delete) return { type: "edit", op: { op: "delete" } };
   if (key.leftArrow) return { type: "edit", op: { op: "left" } };
@@ -147,6 +161,16 @@ export function inputAction(input: string, key: InputKey): InputAction {
   if (key.ctrl || key.meta) return { type: "ignore" };
   if (!input) return { type: "ignore" };
   return { type: "edit", op: { op: "insert", text: input } };
+}
+
+/**
+ * Double-Enter send: draft already ends with a newline, caret is at the
+ * end on that empty line, and there is non-whitespace content to submit.
+ */
+export function shouldSubmitOnPlainEnter(text: string, cursor: number): boolean {
+  if (!text.trim()) return false;
+  if (!text.endsWith("\n")) return false;
+  return cursor >= text.length;
 }
 
 function insert(state: EditorState, chunk: string): EditorState {
