@@ -4,9 +4,20 @@ import { displayWidth, wrapText } from "./text.js";
 /**
  * Ink 5 IME caret sync.
  *
+ * log-update wipes the frame with eraseLines and then redraws it. Terminals
+ * paint that wipe immediately, so every stream or spinner tick flashes.
+ * Paint chunks are rewritten to in-place row updates and wrapped in a
+ * synchronized output (DEC 2026) together with the caret park, so the
+ * terminal shows one finished frame.
+ *
  * Normal paints use eraseLines (relative climb from under the frame).
  * A rare clearTerminal / hard-clear write uses absolute CUP from top.
  */
+
+/** Begin synchronized update (DEC mode 2026). Ignored when unsupported. */
+export const SYNC_BEGIN = "\x1b[?2026h";
+/** End synchronized update. */
+export const SYNC_END = "\x1b[?2026l";
 
 export interface ImeCaretAnchor {
   /** 0-based column in the terminal. */
@@ -53,21 +64,71 @@ export function composerCaretAnchor(layout: ComposerCaretLayout): ImeCaretAnchor
 
 export type ImePaintMode = "absolute" | "relative";
 
+export function imeCursorSequence(
+  anchor: ImeCaretAnchor,
+  termColumns: number,
+  mode: ImePaintMode,
+): string {
+  const col = Math.max(1, Math.min(Math.max(1, termColumns), anchor.column + 1));
+  if (mode === "absolute") {
+    const row = Math.max(1, anchor.rowFromTop + 1);
+    return `\x1b[?25h\x1b[${row};${col}H`;
+  }
+  // log-update appends an extra newline under the frame.
+  const up = 1 + Math.max(0, anchor.rowsBelowCaret);
+  return `\x1b[?25h\x1b[${up}A\x1b[${col}G`;
+}
+
 export function applyImeCursor(
   write: (chunk: string) => void,
   anchor: ImeCaretAnchor,
   termColumns: number,
   mode: ImePaintMode,
 ): void {
-  const col = Math.max(1, Math.min(Math.max(1, termColumns), anchor.column + 1));
-  if (mode === "absolute") {
-    const row = Math.max(1, anchor.rowFromTop + 1);
-    write(`\x1b[?25h\x1b[${row};${col}H`);
-    return;
+  write(imeCursorSequence(anchor, termColumns, mode));
+}
+
+/**
+ * Replace an ansi-escapes `eraseLines` prefix with per-row overwrites.
+ * Cursor ends on the same trailing row log-update leaves behind, so the
+ * relative caret climb still applies. Returns null when `text` is not an
+ * eraseLines frame (for example a clearTerminal write).
+ */
+export function rewriteEraseLinesFrame(text: string): string | null {
+  const parsed = parseEraseLinesFrame(text);
+  if (!parsed) return null;
+  return inPlaceFrame(parsed.linesCleared, parsed.body);
+}
+
+function parseEraseLinesFrame(text: string): { linesCleared: number; body: string } | null {
+  if (!text.startsWith("\x1b[2K")) return null;
+  let index = 0;
+  let count = 0;
+  while (text.startsWith("\x1b[2K", index)) {
+    index += 4;
+    count += 1;
+    if (text.startsWith("\x1b[1A", index)) index += 4;
+    else break;
   }
-  // log-update appends an extra newline under the frame.
-  const up = 1 + Math.max(0, anchor.rowsBelowCaret);
-  write(`\x1b[?25h\x1b[${up}A\x1b[${col}G`);
+  if (count === 0 || !text.startsWith("\x1b[G", index)) return null;
+  return { linesCleared: count, body: text.slice(index + 3) };
+}
+
+function inPlaceFrame(linesCleared: number, body: string): string {
+  const parts = body.split("\n");
+  const up = Math.max(0, linesCleared - 1);
+  let out = up > 0 ? `\x1b[${up}A` : "";
+  out += "\x1b[G";
+  for (let i = 0; i < parts.length; i++) {
+    out += `${parts[i]}\x1b[K`;
+    if (i < parts.length - 1) out += "\n";
+  }
+  const extra = linesCleared - parts.length;
+  if (extra > 0) {
+    for (let i = 0; i < extra; i++) out += "\n\x1b[K";
+    out += `\x1b[${extra}A`;
+  }
+  return out;
 }
 
 export function hideImeCursor(write: (chunk: string) => void): void {
@@ -76,16 +137,33 @@ export function hideImeCursor(write: (chunk: string) => void): void {
 
 type StdoutWrite = NodeJS.WriteStream["write"];
 
+function chunkText(chunk: unknown): string {
+  if (typeof chunk === "string") return chunk;
+  if (Buffer.isBuffer(chunk)) return chunk.toString("utf8");
+  return "";
+}
+
 function paintModeForChunk(chunk: unknown): ImePaintMode | null {
-  const text =
-    typeof chunk === "string"
-      ? chunk
-      : Buffer.isBuffer(chunk)
-        ? chunk.toString("utf8")
-        : "";
+  const text = chunkText(chunk);
   if (text.includes("\x1b[2J")) return "absolute";
   if (text.includes("\x1b[2K")) return "relative";
   return null;
+}
+
+function writeChunk(
+  write: StdoutWrite,
+  chunk: Parameters<StdoutWrite>[0],
+  encoding: unknown,
+  cb: unknown,
+): ReturnType<StdoutWrite> {
+  if (typeof encoding === "function") {
+    return write(chunk, encoding as (err?: Error | null) => void);
+  }
+  return write(
+    chunk,
+    encoding as BufferEncoding | undefined,
+    cb as ((err?: Error | null) => void) | undefined,
+  );
 }
 
 export function installImeCursorHook(
@@ -96,36 +174,37 @@ export function installImeCursorHook(
   if (!stdout.isTTY) return () => {};
   const originalWrite: StdoutWrite = stdout.write.bind(stdout);
   let syncing = false;
+  // After a park the real cursor sits in the composer. The next eraseLines
+  // frame expects it on the trailing row under the frame; move it back first.
+  let returnDown = 0;
 
   const writeRaw = (chunk: string) => {
     originalWrite(chunk);
   };
 
   stdout.write = ((chunk: Parameters<StdoutWrite>[0], encoding?: unknown, cb?: unknown) => {
-    const result =
-      typeof encoding === "function"
-        ? originalWrite(chunk, encoding as (err?: Error | null) => void)
-        : originalWrite(
-            chunk,
-            encoding as BufferEncoding | undefined,
-            cb as ((err?: Error | null) => void) | undefined,
-          );
-    const mode = paintModeForChunk(chunk);
-    // Always re-park after an Ink frame. eraseLines ends with the cursor under
-    // the frame; skipping "unchanged" anchors left the caret on the status bar
-    // after Enter cleared the composer and the next reply repainted.
-    if (!syncing && mode) {
+    const text = chunkText(chunk);
+    const mode = !syncing && text ? paintModeForChunk(text) : null;
+    // One write: in-place rows (no blanking wipe) + caret, inside DEC 2026.
+    // A second write after eraseLines let the terminal paint the cursor under
+    // the frame, and skipping unchanged anchors left it there after Enter.
+    if (mode) {
       const anchor = getAnchor();
-      if (anchor) {
-        syncing = true;
-        try {
-          applyImeCursor(writeRaw, anchor, getColumns(), mode);
-        } finally {
-          syncing = false;
-        }
+      const back =
+        mode === "relative" && returnDown > 0 ? `\x1b[${returnDown}B` : "";
+      const stable =
+        mode === "relative" ? (rewriteEraseLinesFrame(text) ?? text) : text;
+      const cursor = anchor ? imeCursorSequence(anchor, getColumns(), mode) : "";
+      returnDown = anchor ? 1 + Math.max(0, anchor.rowsBelowCaret) : 0;
+      const wrapped = `${SYNC_BEGIN}${back}${stable}${cursor}${SYNC_END}`;
+      syncing = true;
+      try {
+        return writeChunk(originalWrite, wrapped, encoding, cb);
+      } finally {
+        syncing = false;
       }
     }
-    return result;
+    return writeChunk(originalWrite, chunk, encoding, cb);
   }) as StdoutWrite;
 
   return () => {

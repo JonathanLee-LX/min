@@ -875,9 +875,9 @@ export function App({ args }: { args: TuiArgs }) {
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(painted, logHeight, scroll);
 
-  // Re-park the real caret after every Ink stdout write. Absolute CUP is
-  // wrong because Ink redraws via eraseLines (frame is not at terminal 0,0);
-  // useLayoutEffect alone also loses to Ink's 32ms throttled paint.
+  // Re-park the caret inside each Ink stdout write. The hook also turns
+  // eraseLines into an in-place frame so stream paints do not flash blank.
+  // useLayoutEffect alone loses to Ink's throttled paint.
   useEffect(() => {
     return installImeCursorHook(
       stdout,
