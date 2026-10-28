@@ -1,4 +1,4 @@
-import { COMPOSER_PADDING_Y } from "./ui/Composer.js";
+import { composerPaddingRows } from "./ui/Composer.js";
 import { displayWidth, wrapText } from "./text.js";
 
 /**
@@ -41,7 +41,7 @@ export function composerCaretAnchor(layout: ComposerCaretLayout): ImeCaretAnchor
   const columnText = visual[lineIndex] ?? "";
   // inputRows is the full body (paddingY + content + paddingY).
   const inputRows = Math.max(1, layout.inputRows);
-  const padTop = COMPOSER_PADDING_Y;
+  const padTop = composerPaddingRows();
   const caretRow = padTop + lineIndex;
   const rowsBelowInComposer = Math.max(0, inputRows - 1 - caretRow);
   return {

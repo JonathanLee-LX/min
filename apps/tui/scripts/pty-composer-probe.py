@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive min-tui under a PTY and accept composer padding / newline / submit."""
+"""Drive min-tui under a PTY and accept one-row composer + newline / submit."""
 
 from __future__ import annotations
 
@@ -123,11 +123,10 @@ def main() -> int:
     assert comp is not None
     _, _, between = comp
     dump_composer("EMPTY COMPOSER", between)
-    # paddingY(1) + 1 content + paddingY(1) = 3
-    empty_ok = len(between) == 3
+    empty_ok = len(between) == 1
     joined_empty = "\n".join(between)
     no_hint_ok = "换行" not in joined_empty and "发送" not in joined_empty and "Enter" not in joined_empty
-    print(f"empty_padded_ok={empty_ok}")
+    print(f"empty_one_row_ok={empty_ok}")
     print(f"no_hint_text_ok={no_hint_ok}")
 
     write_keys(fd, b"hello")
@@ -136,11 +135,9 @@ def main() -> int:
     comp = find_composer(lines)
     assert comp is not None
     _, _, between = comp
-    dump_composer("SINGLE LINE padded", between)
-    hello_idxs = [i for i, x in enumerate(between) if "hello" in x]
-    # pad, text, pad
-    single_ok = len(between) == 3 and hello_idxs == [1]
-    print(f"single_line_padded_ok={single_ok}")
+    dump_composer("SINGLE LINE", between)
+    single_ok = len(between) == 1 and "hello" in between[0]
+    print(f"single_line_ok={single_ok}")
 
     write_keys(fd, b"\x1b[27;2;13~")
     buf += read_available(fd, 0.8)
@@ -153,13 +150,14 @@ def main() -> int:
     _, _, between = comp
     dump_composer("AFTER Shift+Enter newline", between)
     joined = "\n".join(between)
-    shift_newline_ok = "hello" in joined and "world" in joined and (
-        any("hello" in x and "world" not in x for x in between)
+    shift_newline_ok = (
+        len(between) == 2
+        and "hello" in joined
+        and "world" in joined
+        and any("hello" in x and "world" not in x for x in between)
         and any("world" in x for x in between)
     )
-    # pad + 2 content + pad = 4
-    shift_height_ok = len(between) == 4
-    print(f"shift_enter_newline_ok={shift_newline_ok and shift_height_ok}")
+    print(f"shift_enter_newline_ok={shift_newline_ok}")
 
     write_keys(fd, b"\r")
     buf += read_available(fd, 1.5)
@@ -171,7 +169,7 @@ def main() -> int:
     cleared = "hello" not in "\n".join(between) and "world" not in "\n".join(between)
     full = "\n".join(lines)
     submitted = "hello" in full and "world" in full
-    enter_submit_ok = cleared and submitted and len(between) == 3
+    enter_submit_ok = cleared and submitted and len(between) == 1
     print(f"enter_submit_ok={enter_submit_ok}")
 
     long_len = (COLS - 2) + 20
@@ -199,10 +197,10 @@ def main() -> int:
         pass
 
     checks = {
-        "empty_padded_ok": empty_ok,
+        "empty_one_row_ok": empty_ok,
         "no_hint_text_ok": no_hint_ok,
-        "single_line_padded_ok": single_ok,
-        "shift_enter_newline_ok": shift_newline_ok and shift_height_ok,
+        "single_line_ok": single_ok,
+        "shift_enter_newline_ok": shift_newline_ok,
         "enter_submit_ok": enter_submit_ok,
         "soft_wrap_ok": soft_wrap_ok,
     }

@@ -8,6 +8,7 @@ export {
   composerContentRowCount,
   composerContentRows,
   composerPadTop,
+  composerPaddingRows,
 } from "./Composer.js";
 export { ContextMeter, contextMeterRows } from "./ContextMeter.js";
 export { inkThemeFromTui } from "./ink-theme.js";
