@@ -34,6 +34,7 @@ import {
 } from "./editor.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
+import { createKeyBuffer } from "./key-buffer.js";
 import { decodeInput } from "./keys.js";
 import {
   activityFor,
@@ -44,7 +45,6 @@ import {
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer } from "./permission-view.js";
 import { readGitBranch } from "./status-bar.js";
-import { wrapText } from "./text.js";
 import { resolveMinConfig } from "@min-agent/config";
 import { themeFromConfig } from "./theme.js";
 import {
@@ -59,6 +59,8 @@ import {
   ActivitySpinner,
   CommandSelect,
   commandSelectRows,
+  Composer,
+  composerContentRowCount,
   ContextMeter,
   contextMeterRows,
   inkThemeFromTui,
@@ -633,19 +635,29 @@ export function App({ args }: { args: TuiArgs }) {
   }, [setRawMode]);
 
   useEffect(() => {
+    const buffer = createKeyBuffer((sequence) => {
+      const focus = focusStateFromChunk(sequence);
+      if (focus !== null) {
+        setFocused(focus);
+        return;
+      }
+      const { input, key } = decodeInput(sequence);
+      handleInput.current(input, key);
+    });
     const onChunk = (chunk: string | Buffer) => {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      // Focus reports are complete on their own; don't buffer-merge with keys.
       const focus = focusStateFromChunk(text);
       if (focus !== null) {
         setFocused(focus);
         return;
       }
-      const { input, key } = decodeInput(text);
-      handleInput.current(input, key);
+      buffer.push(text);
     };
     internal_eventEmitter.on("input", onChunk);
     return () => {
       internal_eventEmitter.off("input", onChunk);
+      buffer.dispose();
     };
   }, [internal_eventEmitter]);
 
@@ -663,10 +675,8 @@ export function App({ args }: { args: TuiArgs }) {
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
-  /** Soft-wrapped composer lines; box stays at least 2× line height. */
-  const composerLines = wrapText(editor.text, innerWidth);
-  const inputRows = Math.max(2, composerLines.length);
-  /** Top + bottom rules that frame the input (no left chat bar). */
+  /** Soft-wrapped + hard-newline rows; min 2 (= 2× line height for one line). */
+  const inputRows = composerContentRowCount(editor.text, innerWidth);
   const composerBorderRows = 2;
   const suggestRows = commandSelectRows(suggestions.length);
   const activityRows = activity ? 1 : 0;
@@ -674,7 +684,7 @@ export function App({ args }: { args: TuiArgs }) {
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
   const bottomStatusRows = contextMeterRows(cwdPath, modelId);
   const bannerRows = minBannerRows(innerWidth);
-  /** Banner + session meta + transcript top margin. */
+  /** Banner + session meta (fixed 1 row) + transcript top margin. */
   const headerRows = bannerRows + 1 + 1;
   const permBlockRows = pendingPerm ? permissionPromptRows(pendingPerm) : 0;
   const reserved =
@@ -690,7 +700,6 @@ export function App({ args }: { args: TuiArgs }) {
     headerRows + logHeight + activityRows + permBlockRows + 1; /* top rule */
   const rowsBelowComposer = 1 /* bottom rule */ + suggestRows + bottomStatusRows;
   const userTone = toneFor("user", theme);
-  const composerRule = "─".repeat(innerWidth);
   const imeAnchor =
     client && !error
       ? composerCaretAnchor({
@@ -793,7 +802,7 @@ export function App({ args }: { args: TuiArgs }) {
             {line}
           </Text>
         ))}
-        <Box flexShrink={0}>
+        <Box height={1} flexShrink={0} overflow="hidden">
           <Text dimColor={theme.chrome.statusDim} wrap="truncate">
             {`${shortId(status.sessionId)} · `}
           </Text>
@@ -859,25 +868,12 @@ export function App({ args }: { args: TuiArgs }) {
         />
       ) : null}
 
-      <Box flexDirection="column" width={innerWidth} flexShrink={0}>
-        <Text color={theme.chrome.brand} wrap="truncate">
-          {composerRule}
-        </Text>
-        <Box flexDirection="column" width={innerWidth} height={inputRows} flexShrink={0}>
-          {/*
-            Soft-wrapped lines inside a 2× line-height box (grows with wrap /
-            Shift+Enter). Real terminal cursor marks the caret for IME.
-          */}
-          {Array.from({ length: inputRows }, (_, index) => (
-            <Text key={`composer:${index}`} wrap="truncate" color={userTone.body}>
-              {composerLines[index] || " "}
-            </Text>
-          ))}
-        </Box>
-        <Text color={theme.chrome.brand} wrap="truncate">
-          {composerRule}
-        </Text>
-      </Box>
+      <Composer
+        text={editor.text}
+        columns={innerWidth}
+        color={userTone.body}
+        borderColor={theme.chrome.brand}
+      />
       {suggestions.length > 0 ? (
         <CommandSelect
           suggestions={suggestions}

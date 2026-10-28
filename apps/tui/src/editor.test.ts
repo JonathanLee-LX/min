@@ -118,7 +118,14 @@ describe("inputAction", () => {
       type: "edit",
       op: { op: "newline" },
     });
-    expect(inputAction("", key({ return: true, shift: true })).type).toBe("edit");
+    expect(inputAction("", key({ return: true, shift: true }))).toEqual({
+      type: "edit",
+      op: { op: "newline" },
+    });
+    expect(inputAction("", key({ return: true, ctrl: true }))).toEqual({
+      type: "edit",
+      op: { op: "newline" },
+    });
     expect(inputAction("", key({ return: true }))).toEqual({ type: "submit" });
     expect(inputAction("", key({ pageUp: true }))).toEqual({ type: "scroll", direction: "up" });
     expect(inputAction("", key({ pageDown: true }))).toEqual({ type: "scroll", direction: "down" });

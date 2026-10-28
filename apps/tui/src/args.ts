@@ -78,7 +78,7 @@ Commands:
 
 Keys:
   Enter              send, or queue the line while the agent is running
-  Shift+Enter, Alt+Enter, Ctrl+J  insert a newline
+  Shift+Enter / Alt+Enter / Ctrl+J  insert a newline
   Up/Down            previous line, or input history at the ends
   PageUp/PageDown    scroll the transcript
   Ctrl+O             expand / collapse tool output

@@ -127,7 +127,10 @@ export function inputAction(input: string, key: InputKey): InputAction {
   if (key.ctrl && input === "o") return { type: "toggle-tool-output" };
   if (key.pageUp) return { type: "scroll", direction: "up" };
   if (key.pageDown) return { type: "scroll", direction: "down" };
-  if (key.return && (key.meta || key.shift)) return { type: "edit", op: { op: "newline" } };
+  // Newline: Shift/Alt/Ctrl+Enter, or Ctrl+J. Plain Enter submits.
+  if (key.return && (key.meta || key.shift || key.ctrl)) {
+    return { type: "edit", op: { op: "newline" } };
+  }
   if (key.ctrl && input === "j") return { type: "edit", op: { op: "newline" } };
   if (key.return) return { type: "submit" };
   if (key.backspace) return { type: "edit", op: { op: "backspace" } };

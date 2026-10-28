@@ -61,7 +61,7 @@ export const TUI_HELP = `Commands:
 Keys:
   Enter              send, or queue while the agent is running
   Tab                complete a /command
-  Shift+Enter, Alt+Enter, Ctrl+J  insert a newline
+  Shift+Enter / Alt+Enter / Ctrl+J  insert a newline
   Up/Down            previous line, or input history at the ends
   PageUp/PageDown    scroll the transcript
   Ctrl+O             expand / collapse tool output

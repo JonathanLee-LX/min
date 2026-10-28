@@ -10,16 +10,18 @@ export const FOCUS_IN = "\x1b[I";
 export const FOCUS_OUT = "\x1b[O";
 
 /**
- * Enable focus events and xterm modifyOtherKeys (level 2) so Shift+Enter
- * arrives as a distinct sequence instead of plain Enter.
+ * Enable focus events plus keyboard modes so Shift+Enter is distinct from Enter:
+ * - DECSET 1004 focus in/out
+ * - xterm modifyOtherKeys level 2 (`CSI > 4 ; 2 m`)
+ * - kitty progressive enhancement disambiguate (`CSI > 1 u`)
  * Safe no-op when not a TTY.
  */
 export function enableFocusReporting(stdout: NodeJS.WriteStream): () => void {
   if (!stdout.isTTY) return () => {};
-  stdout.write("\x1b[?1004h\x1b[>4;2m");
+  stdout.write("\x1b[?1004h\x1b[>4;2m\x1b[>1u");
   return () => {
     try {
-      stdout.write("\x1b[?1004l\x1b[>4;0m");
+      stdout.write("\x1b[<u\x1b[>4;0m\x1b[?1004l");
     } catch {
       /* exiting */
     }
