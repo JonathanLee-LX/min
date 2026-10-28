@@ -52,6 +52,14 @@ export interface ChromeStyle {
   statusDim: boolean;
 }
 
+/** Colors for Markdown inline tones inside assistant (and similar) body text. */
+export interface MarkdownStyle {
+  strong?: ThemeColor;
+  em?: ThemeColor;
+  code?: ThemeColor;
+  link?: ThemeColor;
+}
+
 export interface TuiTheme {
   id: string;
   name: string;
@@ -59,6 +67,7 @@ export interface TuiTheme {
   frames: FrameStyle;
   activity: ActivityStyle;
   chrome: ChromeStyle;
+  markdown: MarkdownStyle;
 }
 
 export type ThemeOverrides = {
@@ -68,6 +77,7 @@ export type ThemeOverrides = {
   frames?: Partial<FrameStyle>;
   activity?: Partial<ActivityStyle>;
   chrome?: Partial<ChromeStyle>;
+  markdown?: Partial<MarkdownStyle>;
 };
 
 /**
@@ -177,6 +187,12 @@ export const defaultTheme: TuiTheme = {
     completeSelected: mocha.lightGreen,
     statusDim: true,
   },
+  markdown: {
+    strong: mocha.text,
+    em: mocha.subtext,
+    code: mocha.teal,
+    link: mocha.sky,
+  },
 };
 
 const registry = new Map<string, TuiTheme>([[defaultTheme.id, defaultTheme]]);
@@ -218,6 +234,7 @@ export function createTheme(overrides: ThemeOverrides, base: TuiTheme = defaultT
     frames: { ...base.frames, ...overrides.frames },
     activity: { ...base.activity, ...overrides.activity },
     chrome: { ...base.chrome, ...overrides.chrome },
+    markdown: { ...base.markdown, ...overrides.markdown },
   };
 }
 
@@ -265,6 +282,7 @@ export function themeFromConfig(ui: UiConfig = {}): TuiTheme {
       frames: overrides.frames as ThemeOverrides["frames"],
       activity: overrides.activity as ThemeOverrides["activity"],
       chrome: overrides.chrome as ThemeOverrides["chrome"],
+      markdown: overrides.markdown as ThemeOverrides["markdown"],
     },
     base,
   );

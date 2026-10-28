@@ -861,10 +861,14 @@ export function App({ args }: { args: TuiArgs }) {
                   <Text
                     key={spanIndex}
                     bold={span.bold}
-                    italic={tone.italicBody}
-                    color={tone.body}
+                    italic={tone.italicBody || span.italic}
+                    color={spanColor(span.tone, tone.body, theme)}
                     backgroundColor={tone.background ?? undefined}
-                    dimColor={tone.dimBody || span.tone === "code" || span.tone === "dim" || span.tone === "link"}
+                    dimColor={
+                      tone.dimBody ||
+                      span.tone === "dim" ||
+                      (span.tone === "link" && !theme.markdown.link)
+                    }
                   >
                     {span.text}
                   </Text>
@@ -937,6 +941,18 @@ function terminalSize(stdout: NodeJS.WriteStream): { columns: number; rows: numb
     columns: Math.max(20, stdout.columns || 80),
     rows: Math.max(8, stdout.rows || 24),
   };
+}
+
+function spanColor(
+  spanTone: "plain" | "strong" | "em" | "code" | "dim" | "link",
+  body: string | undefined,
+  theme: ReturnType<typeof themeFromConfig>,
+): string | undefined {
+  if (spanTone === "code") return theme.markdown.code ?? body;
+  if (spanTone === "link") return theme.markdown.link ?? body;
+  if (spanTone === "strong") return theme.markdown.strong ?? body;
+  if (spanTone === "em") return theme.markdown.em ?? body;
+  return body;
 }
 
 function shortId(id: string): string {

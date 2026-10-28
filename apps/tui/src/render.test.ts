@@ -30,6 +30,40 @@ describe("renderContent", () => {
     ]);
   });
 
+  it("keeps hard line breaks and parses italic / ***", () => {
+    const blocks = renderContent({
+      role: "assistant",
+      text: "**Files:**\na.ts\nb.ts",
+      streaming: false,
+    });
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.kind).toBe("paragraph");
+    expect(blocks[0]?.lines.map((line) => line.map((span) => span.text).join(""))).toEqual([
+      "Files:",
+      "a.ts",
+      "b.ts",
+    ]);
+    expect(blocks[0]?.lines[0]?.[0]).toEqual({ text: "Files:", tone: "strong" });
+
+    const italic = renderContent({
+      role: "assistant",
+      text: "Use *italic* here",
+      streaming: false,
+    });
+    expect(italic[0]?.lines[0]?.map((span) => `${span.tone}:${span.text}`)).toEqual([
+      "plain:Use ",
+      "em:italic",
+      "plain: here",
+    ]);
+
+    const both = renderContent({
+      role: "assistant",
+      text: "***both***",
+      streaming: false,
+    });
+    expect(both[0]?.lines[0]?.[0]).toEqual({ text: "both", tone: "strong" });
+  });
+
   it("keeps an unclosed marker open", () => {
     const [bold] = renderContent({ role: "assistant", text: "Say **hello", streaming: true });
     expect(bold?.lines[0]?.map((span) => span.tone)).toContain("strong");

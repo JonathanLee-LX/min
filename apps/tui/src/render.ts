@@ -23,7 +23,7 @@ export interface RenderRequest {
   streaming: boolean;
 }
 
-export type SpanTone = "plain" | "strong" | "code" | "dim" | "link";
+export type SpanTone = "plain" | "strong" | "em" | "code" | "dim" | "link";
 
 export interface RenderSpan {
   text: string;
@@ -153,11 +153,16 @@ function parseMarkdown(text: string): RenderBlock[] {
     while (index < rows.length) {
       const current = rows[index] ?? "";
       if (!current.trim() || isBlockStart(current)) break;
-      paragraph.push(current.trim());
+      // Keep hard line breaks — models often structure replies without
+      // blank lines between short lines; joining with spaces flattens them.
+      paragraph.push(current.trimEnd().replace(/^[ \t]+/, ""));
       index += 1;
     }
     if (paragraph.length > 0) {
-      blocks.push({ kind: "paragraph", lines: [parseInline(paragraph.join(" "))] });
+      blocks.push({
+        kind: "paragraph",
+        lines: paragraph.map((row) => parseInline(row)),
+      });
     }
   }
   if (blocks.length === 0) {
@@ -196,19 +201,54 @@ function parseInline(input: string): RenderSpan[] {
   };
   let index = 0;
   while (index < input.length) {
-    const marker = input.startsWith("**", index) ? "**" : input.startsWith("__", index) ? "__" : "";
-    if (marker) {
-      const close = input.indexOf(marker, index + marker.length);
+    // *** / ___ → strong + emphasis
+    const triple = input.startsWith("***", index)
+      ? "***"
+      : input.startsWith("___", index)
+        ? "___"
+        : "";
+    if (triple) {
+      const close = input.indexOf(triple, index + triple.length);
       flush();
       if (close === -1) {
-        const rest = input.slice(index + marker.length);
+        const rest = input.slice(index + triple.length);
         if (rest) spans.push({ text: rest, tone: "strong" });
         return mergeSpans(spans);
       }
-      for (const span of parseInline(input.slice(index + marker.length, close))) {
-        spans.push(span.tone === "plain" ? { text: span.text, tone: "strong" } : span);
+      for (const span of parseInline(input.slice(index + triple.length, close))) {
+        spans.push(promoteTone(span, "strong"));
       }
-      index = close + marker.length;
+      index = close + triple.length;
+      continue;
+    }
+    const strong = input.startsWith("**", index) ? "**" : input.startsWith("__", index) ? "__" : "";
+    if (strong) {
+      const close = input.indexOf(strong, index + strong.length);
+      flush();
+      if (close === -1) {
+        const rest = input.slice(index + strong.length);
+        if (rest) spans.push({ text: rest, tone: "strong" });
+        return mergeSpans(spans);
+      }
+      for (const span of parseInline(input.slice(index + strong.length, close))) {
+        spans.push(promoteTone(span, "strong"));
+      }
+      index = close + strong.length;
+      continue;
+    }
+    // Single *emphasis* only (avoid `_snake_case_` false positives).
+    if (input[index] === "*" && canOpenEmphasis(input, index)) {
+      const close = findEmphasisClose(input, index + 1, "*");
+      flush();
+      if (close === -1) {
+        const rest = input.slice(index + 1);
+        if (rest) spans.push({ text: rest, tone: "em" });
+        return mergeSpans(spans);
+      }
+      for (const span of parseInline(input.slice(index + 1, close))) {
+        spans.push(promoteTone(span, "em"));
+      }
+      index = close + 1;
       continue;
     }
     if (input[index] === "`") {
@@ -239,6 +279,41 @@ function parseInline(input: string): RenderSpan[] {
   }
   flush();
   return mergeSpans(spans.length > 0 ? spans : [{ text: "", tone: "plain" }]);
+}
+
+function promoteTone(span: RenderSpan, tone: Extract<SpanTone, "strong" | "em">): RenderSpan {
+  if (span.tone === "code" || span.tone === "link" || span.tone === "dim") return span;
+  if (tone === "strong") return { text: span.text, tone: "strong" };
+  if (span.tone === "strong") return span;
+  return { text: span.text, tone: "em" };
+}
+
+function canOpenEmphasis(input: string, index: number): boolean {
+  const next = input[index + 1];
+  if (!next || next === "*" || next === " " || next === "\t") return false;
+  return true;
+}
+
+function findEmphasisClose(input: string, from: number, marker: string): number {
+  let index = from;
+  while (index < input.length) {
+    if (input[index] !== marker) {
+      index += 1;
+      continue;
+    }
+    // Skip ** inside *...* search.
+    if (input.startsWith(marker + marker, index)) {
+      index += 2;
+      continue;
+    }
+    const prev = input[index - 1];
+    if (prev === " " || prev === "\t") {
+      index += 1;
+      continue;
+    }
+    return index;
+  }
+  return -1;
 }
 
 function matchLink(

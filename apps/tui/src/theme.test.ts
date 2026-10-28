@@ -72,4 +72,12 @@ describe("theme", () => {
     expect(tone.body).toBe("#7f849c");
     expect(toneFor("assistant").italicBody).toBe(false);
   });
+
+  it("exposes markdown span accents", () => {
+    expect(defaultTheme.markdown.code).toBe("#94e2d5");
+    expect(defaultTheme.markdown.link).toBe("#89dceb");
+    const custom = createTheme({ markdown: { code: "#ff0" } });
+    expect(custom.markdown.code).toBe("#ff0");
+    expect(custom.markdown.link).toBe(defaultTheme.markdown.link);
+  });
 });

@@ -37,6 +37,7 @@ export interface PaintedSpan {
   text: string;
   tone: SpanTone;
   bold: boolean;
+  italic: boolean;
 }
 
 export interface PaintedRow {
@@ -212,7 +213,7 @@ function fillRowWidth(row: PaintedRow, bodyWidth: number, fillBackground: boolea
   }
   const pad = " ".repeat(bodyWidth - used);
   row.body += pad;
-  row.spans.push({ text: pad, tone: "plain", bold: false });
+  row.spans.push({ text: pad, tone: "plain", bold: false, italic: false });
   row.text = row.gutter + row.body;
 }
 
@@ -240,7 +241,10 @@ function paintBlocks(
     const body = spans.map((span) => span.text).join("") || " ";
     const lead = rows.length === 0;
     const prefix = lead ? gutter : blank;
-    const painted = spans.length > 0 ? spans : [{ text: body, tone: "plain" as const, bold: false }];
+    const painted =
+      spans.length > 0
+        ? spans
+        : [{ text: body, tone: "plain" as const, bold: false, italic: false }];
     rows.push({
       key: `${line.key}:${rows.length}`,
       kind: line.kind,
@@ -306,7 +310,7 @@ function appendCaret(
   bodyWidth: number,
   fillBackground: boolean,
 ): PaintedRow[] {
-  const caret: PaintedSpan = { text: "▍", tone: "plain", bold: false };
+  const caret: PaintedSpan = { text: "▍", tone: "plain", bold: false, italic: false };
   const last = rows[rows.length - 1];
   if (last) {
     // Drop the fill padding so the caret sits after the real text.
@@ -350,6 +354,7 @@ function paintSpans(spans: readonly RenderSpan[], bold: boolean): PaintedSpan[] 
       text: span.text,
       tone: span.tone,
       bold: bold || span.tone === "strong",
+      italic: span.tone === "em",
     }));
 }
 
@@ -360,6 +365,7 @@ function paintQuote(spans: readonly RenderSpan[]): PaintedSpan[] {
       text: span.text,
       tone: span.tone === "code" || span.tone === "link" ? span.tone : "dim",
       bold: span.tone === "strong",
+      italic: span.tone === "em",
     }));
 }
 
