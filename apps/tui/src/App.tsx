@@ -103,6 +103,12 @@ export function App({ args }: { args: TuiArgs }) {
   const [editor, setEditor] = useState<EditorState>(createEditor);
   /** Highlight index while the slash command menu is open. */
   const [completeIndex, setCompleteIndex] = useState(0);
+  /**
+   * After the slash menu closes, keep blank rows for one paint so eraseLines
+   * rewrites the vacated lines instead of leaving ghost command text.
+   */
+  const [slashFillRows, setSlashFillRows] = useState(0);
+  const slashOpenRowsRef = useRef(0);
   const [busy, setBusy] = useState(false);
   const [statusLabel, setStatusLabel] = useState<ClientStatus>("idle");
   const [queueSize, setQueueSize] = useState(0);
@@ -703,7 +709,8 @@ export function App({ args }: { args: TuiArgs }) {
   /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
   const inputRows = composerBodyRowCount(editor.text, innerWidth);
   const composerBorderRows = 2;
-  const suggestRows = commandSelectRows(suggestions.length);
+  const slashOpenRows = commandSelectRows(suggestions.length);
+  const suggestRows = slashOpenRows > 0 ? slashOpenRows : slashFillRows;
   const activityRows = activity ? 1 : 0;
   const modelId = client?.getStatus().provider ?? "";
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
@@ -762,6 +769,23 @@ export function App({ args }: { args: TuiArgs }) {
     }
     if (nextScroll !== scroll) setScroll(nextScroll);
   }, [client, rowCount, innerWidth, logHeight, scroll]);
+
+  useLayoutEffect(() => {
+    if (slashOpenRows > 0) {
+      slashOpenRowsRef.current = slashOpenRows;
+      if (slashFillRows !== 0) setSlashFillRows(0);
+      return;
+    }
+    if (slashFillRows > 0) {
+      // Blanks are on screen for this paint; collapse on the next tick.
+      const timer = setTimeout(() => setSlashFillRows(0), 0);
+      return () => clearTimeout(timer);
+    }
+    if (slashOpenRowsRef.current <= 0) return;
+    const fill = slashOpenRowsRef.current;
+    slashOpenRowsRef.current = 0;
+    setSlashFillRows(fill);
+  }, [slashOpenRows, slashFillRows]);
 
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(painted, logHeight, scroll);
@@ -926,12 +950,20 @@ export function App({ args }: { args: TuiArgs }) {
         color={userTone.body}
         borderColor={theme.chrome.brand}
       />
-      {suggestions.length > 0 ? (
+      {slashOpenRows > 0 ? (
         <CommandSelect
           suggestions={suggestions}
           selectedIndex={selectedComplete}
           highlightText={slashHighlight || undefined}
         />
+      ) : slashFillRows > 0 ? (
+        <Box flexDirection="column" flexShrink={0}>
+          {Array.from({ length: slashFillRows }, (_, index) => (
+            <Box key={`slash-pad:${index}`} height={1} flexShrink={0}>
+              <Text> </Text>
+            </Box>
+          ))}
+        </Box>
       ) : null}
       <ContextMeter
         cwd={cwdPath}
