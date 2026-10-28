@@ -137,6 +137,7 @@ function mergeThemeOverrides(
     frames: { ...(base.frames ?? {}), ...(overlay.frames ?? {}) },
     activity: { ...(base.activity ?? {}), ...(overlay.activity ?? {}) },
     chrome: { ...(base.chrome ?? {}), ...(overlay.chrome ?? {}) },
+    markdown: { ...(base.markdown ?? {}), ...(overlay.markdown ?? {}) },
   };
 }
 

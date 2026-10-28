@@ -150,6 +150,7 @@ function parseThemeOverrides(value: unknown): ThemeOverrideConfig | undefined {
   if (isPlainObject(raw.frames)) out.frames = raw.frames as ThemeOverrideConfig["frames"];
   if (isPlainObject(raw.activity)) out.activity = raw.activity as ThemeOverrideConfig["activity"];
   if (isPlainObject(raw.chrome)) out.chrome = raw.chrome as ThemeOverrideConfig["chrome"];
+  if (isPlainObject(raw.markdown)) out.markdown = raw.markdown as ThemeOverrideConfig["markdown"];
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

@@ -1,3 +1,4 @@
+import { MarkdownView } from "@/components/MarkdownView";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -219,13 +220,16 @@ export default function App() {
                       "mx-auto text-center text-xs text-muted-foreground",
                   )}
                 >
-                  {line.text}
+                  {line.kind === "assistant" ? (
+                    <MarkdownView text={line.text} />
+                  ) : (
+                    line.text
+                  )}
                 </div>
               ))}
               {stream ? (
                 <div className="mr-auto max-w-[85%] rounded-lg bg-secondary px-3 py-2 text-sm">
-                  {stream}
-                  <span className="ml-0.5 inline-block animate-pulse">▍</span>
+                  <MarkdownView text={stream} streaming />
                 </div>
               ) : null}
               {busy && !stream ? (

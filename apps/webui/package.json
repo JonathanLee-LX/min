@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@min-agent/client": "workspace:*",
+    "@min-agent/render": "workspace:*",
     "@min-agent/runtime": "workspace:*",
     "@radix-ui/react-scroll-area": "^1.2.3",
     "@radix-ui/react-slot": "^1.1.2",

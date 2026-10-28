@@ -1,0 +1,37 @@
+{
+  "name": "@min-agent/render",
+  "version": "0.1.0-alpha.3",
+  "license": "MIT",
+  "description": "Shared Markdown → RenderBlock pipeline for TUI and Web UI",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "markdown-it-multimd-table": "^4.2.3"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.14.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
+}

@@ -29,6 +29,7 @@ min-web
 | `apps/webui` | `min-web` |
 | `@min-agent/client` | UI facade |
 | `@min-agent/config` | Layered user/project config |
+| `@min-agent/render` | Markdown → `RenderBlock` (TUI + Web) |
 | `@min-agent/runtime` | Host composition |
 | `@min-agent/core` | Model loop |
 | `@min-agent/providers` | Built-in providers |
@@ -41,7 +42,7 @@ min-web
 
 Preferences use `@min-agent/config`: sparse JSON at `~/.config/min/config.json` and `<cwd>/.min/config.json`, then `MIN_*` env, then CLI flags. Unknown keys are kept under `extensions` so newer files stay readable. Sessions and permission grants remain separate sidecars under `.min/`.
 
-Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, mermaid diagrams, and a context usage meter (estimated chars÷4). Chat turns and the composer use accent foregrounds without block fills; tool output collapses by default (Ctrl+O expands). Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. `apps/tui/src/render.ts` is the content API to extract into `@min-agent/render` when Web uses it. Web and some CLI startup flags are still thinner. There is no authentication.
+Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, mermaid diagrams, and a context usage meter (estimated chars÷4). Chat turns and the composer use accent foregrounds without block fills; tool output collapses by default (Ctrl+O expands). Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. Assistant Markdown goes through `@min-agent/render` (`markdown-it` → `RenderBlock`); TUI and Web paint that model separately. Web and some CLI startup flags are still thinner. There is no authentication.
 
 ## Publishing
 
@@ -70,6 +71,7 @@ packages/
   runtime/   @min-agent/runtime  shared composition layer for CLI / TUI
   client/    @min-agent/client   UI facade: send / subscribe / queue / permission
   config/    @min-agent/config   layered user/project config (versioned JSON)
+  render/    @min-agent/render   Markdown → RenderBlock (shared by TUI / Web)
 apps/
   cli/       @min-agent/cli      one-shot + REPL (via @min-agent/client)
   tui/       @min-agent/tui      Ink terminal UI (via @min-agent/client)

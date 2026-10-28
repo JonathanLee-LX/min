@@ -32,6 +32,7 @@ export interface ThemeOverrideConfig {
   frames?: Record<string, unknown>;
   activity?: Record<string, unknown>;
   chrome?: Record<string, unknown>;
+  markdown?: Record<string, unknown>;
 }
 
 export interface UiConfig {

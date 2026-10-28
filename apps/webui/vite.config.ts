@@ -10,10 +10,18 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src/client"),
+      // Source alias so Vite can tree-shake without a prior package build.
+      "@min-agent/render": path.resolve(__dirname, "../../packages/render/src/index.ts"),
     },
+  },
+  optimizeDeps: {
+    include: ["markdown-it", "markdown-it-multimd-table"],
   },
   server: {
     port: 43128,
+    fs: {
+      allow: [path.resolve(__dirname, "../..")],
+    },
     proxy: {
       "/api": API,
       "/events": API,

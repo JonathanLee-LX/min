@@ -10,7 +10,7 @@ User and assistant turns use a left bar and accent foregrounds with no `you` / `
 
 Colors, frame markers, and spinner hues come from `src/theme.ts`, fed by `@min-agent/config`. Layers are defaults → `~/.config/min/config.json` → `<cwd>/.min/config.json` → `MIN_*` → `--theme`. Use `ui.theme` / `ui.themeOverrides` in those JSON files; `createTheme` / `registerTheme` remain available for code-registered palettes. Permission grants stay in `.min/permissions.json`.
 
-TODO: extract `src/render.ts` to `@min-agent/render` when Web calls the same `renderContent`. The module is pure data and does not wrap to terminal columns.
+Markdown parsing lives in `@min-agent/render` (`markdown-it` → `RenderBlock`). This app re-exports it from `src/render.ts` and paints in `paint.ts`.
 
 ```bash
 pnpm min-tui

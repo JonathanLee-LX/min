@@ -1,6 +1,7 @@
 # `@min-agent/webui`
 
 Browser UI for min (B/S). Uses **shadcn/ui**-style React primitives + Tailwind.
+Assistant messages are painted from `@min-agent/render` (`MarkdownView`).
 
 ## Architecture (MVP)
 
