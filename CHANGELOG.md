@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-- Context usage meter: estimated used/limit plus breakdown (system, conversation, skills, mcp, tools, reserved), emitted as ClientEvent `context` and shown in the TUI header.
+## 0.1.0-alpha.4
+
+TUI composer, Markdown, and paint.
+
+- `min` opens the TUI. One-shot prompts use `min -p`.
+- Composer uses brand rules, soft-wraps, and a real caret for IME. Enter sends, Shift+Enter inserts a newline, and Esc aborts a running turn. After submit the caret returns to the start of the empty composer.
+- `/resume` (formerly `/open`) lists sessions. `/context` shows the usage breakdown and `/version` prints the build. The meter under the composer shows cwd, model, and context percent. The default context window is 256k.
+- Assistant Markdown, including tables, is parsed by `@min-agent/render` and painted in the TUI and Web UI.
+- Stream and spinner paints overwrite rows in place instead of wiping the frame with `eraseLines`, so the screen does not flash while the model is working.
+
+Install: `npm install -g @min-agent/min@alpha`
 
 ## 0.1.0-alpha.3
 

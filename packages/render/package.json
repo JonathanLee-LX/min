@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/render",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "license": "MIT",
   "description": "Shared Markdown → RenderBlock pipeline for TUI and Web UI",
   "type": "module",
