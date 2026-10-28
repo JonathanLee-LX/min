@@ -679,7 +679,7 @@ export function App({ args }: { args: TuiArgs }) {
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
-  /** Soft-wrapped + hard-newline rows; min 3 so a single line can center. */
+  /** Soft-wrapped + hard-newline rows; min 2 (= 2× line height for one line). */
   const inputRows = composerContentRowCount(editor.text, innerWidth);
   const composerBorderRows = 2;
   const suggestRows = commandSelectRows(suggestions.length);
