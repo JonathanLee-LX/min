@@ -5,6 +5,7 @@ export {
   COMPOSER_MIN_ROWS,
   composerContentRowCount,
   composerContentRows,
+  composerPadTop,
 } from "./Composer.js";
 export { ContextMeter, contextMeterRows } from "./ContextMeter.js";
 export { inkThemeFromTui } from "./ink-theme.js";

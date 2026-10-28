@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyImeCursor, composerCaretAnchor } from "./ime-cursor.js";
 
 describe("composerCaretAnchor", () => {
-  it("anchors at the chat bar when the draft is empty", () => {
+  it("centers the caret on the lower row of a 2× empty composer", () => {
     expect(
       composerCaretAnchor({
         paddingX: 1,
@@ -14,10 +14,10 @@ describe("composerCaretAnchor", () => {
         rowsAboveComposer: 10,
         rowsBelowComposer: 1,
       }),
-    ).toEqual({ column: 3, rowFromTop: 10, rowsBelowCaret: 2 });
+    ).toEqual({ column: 3, rowFromTop: 11, rowsBelowCaret: 1 });
   });
 
-  it("accounts for wide CJK cells on the caret line", () => {
+  it("accounts for wide CJK cells and vertical centering", () => {
     expect(
       composerCaretAnchor({
         paddingX: 1,
@@ -29,10 +29,10 @@ describe("composerCaretAnchor", () => {
         rowsAboveComposer: 5,
         rowsBelowComposer: 0,
       }),
-    ).toEqual({ column: 1 + 2 + 2, rowFromTop: 5, rowsBelowCaret: 1 });
+    ).toEqual({ column: 1 + 2 + 2, rowFromTop: 6, rowsBelowCaret: 0 });
   });
 
-  it("follows soft-wrapped rows", () => {
+  it("follows soft-wrapped rows without extra pad once filled", () => {
     expect(
       composerCaretAnchor({
         paddingX: 1,
@@ -40,11 +40,11 @@ describe("composerCaretAnchor", () => {
         text: "abcdefgh",
         cursor: 5,
         columns: 4,
-        inputRows: 3,
+        inputRows: 2,
         rowsAboveComposer: 2,
         rowsBelowComposer: 0,
       }),
-    ).toEqual({ column: 1 + 1, rowFromTop: 3, rowsBelowCaret: 1 });
+    ).toEqual({ column: 1 + 1, rowFromTop: 3, rowsBelowCaret: 0 });
   });
 });
 

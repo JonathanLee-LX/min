@@ -6,12 +6,28 @@ import type { TuiTheme } from "../theme.js";
 export const COMPOSER_MIN_ROWS = 2;
 
 /**
+ * Top padding so a short draft sits vertically centered in the min-height box.
+ * With 1 content row in a 2-row box this yields one blank row above the text
+ * (optical center between the rules; floor would flush text to the top rule).
+ */
+export function composerPadTop(
+  naturalRows: number,
+  minRows: number = COMPOSER_MIN_ROWS,
+): number {
+  if (naturalRows >= minRows) return 0;
+  return Math.ceil((minRows - naturalRows) / 2);
+}
+
+/**
  * Soft-wrapped content rows for the composer.
  * Always at least {@link COMPOSER_MIN_ROWS} so an empty / single-line draft
  * keeps a 2× line-height box; hard newlines and soft wraps grow beyond that.
+ * Short drafts are top-padded so the caret/text are vertically centered.
  */
 export function composerContentRows(text: string, columns: number): string[] {
-  const lines = wrapText(text, Math.max(1, columns));
+  const natural = wrapText(text, Math.max(1, columns));
+  const padTop = composerPadTop(natural.length);
+  const lines = [...Array<string>(padTop).fill(""), ...natural];
   while (lines.length < COMPOSER_MIN_ROWS) lines.push("");
   return lines;
 }

@@ -1,3 +1,4 @@
+import { composerPadTop } from "./ui/Composer.js";
 import { displayWidth, wrapText } from "./text.js";
 
 /**
@@ -39,10 +40,13 @@ export function composerCaretAnchor(layout: ComposerCaretLayout): ImeCaretAnchor
   const lineIndex = Math.max(0, visual.length - 1);
   const columnText = visual[lineIndex] ?? "";
   const inputRows = Math.max(1, layout.inputRows);
-  const rowsBelowInComposer = Math.max(0, inputRows - 1 - lineIndex);
+  const naturalRows = wrapText(layout.text, columns).length;
+  const padTop = composerPadTop(naturalRows, inputRows);
+  const caretRow = padTop + lineIndex;
+  const rowsBelowInComposer = Math.max(0, inputRows - 1 - caretRow);
   return {
     column: layout.paddingX + displayWidth(layout.chatBar) + displayWidth(columnText),
-    rowFromTop: Math.max(0, layout.rowsAboveComposer) + lineIndex,
+    rowFromTop: Math.max(0, layout.rowsAboveComposer) + caretRow,
     rowsBelowCaret: rowsBelowInComposer + Math.max(0, layout.rowsBelowComposer),
   };
 }
