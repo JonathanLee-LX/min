@@ -123,14 +123,14 @@ def main() -> int:
     assert comp is not None
     _, _, between = comp
     dump_composer("EMPTY COMPOSER", between)
-    empty_ok = len(between) >= 2
+    empty_ok = len(between) >= 3
     # No keybinding hint text inside the empty composer.
     joined_empty = "\n".join(between)
     no_hint_ok = "换行" not in joined_empty and "发送" not in joined_empty and "Enter" not in joined_empty
     print(f"empty_min_height_ok={empty_ok}")
     print(f"no_hint_text_ok={no_hint_ok}")
 
-    # Single-line draft is vertically centered (blank row above the text).
+    # Single-line draft is vertically centered (blank above and below).
     write_keys(fd, b"hello")
     buf += read_available(fd, 1.0)
     lines = last_frame(buf.decode("utf-8", "replace"))
@@ -138,10 +138,12 @@ def main() -> int:
     assert comp is not None
     _, _, between = comp
     dump_composer("SINGLE LINE centered", between)
+    hello_idxs = [i for i, x in enumerate(between) if "hello" in x]
     single_centered_ok = (
-        len(between) >= 2
-        and "hello" in between[-1]
-        and all("hello" not in x for x in between[:-1])
+        len(between) >= 3
+        and hello_idxs == [1]
+        and not between[0].strip()
+        and not between[2].strip()
     )
     print(f"single_line_centered_ok={single_centered_ok}")
 

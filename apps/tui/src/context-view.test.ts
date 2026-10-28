@@ -42,7 +42,7 @@ describe("context-view", () => {
     const usage = sampleUsage();
     expect(
       bottomStatusLines("/tmp/proj", "deepseek:deepseek-flash", usage, "main"),
-    ).toEqual(["/tmp/proj  main", "deepseek-flash (high)  13%"]);
+    ).toEqual(["/tmp/proj  main", "deepseek-flash (high)  4.2k/32k 13%"]);
     expect(bottomStatusLines("/tmp", "mock", undefined)).toEqual(["/tmp", "mock  —"]);
   });
 });

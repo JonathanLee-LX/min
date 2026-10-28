@@ -6,7 +6,7 @@ import type { TuiTheme } from "../theme.js";
 /**
  * Bottom status bar:
  *   cwd[+branch]
- *   model (thinking)  ctx%
+ *   model (thinking)  used/total x%
  */
 export function ContextMeter({
   cwd,

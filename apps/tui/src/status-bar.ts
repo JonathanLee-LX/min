@@ -1,14 +1,14 @@
 import { execFile } from "node:child_process";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
-import type { ContextUsage } from "@min-agent/client";
+import { formatTokenCount, type ContextUsage } from "@min-agent/client";
 
 const execFileAsync = promisify(execFile);
 
 /**
  * Bottom status chrome:
  *   line 1 — working directory (+ git branch when present)
- *   line 2 — model (thinking intensity)  context%
+ *   line 2 — model (thinking intensity)  used/total x%
  */
 
 export function shortenPath(cwd: string, home = homedir()): string {
@@ -41,9 +41,11 @@ export function thinkingIntensityLabel(providerId: string): string | undefined {
   return undefined;
 }
 
+/** Footer context chip: `4.2k/32k 13%` (used/total x%). */
 export function contextPercentLabel(usage: ContextUsage | undefined): string {
   if (!usage) return "—";
-  return `${Math.max(0, Math.min(100, Math.round(usage.ratio * 100)))}%`;
+  const pct = Math.max(0, Math.round(usage.ratio * 100));
+  return `${formatTokenCount(usage.used)}/${formatTokenCount(usage.limit)} ${pct}%`;
 }
 
 export function workspaceStatusLine(cwd: string, branch?: string | null): string {

@@ -2,27 +2,30 @@ import { Box, Text } from "ink";
 import { wrapText } from "../text.js";
 import type { TuiTheme } from "../theme.js";
 
-/** Minimum content rows — one logical line at 2× terminal line height. */
-export const COMPOSER_MIN_ROWS = 2;
+/**
+ * Minimum content rows for a single-line draft.
+ * Three rows let one line of text sit on the middle row with equal blank
+ * padding above and below — true vertical centering between the rules.
+ * (Two rows can only flush top or bottom; neither reads as centered.)
+ */
+export const COMPOSER_MIN_ROWS = 3;
 
 /**
  * Top padding so a short draft sits vertically centered in the min-height box.
- * With 1 content row in a 2-row box this yields one blank row above the text
- * (optical center between the rules; floor would flush text to the top rule).
+ * `floor` keeps leftover rows on the bottom when the free space is odd.
  */
 export function composerPadTop(
   naturalRows: number,
   minRows: number = COMPOSER_MIN_ROWS,
 ): number {
   if (naturalRows >= minRows) return 0;
-  return Math.ceil((minRows - naturalRows) / 2);
+  return Math.floor((minRows - naturalRows) / 2);
 }
 
 /**
  * Soft-wrapped content rows for the composer.
- * Always at least {@link COMPOSER_MIN_ROWS} so an empty / single-line draft
- * keeps a 2× line-height box; hard newlines and soft wraps grow beyond that.
- * Short drafts are top-padded so the caret/text are vertically centered.
+ * Always at least {@link COMPOSER_MIN_ROWS}; hard newlines and soft wraps
+ * grow beyond that. Short drafts are padded so text/caret are centered.
  */
 export function composerContentRows(text: string, columns: number): string[] {
   const natural = wrapText(text, Math.max(1, columns));
@@ -37,7 +40,7 @@ export function composerContentRowCount(text: string, columns: number): number {
 }
 
 /**
- * Framed composer: brand top/bottom rules, soft-wrapped body, min 2 rows.
+ * Framed composer: brand top/bottom rules, soft-wrapped body, min 3 rows.
  * Soft wraps and hard newlines grow the box; no keybinding chrome inside.
  */
 export function Composer({

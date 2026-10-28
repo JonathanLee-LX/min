@@ -28,21 +28,29 @@ describe("status-bar", () => {
   });
 
   it("formats workspace and model lines", () => {
-    const usage = { ratio: 0.394 } as ContextUsage;
+    const usage = {
+      used: 12_400,
+      limit: 32_000,
+      ratio: 0.394,
+    } as ContextUsage;
     expect(workspaceStatusLine("/tmp/proj", "main")).toBe("/tmp/proj  main");
     expect(workspaceStatusLine("/tmp/proj", null)).toBe("/tmp/proj");
     expect(modelStatusLine("deepseek:deepseek-flash", usage)).toBe(
-      "deepseek-flash (high)  39%",
+      "deepseek-flash (high)  12k/32k 39%",
     );
     expect(modelStatusLine("mock", undefined)).toBe("mock  —");
-    expect(contextPercentLabel(usage)).toBe("39%");
+    expect(contextPercentLabel(usage)).toBe("12k/32k 39%");
   });
 
   it("builds the two-line bottom status", () => {
-    const usage = { ratio: 0.2 } as ContextUsage;
+    const usage = {
+      used: 4_200,
+      limit: 32_000,
+      ratio: 0.2,
+    } as ContextUsage;
     expect(bottomStatusLines("/tmp/proj", "deepseek:deepseek-flash", usage, "main")).toEqual([
       "/tmp/proj  main",
-      "deepseek-flash (high)  20%",
+      "deepseek-flash (high)  4.2k/32k 20%",
     ]);
   });
 });
