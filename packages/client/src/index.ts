@@ -4,6 +4,9 @@ export {
   type PermissionAutoMode,
 } from "./auto-permission.js";
 export { createClient } from "./client.js";
+export { clientProcessPath } from "./paths.js";
+export { CLIENT_PROTOCOL } from "./protocol.js";
+export { connectRemote, type RemoteSession } from "./remote.js";
 export {
   createEventTranslator,
   isAbortError,
@@ -20,9 +23,11 @@ export type {
   ClientStatusSnapshot,
   MinClient,
   OnBusySend,
+  PendingPermissionSnapshot,
   PermissionAnswer,
   SendOptions,
   SessionEventReason,
+  SessionHandoff,
 } from "./types.js";
 export type {
   ContextPartId,

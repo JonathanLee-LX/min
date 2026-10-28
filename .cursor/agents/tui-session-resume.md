@@ -12,9 +12,10 @@ Work in `apps/tui` (and matching CLI slash help when the same command is shared)
 ## Current product rules
 
 - The switch command is **`/resume`** (not `/open`). `/open` may remain a parse alias only.
-- **`/resume <id>`** opens that stored session immediately via `client.openSession(id)`.
-- **`/resume`** with no id opens an **interactive list** (↑↓ + Enter, Esc dismiss). Do not only print usage text.
+- **`/resume <id>`** asks mind to `create` that id (attach if the process is alive, otherwise start one and load the file). It does not call `openSession`.
+- **`/resume`** with no id opens an **interactive list** (↑↓ + Enter, Esc dismiss). Do not only print usage text. The list comes from mind `list`.
 - **`/sessions`** still prints a static list when useful; interactive switch lives on `/resume`.
+- **`/new`** is a mind `create` with a new id. The previous session process is not stopped by that create; its lease is released.
 - Busy runs block resume/new/reset/compact like other session mutations.
 
 ## When invoked

@@ -1,6 +1,10 @@
 import type { Message, ToolCallPart } from "@min-agent/core";
 import type { Runtime, RuntimeOptions } from "@min-agent/runtime";
-import type { InputQueueMode, SessionMeta } from "@min-agent/session";
+import type {
+  InputQueueMode,
+  SessionMeta,
+  SessionSnapshot,
+} from "@min-agent/session";
 
 /** Client lifecycle / interaction status exposed to UIs. */
 export type ClientStatus = "idle" | "running" | "asking";
@@ -79,6 +83,8 @@ export type ClientEvent =
       toolCall: ToolCallPart;
       grantRoot?: string;
     }
+  /** Broadcast after a pending ask is consumed. Other frontends see the answer. */
+  | { type: "permission_decision"; id: string; answer: PermissionAnswer }
   | { type: "queued"; text: string; queueSize: number }
   | { type: "error"; message: string; aborted?: boolean }
   | {
@@ -99,6 +105,32 @@ export type ClientEvent =
     };
 
 export type ClientEventHandler = (event: ClientEvent) => void;
+
+/** Outstanding permission ask included in a connection handoff. */
+export interface PendingPermissionSnapshot {
+  id: string;
+  reason: string;
+  toolCall: ToolCallPart;
+  grantRoot?: string;
+}
+
+/**
+ * First frame after a frontend connects. Snapshot and the live events that
+ * follow are one handoff: nothing is emitted between the copy and the subscribe.
+ * Thinking is only here — it is not written into the session file.
+ */
+export interface SessionHandoff {
+  messages: Message[];
+  title?: string;
+  turn: {
+    text: string;
+    thinking: string;
+    /** In-flight user prompt that is not in `messages` yet. */
+    userText?: string;
+  };
+  permissions: PendingPermissionSnapshot[];
+  status: ClientStatusSnapshot;
+}
 
 export interface SendOptions {
   signal?: AbortSignal;
@@ -167,6 +199,13 @@ export interface ClientOptions {
 
   /** Deny unanswered permission asks after this many ms. Default 120_000. */
   permissionTimeoutMs?: number;
+
+  /**
+   * Called only on the process stop path, before the shutdown snapshot is
+   * written. Not used when a turn finishes and `persist()` runs normally.
+   * Errors and timeouts do not cancel the exit.
+   */
+  onBeforeShutdown?(snapshot: SessionSnapshot): void | Promise<void>;
 }
 
 /**
@@ -190,18 +229,8 @@ export interface MinClient {
 
   reset(): void;
   getSession(): ClientSessionInfo;
+  /** This process's workspace store. Interactive frontends list through mind. */
   listSessions(): Promise<SessionMeta[]>;
-  /**
-   * Switch to another stored session id.
-   * Disposes the current session handle and rebuilds via Runtime options.
-   * Emits `session` with `reason: "open"` and full `messages`.
-   */
-  openSession(id: string): Promise<void>;
-  /**
-   * Start a fresh session (new id). Requires Client-owned Runtime.
-   * Emits `session` with `reason: "new"`.
-   */
-  newSession(): Promise<void>;
 
   /**
    * Explicit on-demand history compact (LLM summary + rewrite store).

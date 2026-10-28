@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Interactive sessions run outside the TUI and Web processes.
+
+- A single **mind** process (`~/.min/mind/mind.sock`) creates, finds, and stops one client process per session. It does not embed `MinClient` or forward sends, events, or permission answers.
+- TUI, Web, and the interactive CLI take a lease, then connect to the session socket. The last lease starts a short grace (`MIND_DRAIN_GRACE_MS`, default 5s) and then mind stops that client. `min -p` still calls `createClient()` in its own process.
+- `MinClient` no longer switches sessions (`openSession`, `newSession`, and `rebuildRuntime` are gone). `reset` clears the same session id. Stopping a client writes the in-flight user message, partial assistant text, finished tool results, and queued input before exit. `permission_decision` is broadcast to every connection.
+- A newer build replaces the mind process and leaves already-running clients in place. A client whose protocol does not match is not claimed and is not signaled.
+
 ## 0.1.0-alpha.4
 
 TUI composer, Markdown, and paint.

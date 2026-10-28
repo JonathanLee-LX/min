@@ -11,6 +11,9 @@ import type { ClientEvent } from "./types.js";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const PUBLIC_EXPORTS = [
+  "CLIENT_PROTOCOL",
+  "clientProcessPath",
+  "connectRemote",
   "createAutoPermissionApprover",
   "createClient",
   "createEventTranslator",
@@ -30,6 +33,7 @@ const CLIENT_EVENT_TYPES = [
   "error",
   "follow_up",
   "permission",
+  "permission_decision",
   "queued",
   "session",
   "status",
@@ -112,8 +116,6 @@ describe("client architecture contracts", () => {
         "getSession",
         "getStatus",
         "listSessions",
-        "newSession",
-        "openSession",
         "queue",
         "reset",
         "respondPermission",

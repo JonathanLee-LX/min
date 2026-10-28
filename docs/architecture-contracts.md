@@ -22,7 +22,8 @@ core
   └─ mcp
 runtime ← core, providers, session, skills, tools
 client  ← core, runtime, session
-apps    ← client (+ config for TUI)
+mind    ← (no @min-agent packages; spawns the client process)
+apps    ← client + mind (+ config for TUI). `min -p` uses client in-process.
 ```
 
 ## Behavioral locks
@@ -35,7 +36,7 @@ apps    ← client (+ config for TUI)
 | Core agent | `Agent` keys are `provider` / `tools` / `run` / `dispose` only |
 | Session | Canonical `session.messages` stay full; assemblers only change the model view; `bindPermissionAsk` clears after run |
 | Runtime | Default tool set has no MCP; permissions live on the runtime; deny → `tool_result.isError` then `done` |
-| Client | `tool_end` always carries `preview` + `content`; `ClientEvent` / `MinClient` surfaces frozen; `done` is not a ClientEvent |
+| Client | `tool_end` always carries `preview` + `content`; `ClientEvent` / `MinClient` surfaces frozen; `done` is not a ClientEvent; session switches are another process, not `openSession` / `newSession` |
 | Client grants | `persistPermissionGrants: false` must not write `.min/permissions.json` |
 | Config | Unknown JSON keys go under `extensions`; `version` is 1; permissions/sessions stay sidecars |
 | Sidecar paths | `config.permissionRulesPath` formula matches `tools.permissionRulesPath`; sessions live under `.min/sessions` |

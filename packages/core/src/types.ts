@@ -86,6 +86,12 @@ export interface RunInput {
   signal?: AbortSignal;
   maxTurns?: number;
   onEvent?: (event: RunEvent) => void | Promise<void>;
+  /**
+   * Copy of the in-flight transcript whenever the Runner commits a message.
+   * Not assigned back to the caller if `run` throws — hosts that need the
+   * partial turn (shutdown) must keep the last copy.
+   */
+  onTranscript?: (messages: readonly Message[]) => void;
 }
 
 export interface RunResult {

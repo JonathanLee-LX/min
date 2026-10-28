@@ -1,10 +1,10 @@
 import {
-  createAutoPermissionApprover,
-  createClient,
+  clientProcessPath,
+  connectRemote,
   type ClientEvent,
-  type MinClient,
+  type RemoteSession,
 } from "@min-agent/client";
-import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
+import { ensureMind, type Mind, type MindLease } from "@min-agent/mind";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -12,10 +12,10 @@ import { fileURLToPath } from "node:url";
 import { loadEnvFiles } from "./load-env.js";
 
 /**
- * B/S MVP process model:
+ * B/S process model:
  * - Browser is isolated (no MinClient, no API keys).
- * - This Node process holds MinClient + serves HTTP/SSE (+ static UI in prod).
- * - Future: optional worker/child process for Client crash isolation; same HTTP contract.
+ * - This process is a lease plus an HTTP/SSE bridge onto the session socket.
+ * - The session itself runs in a client process supervised by mind.
  */
 
 loadEnvFiles();
@@ -27,43 +27,78 @@ const CWD = process.env.MIN_CWD ?? process.env.INIT_CWD ?? process.cwd();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, "web");
 
-let clientPromise: Promise<MinClient> | undefined;
 const sseClients = new Set<ServerResponse>();
 
-async function getClient(): Promise<MinClient> {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      await loadProviderExtensions();
-      const c = await createClient({
-        cwd: CWD,
-        provider: resolveProvider({
-          provider: process.env.PROVIDER,
-          model: process.env.MODEL,
-        }),
-        noTools: process.env.MIN_NO_TOOLS === "1",
-        allowBash:
-          process.env.MIN_AUTO === "1" || process.env.MIN_YES === "1",
-        applyRootGrant: true,
-        persistPermissionGrants: process.env.MIN_AUTO !== "1",
-        autoApprovePermission:
-          process.env.MIN_AUTO === "1"
-            ? createAutoPermissionApprover({ mode: "auto" })
-            : process.env.MIN_YES === "1"
-              ? createAutoPermissionApprover({ mode: "yes" })
-              : undefined /* interactive via /api/permission */,
-      });
-      c.subscribe((event) => broadcast(event));
-      return c;
-    })();
+let mindPromise: Promise<Mind> | undefined;
+let sessionId: string | undefined;
+let addressGate: Promise<void> = Promise.resolve();
+
+function mind(): Promise<Mind> {
+  if (!mindPromise) {
+    mindPromise = ensureMind({ clientEntry: clientProcessPath() });
   }
-  return clientPromise;
+  return mindPromise;
 }
 
-function broadcast(event: ClientEvent): void {
-  const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of sseClients) {
-    res.write(payload);
+function launch() {
+  const auto = process.env.MIN_AUTO === "1";
+  const yes = process.env.MIN_YES === "1" || auto;
+  return {
+    cwd: CWD,
+    provider: process.env.PROVIDER,
+    model: process.env.MODEL,
+    autoApprove: yes,
+    approveMode: auto ? ("auto" as const) : yes ? ("yes" as const) : undefined,
+    allowRootGrant: auto,
+    persistPermissionGrants: !auto,
+    noTools: process.env.MIN_NO_TOOLS === "1",
+    allowBash: yes,
+    sessionId,
+  };
+}
+
+async function sessionAddress(): Promise<{ sessionId: string; socketPath: string }> {
+  const run = addressGate.then(async () => {
+    const current = await mind();
+    const address = await current.create(launch());
+    sessionId = address.sessionId;
+    return address;
+  });
+  addressGate = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+interface Attachment {
+  remote: RemoteSession;
+  lease: MindLease;
+  close(): void;
+}
+
+async function attach(): Promise<Attachment> {
+  const current = await mind();
+  const address = await sessionAddress();
+  const lease = await current.lease(address.sessionId);
+  try {
+    const remote = await connectRemote(address.socketPath);
+    return {
+      remote,
+      lease,
+      close() {
+        remote.close();
+        lease.close();
+      },
+    };
+  } catch (err) {
+    lease.close();
+    throw err;
   }
+}
+
+function writeEvent(res: ServerResponse, event: unknown): void {
+  res.write(`data: ${JSON.stringify(event)}\n\n`);
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -149,12 +184,17 @@ async function handler(
     }
 
     if (method === "GET" && pathname === "/api/status") {
-      const client = await getClient();
-      sendJson(res, 200, client.getStatus());
+      const attachment = await attach();
+      try {
+        sendJson(res, 200, attachment.remote.getStatus());
+      } finally {
+        attachment.close();
+      }
       return;
     }
 
     if (method === "GET" && pathname === "/events") {
+      const attachment = await attach();
       res.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
         "Cache-Control": "no-cache",
@@ -162,12 +202,14 @@ async function handler(
       });
       res.write(": ok\n\n");
       sseClients.add(res);
-      const status = (await getClient()).getStatus();
-      res.write(
-        `data: ${JSON.stringify({ type: "session", id: status.sessionId, messageCount: 0 })}\n\n`,
-      );
+      writeEvent(res, { type: "handoff", ...attachment.remote.handoff });
+      const unsub = attachment.remote.subscribe((event: ClientEvent) => {
+        writeEvent(res, event);
+      });
       req.on("close", () => {
         sseClients.delete(res);
+        unsub();
+        attachment.close();
       });
       return;
     }
@@ -179,15 +221,9 @@ async function handler(
         sendJson(res, 400, { error: "text required" });
         return;
       }
-      const client = await getClient();
-      // Respond immediately; progress goes over SSE.
+      const attachment = await attach();
       sendJson(res, 202, { ok: true });
-      void client.send(text).catch((err) => {
-        broadcast({
-          type: "error",
-          message: err instanceof Error ? err.message : String(err),
-        });
-      });
+      void attachment.remote.send(text).finally(() => attachment.close());
       return;
     }
 
@@ -201,9 +237,16 @@ async function handler(
         sendJson(res, 400, { error: "text required" });
         return;
       }
-      const client = await getClient();
-      client.queue.push(text, body.mode ? { mode: body.mode } : undefined);
-      sendJson(res, 200, { queueSize: client.queue.size });
+      const attachment = await attach();
+      try {
+        const queueSize = await attachment.remote.queue.push(
+          text,
+          body.mode ? { mode: body.mode } : undefined,
+        );
+        sendJson(res, 200, { queueSize });
+      } finally {
+        attachment.close();
+      }
       return;
     }
 
@@ -216,23 +259,35 @@ async function handler(
         sendJson(res, 400, { error: "id and answer required" });
         return;
       }
-      const client = await getClient();
-      client.respondPermission(body.id, body.answer);
-      sendJson(res, 200, { ok: true });
+      const attachment = await attach();
+      try {
+        attachment.remote.respondPermission(body.id, body.answer);
+        sendJson(res, 200, { ok: true });
+      } finally {
+        attachment.close();
+      }
       return;
     }
 
     if (method === "POST" && pathname === "/api/abort") {
-      const client = await getClient();
-      client.abort();
-      sendJson(res, 200, { ok: true });
+      const attachment = await attach();
+      try {
+        attachment.remote.abort();
+        sendJson(res, 200, { ok: true });
+      } finally {
+        attachment.close();
+      }
       return;
     }
 
     if (method === "POST" && pathname === "/api/reset") {
-      const client = await getClient();
-      client.reset();
-      sendJson(res, 200, { ok: true });
+      const attachment = await attach();
+      try {
+        attachment.remote.reset();
+        sendJson(res, 200, attachment.remote.getSession());
+      } finally {
+        attachment.close();
+      }
       return;
     }
 
@@ -260,15 +315,15 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.error(`min-web listening on http://${HOST}:${PORT}`);
-  console.error(`cwd=${CWD}  (browser is isolated; MinClient lives in this process)`);
+  console.error(`cwd=${CWD}  (browser is isolated; sessions run behind mind)`);
 });
 
 async function shutdown(): Promise<void> {
   for (const res of sseClients) res.end();
   sseClients.clear();
-  if (clientPromise) {
-    const c = await clientPromise;
-    await c.dispose();
+  if (mindPromise) {
+    const current = await mindPromise;
+    current.close();
   }
   server.close();
 }

@@ -97,6 +97,7 @@ export interface SessionRunOptions {
   signal?: AbortSignal;
   maxTurns?: number;
   onEvent?: RunInput["onEvent"];
+  onTranscript?: RunInput["onTranscript"];
   onPermissionAsk?: SessionPermissionAsk;
 }
 
@@ -123,6 +124,11 @@ export interface Session {
   }): Promise<CompactHistoryResult>;
   reset(messages?: Message[]): void;
   export(): SessionSnapshot;
+  /**
+   * Replace canonical history and persist it.
+   * Runs `onBeforeSave`. Does not change the session id.
+   */
+  commitSnapshot(snapshot: SessionSnapshot): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -286,6 +292,7 @@ export async function createSession(
         signal: runOpts.signal,
         maxTurns: runOpts.maxTurns,
         onEvent: runOpts.onEvent,
+        onTranscript: runOpts.onTranscript,
       });
     } finally {
       projection.set(undefined);
@@ -379,6 +386,17 @@ export async function createSession(
 
     export() {
       return { meta: { ...meta }, messages: [...messages] };
+    },
+
+    async commitSnapshot(snapshot) {
+      meta = {
+        ...meta,
+        ...snapshot.meta,
+        id: meta.id,
+        createdAt: meta.createdAt,
+      };
+      messages = snapshot.messages.map((message) => structuredClone(message));
+      await persist();
     },
 
     async dispose() {

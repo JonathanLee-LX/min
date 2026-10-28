@@ -20,6 +20,9 @@ importers:
       '@min-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@min-agent/mind':
+        specifier: workspace:*
+        version: link:../../packages/mind
       '@min-agent/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -63,12 +66,12 @@ importers:
       '@min-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@min-agent/mind':
+        specifier: workspace:*
+        version: link:../../packages/mind
       '@min-agent/render':
         specifier: workspace:*
         version: link:../../packages/render
-      '@min-agent/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
       beautiful-mermaid:
         specifier: ^1.1.3
         version: 1.1.3
@@ -106,12 +109,12 @@ importers:
       '@min-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@min-agent/mind':
+        specifier: workspace:*
+        version: link:../../packages/mind
       '@min-agent/render':
         specifier: workspace:*
         version: link:../../packages/render
-      '@min-agent/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
       '@radix-ui/react-scroll-area':
         specifier: ^1.2.3
         version: 1.4.0(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -342,6 +345,27 @@ importers:
       tsup:
         specifier: ^8.4.0
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.2.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)
+
+  packages/mind:
+    devDependencies:
+      '@min-agent/client':
+        specifier: workspace:*
+        version: link:../client
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.20.5
+      tsup:
+        specifier: ^8.4.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.31)(tsx@4.23.15)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

@@ -2,8 +2,15 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs, type CliArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
-import { handleReplCommand, listSessionsViaClient } from "./repl.js";
-import { createCliClient, listSessions, runTurn } from "./run.js";
+import { handleReplCommand } from "./repl.js";
+import {
+  attachMindSession,
+  createCliClient,
+  listSessions,
+  runTurn,
+  type CliClient,
+} from "./run.js";
+import { mergeSessionList } from "@min-agent/mind";
 
 /** Run the one-shot / REPL CLI with already-parsed args. */
 export async function runCli(args: CliArgs): Promise<void> {
@@ -18,12 +25,24 @@ export async function runCli(args: CliArgs): Promise<void> {
     return;
   }
 
-  const cli = await createCliClient(args);
-  const st = cli.client.getStatus();
+  if (!args.repl) {
+    const cli = await createCliClient(args);
+    const st = cli.client.getStatus();
+    console.error(`provider=${st.provider}  cwd=${args.cwd}`);
+    console.error(
+      `session=${st.sessionId}  strategy=${cli.client.advanced.runtime.contextStrategy}  maxContextTokens=${args.maxContextTokens}  maxTurns=${args.maxTurns}`,
+    );
+    await runOneShot(cli, args);
+    return;
+  }
+
+  const attached = await attachMindSession(args);
+  let remote = attached.remote;
+  let lease = attached.lease;
+  const cli: CliClient = { client: remote, args };
+  const st = remote.getStatus();
   console.error(`provider=${st.provider}  cwd=${args.cwd}`);
-  console.error(
-    `session=${st.sessionId}  strategy=${cli.client.advanced.runtime.contextStrategy}  maxContextTokens=${args.maxContextTokens}  maxTurns=${args.maxTurns}`,
-  );
+  console.error(`session=${st.sessionId}  maxTurns=${args.maxTurns}`);
   if (!args.noTools) {
     const bashMode = args.allowBash || args.yes || args.auto ? "allow" : "ask";
     const writeMode = args.askWrite ? "ask" : "allow";
@@ -45,12 +64,19 @@ export async function runCli(args: CliArgs): Promise<void> {
       })
     : undefined;
 
-  try {
-    if (!args.repl) {
-      await runTurn(cli, args.prompt!, rl);
-      return;
-    }
+  const switchSession = async (sessionId: string | null) => {
+    const next = await attachMindSession(args, sessionId);
+    const previousRemote = remote;
+    const previousLease = lease;
+    remote = next.remote;
+    lease = next.lease;
+    cli.client = remote;
+    previousRemote.close();
+    previousLease.close();
+    next.mind.close();
+  };
 
+  try {
     if (args.prompt) {
       await runTurn(cli, args.prompt, rl);
     }
@@ -70,18 +96,18 @@ export async function runCli(args: CliArgs): Promise<void> {
 
       const cmd = handleReplCommand(cli, line);
       if (cmd?.type === "exit") break;
-      if (cmd?.type === "sessions") {
+      if (cmd?.type === "sessions" || cmd?.type === "resume-list") {
         try {
-          await listSessionsViaClient(cli);
-        } catch (err) {
-          console.error(err instanceof Error ? err.message : err);
-        }
-        continue;
-      }
-      if (cmd?.type === "resume-list") {
-        try {
-          await listSessionsViaClient(cli);
-          console.log("usage: /resume <session-id>");
+          const listed = await attached.mind.list(args.cwd);
+          const metas = mergeSessionList(listed);
+          if (!metas.length) console.log("(no saved sessions)");
+          const current = cli.client.getSession().id;
+          for (const meta of metas) {
+            const mark = meta.id === current ? "*" : " ";
+            const title = meta.title ? `  ${meta.title}` : "";
+            console.log(`${mark} ${meta.id}  ${meta.updatedAt}${title}`);
+          }
+          if (cmd.type === "resume-list") console.log("usage: /resume <session-id>");
         } catch (err) {
           console.error(err instanceof Error ? err.message : err);
         }
@@ -89,7 +115,7 @@ export async function runCli(args: CliArgs): Promise<void> {
       }
       if (cmd?.type === "resume") {
         try {
-          await cli.client.openSession(cmd.id);
+          await switchSession(cmd.id);
           const s = cli.client.getSession();
           console.log(
             `resumed ${s.id}  messages=${s.messageCount}  title=${s.title ?? "(untitled)"}`,
@@ -101,7 +127,7 @@ export async function runCli(args: CliArgs): Promise<void> {
       }
       if (cmd?.type === "new") {
         try {
-          await cli.client.newSession();
+          await switchSession(null);
           console.log(`new session ${cli.client.getSession().id}`);
         } catch (err) {
           console.error(err instanceof Error ? err.message : err);
@@ -144,7 +170,31 @@ export async function runCli(args: CliArgs): Promise<void> {
     }
   } finally {
     rl?.close();
-    await cli.client.dispose();
+    remote.close();
+    lease.close();
+    attached.mind.close();
+  }
+}
+
+/** `min -p` stays inside this process and does not go through mind. */
+async function runOneShot(cli: CliClient, args: CliArgs): Promise<void> {
+  if (!args.noTools) {
+    const bashMode = args.allowBash || args.yes || args.auto ? "allow" : "ask";
+    const writeMode = args.askWrite ? "ask" : "allow";
+    const mode = args.auto ? "auto" : args.yes ? "yes" : "ask";
+    console.error(
+      `permissions: mode=${mode} read=allow write=${writeMode} bash=${bashMode}`,
+    );
+  }
+  const needsRl = !(args.yes || args.auto) && process.stdin.isTTY;
+  const rl = needsRl
+    ? createInterface({ input, output, terminal: false })
+    : undefined;
+  try {
+    await runTurn(cli, args.prompt!, rl);
+  } finally {
+    rl?.close();
+    if ("dispose" in cli.client) await cli.client.dispose();
   }
 }
 

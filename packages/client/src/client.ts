@@ -1,12 +1,22 @@
-import type { RunEvent, ToolCallPart } from "@min-agent/core";
+import {
+  messageText,
+  type Message,
+  type RunEvent,
+  type ToolCallPart,
+  type ToolResultPart,
+} from "@min-agent/core";
 import {
   createRuntime,
   type Runtime,
   type RuntimeOptions,
 } from "@min-agent/runtime";
-import { defineSessionExtension } from "@min-agent/session";
+import {
+  defineSessionExtension,
+  type SessionSnapshot,
+} from "@min-agent/session";
 import { createEventTranslator, isAbortError } from "./events.js";
 import { createPermissionBridge } from "./permission-bridge.js";
+import { assembleStopMessages } from "./stop-snapshot.js";
 import type {
   ClientEvent,
   ClientEventHandler,
@@ -16,8 +26,10 @@ import type {
   ClientStatusSnapshot,
   MinClient,
   PermissionAnswer,
+  PendingPermissionSnapshot,
   SendOptions,
   SessionEventReason,
+  SessionHandoff,
 } from "./types.js";
 
 interface PermissionRequest {
@@ -36,12 +48,43 @@ interface FactoryOpts {
   permissionTimeoutMs: number;
 }
 
+export interface ClientHost {
+  handoff(): SessionHandoff;
+  /** True after the stop path has begun. New connections and requests are refused. */
+  readonly closing: boolean;
+  /**
+   * Stop path: freeze the in-flight turn, abort, call `onBeforeShutdown`,
+   * persist, then return. Does not delete the mind registry — the process does.
+   */
+  shutdown(opts?: { hookTimeoutMs?: number }): Promise<void>;
+}
+
+const hosts = new WeakMap<MinClient, ClientHost>();
+
+/** In-process controls for the session process. Not part of the UI surface. */
+export function getClientHost(client: MinClient): ClientHost {
+  const host = hosts.get(client);
+  if (!host) throw new Error("client has no host controls");
+  return host;
+}
+
 export async function createClient(
   options: ClientOptions = {},
 ): Promise<MinClient> {
   const factory = resolveFactory(options);
   /** Shared with send() so follow-up drains can flush the prior assistant turn. */
   const turnBuf = { text: "", thinking: "" };
+  /** Assistant text of the completion the Runner has not pushed yet. */
+  let segmentText = "";
+  /** Latest Runner transcript for the in-flight turn. */
+  let transcript: readonly Message[] | null = null;
+  /** User text passed to the current send, before the Runner publishes. */
+  let turnUser = "";
+  /** Tool results observed during the in-flight turn. */
+  let seenToolResults: ToolResultPart[] = [];
+  let lastRunAborted = false;
+  let closing = false;
+  const inflight = new Set<Promise<void>>();
 
   const flushThinking = () => {
     if (!turnBuf.thinking) return;
@@ -75,7 +118,7 @@ export async function createClient(
     }),
   ];
 
-  let runtime: Runtime = options.runtime
+  const runtime: Runtime = options.runtime
     ? options.runtime
     : await createRuntime({
         ...factory.runtimeOpts,
@@ -108,6 +151,7 @@ export async function createClient(
       emit({ type: "assistant_done", text: turnBuf.text });
       turnBuf.text = "";
     }
+    segmentText = "";
     emit({ type: "follow_up", texts: [...texts] });
   };
 
@@ -132,28 +176,6 @@ export async function createClient(
     });
   };
 
-  const assertOwnedRuntime = (action: string) => {
-    if (options.runtime) {
-      throw new Error(
-        `${action} requires createClient to own the Runtime (do not inject runtime)`,
-      );
-    }
-  };
-
-  const rebuildRuntime = async (sessionId: string | undefined) => {
-    await runtime.session.dispose();
-    await runtime.agent.dispose();
-    factory.runtimeOpts = {
-      ...factory.runtimeOpts,
-      sessionId,
-    };
-    runtime = await createRuntime({
-      ...factory.runtimeOpts,
-      sessionId,
-      sessionExtensions: withBridge(factory.runtimeOpts.sessionExtensions),
-    });
-  };
-
   const permissionsBridge = createPermissionBridge({
     timeoutMs: factory.permissionTimeoutMs,
     onAsk: (pending) => {
@@ -165,6 +187,9 @@ export async function createClient(
         toolCall: pending.toolCall,
         grantRoot: pending.grantRoot,
       });
+    },
+    onDecision: (id, answer) => {
+      emit({ type: "permission_decision", id, answer });
     },
   });
 
@@ -203,6 +228,7 @@ export async function createClient(
       return runtime.session.inputQueue?.size ?? 0;
     },
     push(text, opts) {
+      if (closing) return;
       const q = runtime.session.inputQueue;
       if (!q) {
         throw new Error("input queue is disabled on this session");
@@ -235,9 +261,73 @@ export async function createClient(
     messages: runtime.session.messages,
   });
 
-  const send = async (text: string, opts: SendOptions = {}): Promise<void> => {
+  const handoff = (): SessionHandoff => {
+    const messages = runtime.session.messages.map((message) =>
+      structuredClone(message),
+    );
+    let userText: string | undefined;
+    const liveUser = currentUserText();
+    if (
+      liveUser &&
+      !messages.some(
+        (message) =>
+          message.role === "user" && messageText(message) === liveUser,
+      )
+    ) {
+      userText = liveUser;
+    }
+    const permissions: PendingPermissionSnapshot[] = permissionsBridge
+      .list()
+      .map((pending) => ({
+        id: pending.id,
+        reason: pending.reason,
+        toolCall: pending.toolCall,
+        grantRoot: pending.grantRoot,
+      }));
+    return {
+      messages,
+      title: runtime.session.meta.title,
+      turn: {
+        text: turnBuf.text,
+        thinking: turnBuf.thinking,
+        ...(userText ? { userText } : {}),
+      },
+      permissions,
+      status: getStatus(),
+    };
+  };
+
+  function currentUserText(): string {
+    if (transcript) {
+      for (let i = transcript.length - 1; i >= 0; i--) {
+        const message = transcript[i];
+        if (message?.role === "user") return messageText(message);
+      }
+    }
+    return turnUser;
+  }
+
+  const captureStopSnapshot = (): SessionSnapshot => {
+    const messages = assembleStopMessages({
+      committed: runtime.session.messages,
+      transcript,
+      partialText: segmentText,
+      toolResults: seenToolResults,
+      queued: queueApi.peek(),
+      userText: turnUser,
+    });
+    let meta = { ...runtime.session.meta };
+    if (!meta.title) {
+      const user = messages.find((message) => message.role === "user");
+      const text = user ? messageText(user).trim() : "";
+      if (text) meta = { ...meta, title: text.slice(0, 80) };
+    }
+    return { meta, messages };
+  };
+
+  const runSend = async (text: string, opts: SendOptions): Promise<void> => {
     const prompt = text.trim();
-    if (!prompt) return;
+    if (!prompt || closing) return;
 
     if (runLock) {
       if (factory.onBusySend === "reject") {
@@ -248,6 +338,7 @@ export async function createClient(
     }
 
     runLock = true;
+    lastRunAborted = false;
     translator.reset();
     abortController = new AbortController();
     const external = opts.signal;
@@ -258,18 +349,35 @@ export async function createClient(
     setStatus("running");
     turnBuf.text = "";
     turnBuf.thinking = "";
+    segmentText = "";
+    transcript = null;
+    turnUser = prompt;
+    seenToolResults = [];
 
     try {
       const result = await runtime.session.run(prompt, {
         signal: abortController.signal,
+        onTranscript: (messages) => {
+          transcript = messages;
+        },
         onEvent: (event: RunEvent) => {
           if (event.type === "thinking_delta") {
             turnBuf.thinking += event.text;
           } else if (event.type === "text_delta") {
             flushThinking();
             turnBuf.text += event.text;
+            segmentText += event.text;
           } else if (event.type === "tool_call") {
             flushThinking();
+          } else if (event.type === "turn_end") {
+            segmentText = "";
+          } else if (event.type === "tool_result") {
+            seenToolResults.push({
+              type: "tool_result",
+              toolCallId: event.toolCallId,
+              content: event.content,
+              isError: event.isError,
+            });
           }
           for (const ce of translator.push(event)) {
             emit(ce);
@@ -287,9 +395,11 @@ export async function createClient(
         emit({ type: "assistant_done", text: finalText });
         turnBuf.text = "";
       }
+      segmentText = "";
       emitSession("update");
     } catch (err) {
       if (isAbortError(err)) {
+        lastRunAborted = true;
         emit({ type: "error", message: "aborted", aborted: true });
       } else {
         emit({
@@ -302,8 +412,62 @@ export async function createClient(
       permissionsBridge.rejectAll("deny");
       abortController = undefined;
       runLock = false;
+      if (!closing) {
+        transcript = null;
+        turnUser = "";
+        segmentText = "";
+        seenToolResults = [];
+      }
       setStatus("idle");
     }
+  };
+
+  const send = (text: string, opts: SendOptions = {}): Promise<void> => {
+    const task = runSend(text, opts);
+    inflight.add(task);
+    return task.finally(() => {
+      inflight.delete(task);
+    });
+  };
+
+  const abortRun = () => {
+    abortController?.abort();
+    permissionsBridge.rejectAll("deny");
+  };
+
+  let shutdownPromise: Promise<void> | undefined;
+
+  const shutdown = (opts?: { hookTimeoutMs?: number }): Promise<void> => {
+    if (shutdownPromise) return shutdownPromise;
+    shutdownPromise = (async () => {
+      closing = true;
+      const wasRunning = inflight.size > 0;
+      const frozen = captureStopSnapshot();
+      if (wasRunning) abortRun();
+      await Promise.all([...inflight]);
+      const snapshot =
+        wasRunning && !lastRunAborted
+          ? captureStopSnapshot()
+          : frozen;
+      await invokeShutdownHook(
+        options.onBeforeShutdown,
+        snapshot,
+        opts?.hookTimeoutMs ?? 2_000,
+      );
+      const stable = structuredClone(snapshot);
+      try {
+        await runtime.session.commitSnapshot(stable);
+      } catch {
+        // Persist failure still exits. The next create reloads the last good file.
+      }
+      try {
+        await runtime.agent.dispose();
+      } catch {
+        // The process is leaving either way.
+      }
+      listeners.clear();
+    })();
+    return shutdownPromise;
   };
 
   const client: MinClient = {
@@ -311,8 +475,8 @@ export async function createClient(
 
     send,
     abort() {
-      abortController?.abort();
-      permissionsBridge.rejectAll("deny");
+      if (closing) return;
+      abortRun();
     },
 
     async dispose() {
@@ -331,10 +495,12 @@ export async function createClient(
     },
 
     respondPermission(id, answer) {
+      if (closing) return;
       permissionsBridge.respond(id, answer);
     },
 
     reset() {
+      if (closing || runLock) return;
       runtime.session.reset();
       emitSession("reset", { includeMessages: true });
     },
@@ -347,27 +513,10 @@ export async function createClient(
       return store.list();
     },
 
-    async openSession(id: string) {
-      if (runLock) {
-        throw new Error("cannot switch session while busy");
-      }
-      assertOwnedRuntime("openSession");
-      const trimmed = id.trim();
-      if (!trimmed) throw new Error("session id required");
-      await rebuildRuntime(trimmed);
-      emitSession("open", { includeMessages: true });
-    },
-
-    async newSession() {
-      if (runLock) {
-        throw new Error("cannot start a new session while busy");
-      }
-      assertOwnedRuntime("newSession");
-      await rebuildRuntime(undefined);
-      emitSession("new", { includeMessages: true });
-    },
-
     async compact(opts = {}) {
+      if (closing) {
+        throw new Error("client is closing");
+      }
       if (runLock) {
         throw new Error("cannot compact while busy");
       }
@@ -388,7 +537,37 @@ export async function createClient(
     },
   };
 
+  const host: ClientHost = {
+    handoff,
+    get closing() {
+      return closing;
+    },
+    shutdown,
+  };
+  hosts.set(client, host);
+
   return client;
+}
+
+async function invokeShutdownHook(
+  hook: ClientOptions["onBeforeShutdown"],
+  snapshot: SessionSnapshot,
+  timeoutMs: number,
+): Promise<void> {
+  if (!hook) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve()
+        .then(() => hook(snapshot))
+        .catch(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function resolveFactory(options: ClientOptions): FactoryOpts {

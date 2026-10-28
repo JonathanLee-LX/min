@@ -1,9 +1,13 @@
 import {
+  clientProcessPath,
+  connectRemote,
   createAutoPermissionApprover,
   createClient,
   type MinClient,
   type PermissionAnswer,
+  type RemoteSession,
 } from "@min-agent/client";
+import { ensureMind, mergeSessionList, type Mind, type MindCreateRequest, type MindLease } from "@min-agent/mind";
 import {
   loadProviderExtensions,
   resolveProvider,
@@ -16,15 +20,65 @@ import { isAbortError, withSigintAbort } from "./interrupt.js";
 import { contextBudgetLog } from "./session-extensions.js";
 
 export type CliClient = {
-  client: MinClient;
+  client: MinClient | RemoteSession;
   args: CliArgs;
 };
+
+export function mindLaunch(args: CliArgs): MindCreateRequest {
+  return {
+    cwd: args.cwd,
+    provider: args.provider,
+    model: args.model,
+    autoApprove: args.yes || args.auto,
+    approveMode: args.auto ? "auto" : args.yes ? "yes" : undefined,
+    allowRootGrant: args.auto || args.allowRootGrant,
+    persistPermissionGrants: !args.auto,
+    noTools: args.noTools,
+    allowBash: args.allowBash || args.yes || args.auto,
+    askWrite: args.askWrite,
+    skillsDir: args.skillsDir,
+    addRoots: args.addRoots,
+    maxContextTokens: args.maxContextTokens,
+    maxUserTurns: args.maxUserTurns,
+    maxTurns: args.maxTurns,
+    contextStrategy: args.contextStrategy,
+    sessionDir: args.sessionDir,
+    noSessionStore: args.noSessionStore,
+    sessionId: args.sessionId,
+  };
+}
+
+export async function attachMindSession(
+  args: CliArgs,
+  sessionId?: string | null,
+): Promise<{
+  mind: Mind;
+  lease: MindLease;
+  remote: RemoteSession;
+}> {
+  const mind = await ensureMind({ clientEntry: clientProcessPath() });
+  try {
+    const address = await mind.create({
+      ...mindLaunch(args),
+      sessionId: sessionId === null ? undefined : (sessionId ?? args.sessionId),
+    });
+    const lease = await mind.lease(address.sessionId);
+    const remote = await connectRemote(address.socketPath);
+    return { mind, lease, remote };
+  } catch (err) {
+    mind.close();
+    throw err;
+  }
+}
 
 export function sessionDirFor(args: CliArgs): string {
   return appSessionDir(args.cwd, args.sessionDir);
 }
 
-export async function createCliClient(args: CliArgs): Promise<CliClient> {
+export async function createCliClient(args: CliArgs): Promise<{
+  client: MinClient;
+  args: CliArgs;
+}> {
   await loadProviderExtensions();
   const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
   const client = await createClient({
@@ -59,22 +113,25 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   return { client, args };
 }
 
-/** List sessions through @min-agent/client (same store Runtime would use). */
+/** List workspace history through mind. Does not start a session process. */
 export async function listSessions(args: CliArgs): Promise<void> {
-  const cli = await createCliClient({ ...args, noTools: true });
+  const mind = await ensureMind({ clientEntry: clientProcessPath() });
   try {
-    const metas = await cli.client.listSessions();
+    const listed = await mind.list(args.cwd);
+    const live = new Set(listed.live.map((item) => item.sessionId));
+    const metas = mergeSessionList(listed);
     const dir = sessionDirFor(args);
     if (!metas.length) {
       console.log(`(no sessions in ${dir})`);
       return;
     }
-    for (const m of metas) {
-      const title = m.title ? `  ${m.title}` : "";
-      console.log(`${m.id}  ${m.updatedAt}${title}`);
+    for (const meta of metas) {
+      const title = meta.title ? `  ${meta.title}` : "";
+      const mark = live.has(meta.id) ? " live" : "";
+      console.log(`${meta.id}  ${meta.updatedAt}${title}${mark}`);
     }
   } finally {
-    await cli.client.dispose();
+    mind.close();
   }
 }
 
@@ -134,8 +191,9 @@ export async function runTurn(
       void (async () => {
         try {
           const answer = await resolvePermissionInteractive(args, rl, event);
-          // applyRootGrant is false on CLI so we control grantRoot here.
-          if (answer !== "deny" && event.grantRoot) {
+          // One-shot CLI applies root grants itself. A session process does it
+          // inside respondPermission, so there is no runtime on the socket.
+          if (answer !== "deny" && event.grantRoot && "advanced" in client) {
             client.advanced.runtime.permissions?.grantRoot(event.grantRoot, {
               persist: answer === "allow_session" && !args.auto,
             });
@@ -169,7 +227,7 @@ export async function runTurn(
 /** Follow-up lines typed during a run. No-op while a permission question is open. */
 export function attachFollowUpQueue(
   rl: ReadlineInterface,
-  client: MinClient,
+  client: { queue: { push(text: string): void } },
 ): () => void {
   const onLine = (line: string) => {
     const text = line.trim();

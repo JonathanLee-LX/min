@@ -40,6 +40,11 @@ export class Runner {
       await input.onEvent?.(event);
     };
 
+    const publish = () => {
+      input.onTranscript?.(structuredClone(messages));
+    };
+    publish();
+
     let turns = 0;
 
     try {
@@ -66,6 +71,7 @@ export class Runner {
         const result = await this.completeTurn(completionReq, emit);
 
         messages.push(result.message);
+        publish();
         await emit({ type: "turn_end", turn: turns, message: result.message });
 
         const toolCalls = messageToolCalls(result.message);
@@ -101,6 +107,7 @@ export class Runner {
         }
 
         messages.push(toolMessage(results));
+        publish();
       }
 
       // Cap hit mid tool-loop: last message is tool results awaiting another complete.

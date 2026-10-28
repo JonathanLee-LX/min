@@ -5,7 +5,12 @@
 对外只暴露：
 
 `send` · `abort` · `subscribe(ClientEvent)` · `queue` · `respondPermission` ·
-`listSessions` / `openSession` / `newSession` / `reset`.
+`listSessions` / `reset` / `compact`.
+
+Interactive TUI, Web, and CLI sessions do not construct this object in the UI
+process. They lease a session from **mind** and speak the socket protocol.
+`min -p` still calls `createClient()` in-process. Switching sessions starts
+another client process; `reset` clears the same id.
 
 ## 实现目标
 
@@ -71,9 +76,10 @@ Busy `send` defaults to **queue** (session input queue). Pass `onBusySend: "reje
 | `tool_start` / `tool_end` | tool rows |
 | `follow_up` | queue drain texts (owned Runtime only) |
 | `permission` | ask UI; answer via `respondPermission` |
+| `permission_decision` | broadcast of allow / deny / allow_session after the ask is consumed |
 | `queued` | busy-send enqueued |
 | `error` | failures / abort |
-| `session` | id / title / counts; `reason` = update\|open\|reset\|new; `messages` on open/reset/new for UI rebuild |
+| `session` | id / title / counts; `reason` = update\|reset\|compact; `messages` on reset/compact for UI rebuild |
 
 ## Escape hatch
 

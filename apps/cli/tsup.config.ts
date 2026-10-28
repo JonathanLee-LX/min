@@ -14,6 +14,7 @@ export default defineConfig({
   },
   external: [
     "@min-agent/client",
+    "@min-agent/mind",
     "@min-agent/runtime",
     "@min-agent/core",
     "@min-agent/session",

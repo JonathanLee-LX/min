@@ -13,6 +13,11 @@ type ChatLine =
   | { id: string; kind: "tool"; text: string }
   | { id: string; kind: "sys"; text: string };
 
+type WireMessage = {
+  role?: string;
+  content?: Array<{ type?: string; text?: string; name?: string; content?: string; isError?: boolean }>;
+};
+
 type ClientEvent =
   | { type: "status"; status: string }
   | { type: "assistant_delta"; text: string }
@@ -20,6 +25,7 @@ type ClientEvent =
   | { type: "tool_start"; name: string; args: Record<string, unknown> }
   | { type: "tool_end"; preview: string; ok: boolean; name?: string }
   | { type: "permission"; id: string; reason: string }
+  | { type: "permission_decision"; id: string; answer: string }
   | { type: "queued"; queueSize: number }
   | { type: "follow_up"; texts: readonly string[] }
   | { type: "error"; message: string; aborted?: boolean }
@@ -29,11 +35,40 @@ type ClientEvent =
       title?: string;
       messageCount: number;
       reason?: string;
-      messages?: unknown[];
+      messages?: WireMessage[];
+    }
+  | {
+      type: "handoff";
+      messages: WireMessage[];
+      title?: string;
+      turn: { text: string; thinking: string; userText?: string };
+      permissions: Array<{ id: string; reason: string }>;
+      status: { status: string; sessionId: string };
     };
 
 let seq = 0;
 const nid = () => `m_${++seq}`;
+
+function linesFromWire(messages: WireMessage[]): ChatLine[] {
+  const lines: ChatLine[] = [];
+  for (const message of messages) {
+    for (const part of message.content ?? []) {
+      if (part.type === "text" && part.text?.trim()) {
+        const kind = message.role === "user" ? "user" : message.role === "assistant" ? "assistant" : "tool";
+        lines.push({ id: nid(), kind, text: part.text.trim() });
+      } else if (part.type === "tool_call") {
+        lines.push({ id: nid(), kind: "tool", text: `→ ${part.name ?? "tool"}` });
+      } else if (part.type === "tool_result") {
+        lines.push({
+          id: nid(),
+          kind: "tool",
+          text: `${part.isError ? "ERR " : ""}${part.content ?? ""}`.slice(0, 160),
+        });
+      }
+    }
+  }
+  return lines;
+}
 
 export default function App() {
   const [lines, setLines] = useState<ChatLine[]>([]);
@@ -96,6 +131,26 @@ export default function App() {
       }
       if (event.type === "permission") {
         setPerm({ id: event.id, reason: event.reason });
+        return;
+      }
+      if (event.type === "permission_decision") {
+        setPerm((current) => (current?.id === event.id ? null : current));
+        push({ kind: "sys", text: `permission ${event.answer}` });
+        return;
+      }
+      if (event.type === "handoff") {
+        setSessionId(event.status.sessionId);
+        setStatus(event.status.status);
+        setBusy(event.status.status !== "idle");
+        const seeded = linesFromWire(event.messages);
+        if (event.turn.userText) {
+          seeded.push({ id: nid(), kind: "user", text: event.turn.userText });
+        }
+        setLines(seeded);
+        streamRef.current = event.turn.text;
+        setStream(event.turn.text);
+        const pending = event.permissions[0];
+        setPerm(pending ? { id: pending.id, reason: pending.reason } : null);
         return;
       }
       if (event.type === "queued") {

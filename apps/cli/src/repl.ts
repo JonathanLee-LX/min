@@ -33,7 +33,7 @@ export function handleReplCommand(
   /context           context window used/limit and part breakdown
   /version           show min version
   /session           show current session id / title / message count
-  /sessions          list saved sessions (via Client)
+  /sessions          list saved sessions
   /resume            list sessions; /resume <id> switch
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
@@ -124,6 +124,9 @@ to dense-latest. Anything else is sent as a user message.`);
 
 /** Async bits for /sessions (keeps handleReplCommand sync for tests). */
 export async function listSessionsViaClient(cli: CliClient): Promise<void> {
+  if (!("listSessions" in cli.client)) {
+    throw new Error("interactive session lists go through mind");
+  }
   const metas = await cli.client.listSessions();
   if (!metas.length) {
     console.log("(no saved sessions)");

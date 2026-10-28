@@ -1,13 +1,20 @@
 import { Alert, Badge, ThemeProvider } from "@inkjs/ui";
 import {
-  createAutoPermissionApprover,
-  createClient,
+  clientProcessPath,
+  connectRemote,
   type ClientEvent,
   type ClientStatus,
   type ContextUsage,
-  type MinClient,
+  type RemoteSession,
+  type SessionHandoff,
 } from "@min-agent/client";
-import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
+import {
+  ensureMind,
+  mergeSessionList,
+  type Mind,
+  type MindCreateRequest,
+  type MindLease,
+} from "@min-agent/mind";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
@@ -107,7 +114,7 @@ export function App({ args }: { args: TuiArgs }) {
       keybindings: resolveKeybindings(config.ui.keybindings),
     };
   }, [args.cwd, args.theme, args.provider, args.model]);
-  const [client, setClient] = useState<MinClient | null>(null);
+  const [client, setClient] = useState<RemoteSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);
   /** Highlight index while the slash command menu is open. */
@@ -136,7 +143,11 @@ export function App({ args }: { args: TuiArgs }) {
   const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>();
   const [gitBranch, setGitBranch] = useState<string | undefined>();
   const seq = useRef(0);
-  const clientRef = useRef<MinClient | null>(null);
+  const clientRef = useRef<RemoteSession | null>(null);
+  const mindRef = useRef<Mind | null>(null);
+  const leaseRef = useRef<MindLease | null>(null);
+  const launchRef = useRef<MindCreateRequest | null>(null);
+  const switchRef = useRef<(sessionId?: string) => Promise<void>>(async () => {});
   const focusedRef = useRef(true);
   const pendingStreamRef = useRef<string | null>(null);
   const pendingThinkingRef = useRef<string | null>(null);
@@ -250,40 +261,62 @@ export function App({ args }: { args: TuiArgs }) {
     let cancelled = false;
     let unsub: (() => void) | undefined;
 
+    const launch: MindCreateRequest = {
+      cwd: args.cwd,
+      provider: args.provider,
+      model: args.model,
+      autoApprove: args.yes || args.auto,
+      approveMode: args.auto ? "auto" : args.yes ? "yes" : undefined,
+      allowRootGrant: args.auto,
+      persistPermissionGrants: !args.auto,
+      noTools: args.noTools,
+      allowBash: args.yes || args.auto,
+      sessionId: args.sessionId,
+    };
+    launchRef.current = launch;
+
     const syncQueue = () => {
       const live = clientRef.current;
       if (live) setQueueSize(live.queue.size);
     };
 
-    (async () => {
-      try {
-        await loadProviderExtensions();
-        const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
-        const created = await createClient({
-          cwd: args.cwd,
-          provider: resolveProvider({
-            provider: args.provider,
-            model: args.model,
-          }),
-          sessionId: args.sessionId,
-          noTools: args.noTools,
-          allowBash: args.yes || args.auto,
-          askWrite: false,
-          applyRootGrant: true,
-          persistPermissionGrants: !args.auto,
-          autoApprovePermission: autoMode
-            ? createAutoPermissionApprover({
-                mode: autoMode,
-                allowRootGrant: args.auto,
-              })
-            : undefined,
-        });
-        if (cancelled) {
-          await created.dispose();
-          return;
-        }
-        clientRef.current = created;
-        unsub = created.subscribe((event: ClientEvent) => {
+    const paintHandoff = (handoff: SessionHandoff) => {
+      replaceLogs(handoff.messages);
+      if (handoff.turn.userText) pushLine("user", handoff.turn.userText);
+      pumpRef.current?.reset();
+      thinkingPumpRef.current?.reset();
+      if (handoff.turn.thinking) thinkingPumpRef.current?.push(handoff.turn.thinking);
+      if (handoff.turn.text) pumpRef.current?.push(handoff.turn.text);
+      const pending = handoff.permissions[0];
+      setPendingPerm(
+        pending
+          ? {
+              id: pending.id,
+              reason: pending.reason,
+              toolCall: {
+                name: pending.toolCall.name,
+                arguments: pending.toolCall.arguments,
+              },
+              grantRoot: pending.grantRoot,
+            }
+          : null,
+      );
+      const status = handoff.status;
+      pushLine(
+        "sys",
+        `provider=${status.provider}  session=${status.sessionId}  cwd=${status.cwd}`,
+      );
+      setQueueSize(status.queueSize);
+      setStatusLabel(status.status);
+      setBusy(status.status !== "idle");
+      setContextUsage(status.context);
+    };
+
+    const bind = (remote: RemoteSession) => {
+      unsub?.();
+      clientRef.current = remote;
+      paintHandoff(remote.handoff);
+      unsub = remote.subscribe((event: ClientEvent) => {
           if (event.type === "status") {
             setStatusLabel(event.status);
             setBusy(event.status !== "idle");
@@ -374,23 +407,53 @@ export function App({ args }: { args: TuiArgs }) {
             });
             return;
           }
+          if (event.type === "permission_decision") {
+            setPendingPerm((current) => (current?.id === event.id ? null : current));
+            pushLine("notice", `permission ${event.answer}`);
+            return;
+          }
           if (event.type === "session") {
             if (event.messages) replaceLogs(event.messages);
             syncQueue();
           }
         });
-        const snapshot = created.getSession();
-        replaceLogs(snapshot.messages);
-        const status = created.getStatus();
-        pushLine(
-          "sys",
-          `provider=${status.provider}  session=${status.sessionId}  cwd=${status.cwd}`,
-        );
-        setQueueSize(status.queueSize);
-        setStatusLabel(status.status);
-        setBusy(status.status !== "idle");
-        setContextUsage(status.context);
-        setClient(created);
+      setClient(remote);
+    };
+
+    switchRef.current = async (sessionId?: string) => {
+      const mind = mindRef.current;
+      const spec = launchRef.current;
+      if (!mind || !spec) return;
+      const address = await mind.create({ ...spec, sessionId });
+      const nextLease = await mind.lease(address.sessionId);
+      const remote = await connectRemote(address.socketPath);
+      const previousLease = leaseRef.current;
+      const previous = clientRef.current;
+      leaseRef.current = nextLease;
+      bind(remote);
+      previous?.close();
+      previousLease?.close();
+    };
+
+    (async () => {
+      try {
+        const mind = await ensureMind({ clientEntry: clientProcessPath() });
+        if (cancelled) {
+          mind.close();
+          return;
+        }
+        mindRef.current = mind;
+        const address = await mind.create(launch);
+        if (cancelled) return;
+        const lease = await mind.lease(address.sessionId);
+        leaseRef.current = lease;
+        const remote = await connectRemote(address.socketPath);
+        if (cancelled) {
+          remote.close();
+          lease.close();
+          return;
+        }
+        bind(remote);
       } catch (err) {
         if (!cancelled) setError(messageOf(err));
       }
@@ -399,9 +462,12 @@ export function App({ args }: { args: TuiArgs }) {
     return () => {
       cancelled = true;
       unsub?.();
-      const live = clientRef.current;
+      clientRef.current?.close();
       clientRef.current = null;
-      if (live) void live.dispose();
+      leaseRef.current?.close();
+      leaseRef.current = null;
+      mindRef.current?.close();
+      mindRef.current = null;
     };
   }, [
     args.auto,
@@ -416,7 +482,7 @@ export function App({ args }: { args: TuiArgs }) {
   ]);
 
   const runCommand = useCallback(
-    async (live: MinClient, command: TuiCommand) => {
+    async (live: RemoteSession, command: TuiCommand) => {
       if (command.type === "exit") {
         exit();
         return;
@@ -450,7 +516,8 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "sessions") {
         try {
-          const metas = await live.listSessions();
+          const listed = await mindRef.current?.list(args.cwd);
+          const metas = listed ? mergeSessionList(listed) : [];
           pushLine("sys", formatSessionList(metas, live.getSession().id));
         } catch (err) {
           pushLine("error", messageOf(err));
@@ -459,7 +526,8 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "resume-pick") {
         try {
-          const metas = await live.listSessions();
+          const listed = await mindRef.current?.list(args.cwd);
+          const metas = listed ? mergeSessionList(listed) : [];
           const currentId = live.getSession().id;
           if (metas.length === 0) {
             pushLine("sys", "(no saved sessions)");
@@ -487,8 +555,8 @@ export function App({ args }: { args: TuiArgs }) {
       if (command.type === "resume") {
         try {
           setSessionPicker(null);
-          await live.openSession(command.id);
-          pushLine("sys", `resumed ${live.getSession().id}`);
+          await switchRef.current(command.id);
+          pushLine("sys", `resumed ${clientRef.current?.getSession().id ?? command.id}`);
         } catch (err) {
           pushLine("error", messageOf(err));
         }
@@ -496,8 +564,8 @@ export function App({ args }: { args: TuiArgs }) {
       }
       if (command.type === "new") {
         try {
-          await live.newSession();
-          pushLine("sys", `new session ${live.getSession().id}`);
+          await switchRef.current(undefined);
+          pushLine("sys", `new session ${clientRef.current?.getSession().id ?? ""}`);
         } catch (err) {
           pushLine("error", messageOf(err));
         }
@@ -547,7 +615,7 @@ export function App({ args }: { args: TuiArgs }) {
         }
       }
     },
-    [exit, pushLine],
+    [args.cwd, exit, pushLine],
   );
 
   const submitLine = useCallback(
@@ -632,8 +700,8 @@ export function App({ args }: { args: TuiArgs }) {
           const live = clientRef.current;
           if (!live) return;
           try {
-            await live.openSession(pick.id);
-            pushLine("sys", `resumed ${live.getSession().id}`);
+            await switchRef.current(pick.id);
+            pushLine("sys", `resumed ${clientRef.current?.getSession().id ?? pick.id}`);
           } catch (err) {
             pushLine("error", messageOf(err));
           }

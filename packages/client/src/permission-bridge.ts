@@ -19,12 +19,16 @@ export interface PermissionBridge {
   respond(id: string, answer: PermissionAnswer): boolean;
   /** Deny all outstanding asks (dispose / abort). */
   rejectAll(answer?: PermissionAnswer): void;
+  /** Outstanding asks, oldest first. */
+  list(): Array<Omit<PendingPermission, "resolve" | "timer">>;
   readonly size: number;
 }
 
 export function createPermissionBridge(opts: {
   timeoutMs: number;
   onAsk: (pending: Omit<PendingPermission, "resolve" | "timer">) => void;
+  /** Fired once when an outstanding ask is actually resolved. */
+  onDecision?: (id: string, answer: PermissionAnswer) => void;
 }): PermissionBridge {
   const pending = new Map<string, PendingPermission>();
   let seq = 0;
@@ -47,6 +51,7 @@ export function createPermissionBridge(opts: {
             if (!hit) return;
             if (hit.timer) clearTimeout(hit.timer);
             pending.delete(id);
+            opts.onDecision?.(id, answer);
             resolve(answer);
           },
         };
@@ -78,6 +83,15 @@ export function createPermissionBridge(opts: {
       for (const entry of [...pending.values()]) {
         entry.resolve(answer);
       }
+    },
+
+    list() {
+      return [...pending.values()].map((entry) => ({
+        id: entry.id,
+        toolCall: entry.toolCall,
+        reason: entry.reason,
+        grantRoot: entry.grantRoot,
+      }));
     },
   };
 }
