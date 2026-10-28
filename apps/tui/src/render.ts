@@ -30,7 +30,17 @@ export interface RenderSpan {
   tone: SpanTone;
 }
 
-export type BlockKind = "paragraph" | "heading" | "code" | "list" | "quote" | "rule" | "raw";
+export type BlockKind =
+  | "paragraph"
+  | "heading"
+  | "code"
+  | "list"
+  | "quote"
+  | "rule"
+  | "table"
+  | "raw";
+
+export type TableAlign = "left" | "center" | "right";
 
 export interface RenderBlock {
   kind: BlockKind;
@@ -40,6 +50,13 @@ export interface RenderBlock {
   level?: number;
   /** A fence had its closing marker. Unclosed fences stay source text. */
   closed?: boolean;
+  /**
+   * GFM table cells: `cells[row][col]` → inline spans.
+   * Row 0 is the header. Only set when `kind === "table"`.
+   */
+  cells?: RenderSpan[][][];
+  /** Per-column alignment from the separator row. */
+  aligns?: Array<TableAlign | null>;
 }
 
 /** Return the blocks for this request, or call `next` to pass it on. */
@@ -149,10 +166,32 @@ function parseMarkdown(text: string): RenderBlock[] {
       blocks.push({ kind: "list", lines: items });
       continue;
     }
+    // GFM table: header row + separator (`| --- | --- |`) + body rows.
+    if (isTableRow(line) && isTableSeparator(rows[index + 1] ?? "")) {
+      const headerCells = splitTableRow(line);
+      const aligns = parseTableAligns(rows[index + 1] ?? "", headerCells.length);
+      index += 2;
+      const cells: RenderSpan[][][] = [headerCells.map((cell) => parseInline(cell))];
+      while (index < rows.length) {
+        const current = rows[index] ?? "";
+        if (!current.trim() || !isTableRow(current) || isTableSeparator(current)) break;
+        if (isBlockStart(current) && !isTableRow(current)) break;
+        const rowCells = splitTableRow(current);
+        while (rowCells.length < headerCells.length) rowCells.push("");
+        cells.push(
+          rowCells.slice(0, headerCells.length).map((cell) => parseInline(cell)),
+        );
+        index += 1;
+      }
+      blocks.push({ kind: "table", lines: [], cells, aligns });
+      continue;
+    }
     const paragraph: string[] = [];
     while (index < rows.length) {
       const current = rows[index] ?? "";
       if (!current.trim() || isBlockStart(current)) break;
+      // Don't swallow a GFM table that starts on this line.
+      if (isTableRow(current) && isTableSeparator(rows[index + 1] ?? "")) break;
       // Keep hard line breaks — models often structure replies without
       // blank lines between short lines; joining with spaces flattens them.
       paragraph.push(current.trimEnd().replace(/^[ \t]+/, ""));
@@ -179,6 +218,45 @@ function isBlockStart(line: string): boolean {
     /^>\s?/.test(line) ||
     isListLine(line)
   );
+}
+
+/** A pipe-separated row that can start or continue a GFM table. */
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("```")) return false;
+  // Need at least one pipe and some cell text (avoid bare "|").
+  if (!trimmed.includes("|")) return false;
+  return splitTableRow(trimmed).some((cell) => cell.length > 0);
+}
+
+/** Separator row: `| --- | :---: | ---: |` (pipes optional at ends). */
+function isTableSeparator(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  return /^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$/.test(trimmed) ||
+    /^(\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*$/.test(trimmed);
+}
+
+function splitTableRow(line: string): string[] {
+  let trimmed = line.trim();
+  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+
+function parseTableAligns(separator: string, columns: number): Array<TableAlign | null> {
+  const cells = splitTableRow(separator);
+  const aligns: Array<TableAlign | null> = [];
+  for (let i = 0; i < columns; i++) {
+    const cell = (cells[i] ?? "").replace(/\s+/g, "");
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    if (left && right) aligns.push("center");
+    else if (right) aligns.push("right");
+    else if (left) aligns.push("left");
+    else aligns.push(null);
+  }
+  return aligns;
 }
 
 function isListLine(line: string): boolean {

@@ -5,6 +5,7 @@ import {
   type RenderRole,
   type RenderSpan,
   type SpanTone,
+  type TableAlign,
 } from "./render.js";
 import { defaultTheme, type TuiTheme } from "./theme.js";
 import { foldToolOutput } from "./tool-fold.js";
@@ -292,6 +293,12 @@ function paintBlocks(
       if (block.closed) push(paintSpans([{ text: "```", tone: "dim" }], false));
       continue;
     }
+    if (block.kind === "table" && block.cells && block.cells.length > 0) {
+      for (const row of paintTable(block.cells, block.aligns, bodyWidth)) {
+        push(row);
+      }
+      continue;
+    }
     const bold = block.kind === "heading";
     for (const logical of block.lines) {
       const wrapped =
@@ -307,6 +314,130 @@ function paintBlocks(
 
 function isMermaid(lang: string | undefined): boolean {
   return lang?.trim().toLowerCase() === "mermaid";
+}
+
+/**
+ * Paint a GFM table as aligned columns with a rule under the header.
+ * Pipe characters from the source markdown are not shown.
+ */
+function paintTable(
+  cells: readonly RenderSpan[][][],
+  aligns: readonly (TableAlign | null)[] | undefined,
+  bodyWidth: number,
+): PaintedSpan[][] {
+  const colCount = Math.max(1, ...cells.map((row) => row.length));
+  const widths: number[] = Array.from({ length: colCount }, () => 1);
+  for (const row of cells) {
+    for (let c = 0; c < colCount; c++) {
+      const cell = row[c] ?? [];
+      const width = Math.max(1, displayWidth(cell.map((span) => span.text).join("")));
+      widths[c] = Math.max(widths[c]!, width);
+    }
+  }
+  // Shrink columns proportionally when the table is wider than the viewport.
+  const gap = 2;
+  const gaps = Math.max(0, colCount - 1) * gap;
+  let total = widths.reduce((sum, width) => sum + width, 0) + gaps;
+  if (total > bodyWidth) {
+    const budget = Math.max(colCount, bodyWidth - gaps);
+    const scale = budget / Math.max(1, total - gaps);
+    for (let c = 0; c < colCount; c++) {
+      widths[c] = Math.max(1, Math.floor(widths[c]! * scale));
+    }
+    total = widths.reduce((sum, width) => sum + width, 0) + gaps;
+    let extra = bodyWidth - total;
+    for (let c = 0; extra < 0 && c < colCount; c++) {
+      const cut = Math.min(widths[c]! - 1, -extra);
+      widths[c]! -= cut;
+      extra += cut;
+    }
+  }
+
+  const out: PaintedSpan[][] = [];
+  cells.forEach((row, rowIndex) => {
+    out.push(paintTableRow(row, widths, aligns, gap, rowIndex === 0));
+    if (rowIndex === 0) {
+      const rule = widths.map((width) => "─".repeat(width)).join(" ".repeat(gap));
+      out.push(paintSpans([{ text: rule.slice(0, bodyWidth) || "─", tone: "dim" }], false));
+    }
+  });
+  return out;
+}
+
+function paintTableRow(
+  row: readonly RenderSpan[][],
+  widths: readonly number[],
+  aligns: readonly (TableAlign | null)[] | undefined,
+  gap: number,
+  header: boolean,
+): PaintedSpan[] {
+  const spans: RenderSpan[] = [];
+  for (let c = 0; c < widths.length; c++) {
+    if (c > 0) spans.push({ text: " ".repeat(gap), tone: "plain" });
+    const width = widths[c]!;
+    const cell = row[c] ?? [];
+    const text = cell.map((span) => span.text).join("");
+    const clipped = clipToWidth(text, width);
+    const pad = Math.max(0, width - displayWidth(clipped));
+    const align = aligns?.[c] ?? null;
+    let left = 0;
+    let right = pad;
+    if (align === "right") {
+      left = pad;
+      right = 0;
+    } else if (align === "center") {
+      left = Math.floor(pad / 2);
+      right = pad - left;
+    }
+    if (left) spans.push({ text: " ".repeat(left), tone: "plain" });
+    if (clipped) {
+      // Re-parse wasn't needed — restyle the joined text for header bold,
+      // keep the first cell span tone when it's a single styled run.
+      if (cell.length === 1 && cell[0]!.text === clipped) {
+        spans.push({
+          text: clipped,
+          tone: header && cell[0]!.tone === "plain" ? "strong" : cell[0]!.tone,
+        });
+      } else if (cell.length === 0) {
+        spans.push({ text: clipped || " ".repeat(width), tone: header ? "strong" : "plain" });
+      } else {
+        // Multi-span cell: emit clipped by walking spans until width is filled.
+        let used = 0;
+        for (const span of cell) {
+          if (used >= displayWidth(clipped)) break;
+          const room = displayWidth(clipped) - used;
+          const piece = clipToWidth(span.text, room);
+          if (!piece) continue;
+          spans.push({
+            text: piece,
+            tone: header && span.tone === "plain" ? "strong" : span.tone,
+          });
+          used += displayWidth(piece);
+        }
+        if (used === 0) {
+          spans.push({ text: " ".repeat(width), tone: "plain" });
+          right = 0;
+          left = 0;
+        }
+      }
+    } else {
+      spans.push({ text: " ".repeat(width), tone: "plain" });
+      right = 0;
+    }
+    if (right) spans.push({ text: " ".repeat(right), tone: "plain" });
+  }
+  return paintSpans(spans.length > 0 ? spans : [{ text: " ", tone: "plain" }], header);
+}
+
+function clipToWidth(text: string, width: number): string {
+  if (width <= 0) return "";
+  if (displayWidth(text) <= width) return text;
+  let out = "";
+  for (const ch of text) {
+    if (displayWidth(out + ch) > width) break;
+    out += ch;
+  }
+  return out;
 }
 
 function pushDiagram(push: (spans: PaintedSpan[]) => void, lines: readonly string[]): void {

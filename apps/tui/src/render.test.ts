@@ -30,6 +30,43 @@ describe("renderContent", () => {
     ]);
   });
 
+  it("parses GFM tables without leaving pipe markdown", () => {
+    const blocks = renderContent({
+      role: "assistant",
+      text: "| Name | Value |\n| --- | ---: |\n| **alpha** | 1 |\n| beta | 2 |",
+      streaming: false,
+    });
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]?.kind).toBe("table");
+    expect(blocks[0]?.aligns).toEqual([null, "right"]);
+    expect(blocks[0]?.cells).toHaveLength(3);
+    expect(blocks[0]?.cells?.[0]?.map((cell) => cell.map((span) => span.text).join(""))).toEqual([
+      "Name",
+      "Value",
+    ]);
+    expect(blocks[0]?.cells?.[1]?.[0]?.map((span) => `${span.tone}:${span.text}`)).toEqual([
+      "strong:alpha",
+    ]);
+
+    const painted = paintTranscript(
+      [
+        {
+          key: "t",
+          kind: "assistant",
+          text: "| Name | Value |\n| --- | --- |\n| alpha | 1 |\n| beta | 2 |",
+        },
+      ],
+      40,
+    );
+    const bodies = painted.map((row) => row.body.trimEnd());
+    expect(bodies.some((body) => body.includes("|"))).toBe(false);
+    expect(bodies[0]).toMatch(/Name/);
+    expect(bodies[0]).toMatch(/Value/);
+    expect(bodies[1]).toMatch(/─/);
+    expect(bodies.some((body) => body.includes("alpha"))).toBe(true);
+    expect(bodies.some((body) => /\b1\b/.test(body))).toBe(true);
+  });
+
   it("keeps hard line breaks and parses italic / ***", () => {
     const blocks = renderContent({
       role: "assistant",
