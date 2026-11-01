@@ -287,6 +287,71 @@ const session = await createSession({
 
 The CLI ships one pack (`cli.context-budget-log`) the same way — observability stays outside the kernel.
 
+### Mirroring sessions to Cloudflare R2 (`r2SyncExtension`)
+
+`@min-agent/session` ships one such pack: an object-storage mirror that never touches the kernel.
+
+```ts
+import {
+  createFsStore,
+  createSession,
+  createR2BindingAdapter,
+  createGzipCodec,
+  r2SyncExtension,
+} from "@min-agent/session";
+
+const blob = createR2BindingAdapter(env.SESSIONS_BUCKET); // Workers; see below for Node
+const sync = r2SyncExtension({
+  blob,
+  prefix: `sessions/${hostname}/`,
+  codec: createGzipCodec(),   // default: plain JSON (inspectable in the dashboard)
+  mode: "background",         // or "await" for strong consistency
+  onError: (err, info) => log.warn("r2 sync failed", info, err),
+});
+
+const store = createFsStore(sessionDir);
+await sync.hydrate(store);    // remote → local; must run BEFORE createSession
+
+const session = await createSession({ agent, store, id, extensions: [sync] });
+
+await session.dispose();
+await sync.flush();           // background PUTs are not awaited by dispose()
+```
+
+| Piece | Why |
+|-------|-----|
+| `onBeforeSave` hook | Only hook inside `persist()` — sees the exact snapshot for `run` / `compact` / `dispose`, after any redaction by earlier hooks. |
+| `hydrate(store)` | `Session` only calls `store.load()`; there is no read hook, so restore is explicit and pre-`createSession`. |
+| `<id>.json` + `<id>.meta.json` | Two objects per session so `list()` never downloads full histories. |
+| Content fingerprint | `updatedAt` changes on every persist; identical snapshots are skipped instead. |
+| `mode: "background"` | A run never waits on the network; `flush()` drains in-flight PUTs. |
+| `onError` | `persist()` errors surface in `session.run()`, so the mirror swallows them and counts them in `sync.stats.failed`. |
+
+Node (S3 SDK) adapter — three methods are all it takes:
+
+```ts
+import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+
+const s3 = new S3Client({
+  region: "auto",
+  endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+  credentials: { accessKeyId, secretAccessKey },
+});
+
+const blob = {
+  put: (key, body, opts) => s3.send(new PutObjectCommand({ Bucket, Key: key, Body: body, ContentType: opts?.contentType, ContentEncoding: opts?.contentEncoding })).then(() => {}),
+  get: async (key) => {
+    try { return new Uint8Array(await (await s3.send(new GetObjectCommand({ Bucket, Key: key }))).Body!.transformToByteArray()); }
+    catch { return null; }
+  },
+  list: async (prefix) => { /* ListObjectsV2, page on NextContinuationToken */ },
+};
+```
+
+Other helpers: `sync.pull(id)`, `sync.pushSnapshot(snap)`, `sync.backfill(store)` (migrate existing local sessions), `sync.hydrate(store, { ids, dryRun })`, `sync.stats`.
+Multi-machine writes are last-write-wins — give each host its own `prefix` unless you add S3 conditional writes.
+
+
 ## Usage
 
 ```ts
