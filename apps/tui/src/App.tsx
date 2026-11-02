@@ -785,11 +785,10 @@ export function App({ args }: { args: TuiArgs }) {
   const columns = size.columns;
   const termRows = size.rows;
   /**
-   * Leave slack so Ink's outputHeight stays < stdout.rows.
-   * Full-height frames take clearTerminal and flicker; `-2` covers yoga
-   * rounding plus log-update's trailing newline bookkeeping.
+   * Use the full terminal height so the composer and status chrome pin
+   * flush to the bottom edge, giving maximum vertical space to the transcript.
    */
-  const paintRows = Math.max(1, termRows - 2);
+  const paintRows = Math.max(1, termRows);
   const innerWidth = Math.max(1, columns - 2);
   const suggestions = commandSuggestions(editor.text);
   const selectedComplete =
@@ -1135,11 +1134,23 @@ function toDisplayLines(
   return lines;
 }
 
-/** Raw terminal size. Layout uses `rows - 1` so Ink avoids clearTerminal. */
+/** Terminal size with environment and stderr fallbacks when stdout is not sized. */
 function terminalSize(stdout: NodeJS.WriteStream): { columns: number; rows: number } {
+  const envCols = Number(process.env.COLUMNS);
+  const envRows = Number(process.env.LINES);
+  const cols =
+    stdout.columns ||
+    process.stdout.columns ||
+    process.stderr.columns ||
+    (Number.isFinite(envCols) && envCols > 0 ? envCols : 80);
+  const rows =
+    stdout.rows ||
+    process.stdout.rows ||
+    process.stderr.rows ||
+    (Number.isFinite(envRows) && envRows > 0 ? envRows : 24);
   return {
-    columns: Math.max(20, stdout.columns || 80),
-    rows: Math.max(8, stdout.rows || 24),
+    columns: Math.max(20, cols),
+    rows: Math.max(8, rows),
   };
 }
 
