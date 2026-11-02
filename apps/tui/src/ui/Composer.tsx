@@ -133,10 +133,23 @@ export function Composer({
   const rule = "─".repeat(width);
   const pad = composerPaddingRows();
 
+  /**
+   * Keys include line content and cursor so that newly inserted spans (e.g. typing
+   * Chinese/multibyte characters or the very first character before the caret)
+   * mount a fresh Text node with freshly computed Yoga layout width. This avoids
+   * an Ink reconciler bug where inserting nodes before an existing child doesn't
+   * mark the parent Yoga node dirty, which previously left maxWidth at 1 (the initial
+   * caret space width) and clipped Chinese characters into empty output.
+   */
   const body = lines.map((line, index) => (
-    <Box key={`composer:${index}`} height={1} width={width} flexShrink={0}>
+    <Box
+      key={`composer:${index}:${line.before}:${line.caret ?? ""}:${line.after}`}
+      height={1}
+      width={width}
+      flexShrink={0}
+    >
       {line.caret !== undefined ? (
-        <Text>
+        <Text key={`composer-text:${line.before}:${line.caret}:${line.after}`}>
           {line.before ? <Text color={color}>{line.before}</Text> : null}
           <Text color={color} inverse>
             {line.caret}
@@ -144,7 +157,7 @@ export function Composer({
           {line.after ? <Text color={color}>{line.after}</Text> : null}
         </Text>
       ) : (
-        <Text color={color}>
+        <Text key={`composer-text:${line.before}`} color={color}>
           {line.before.length > 0 ? line.before : " "}
         </Text>
       )}
