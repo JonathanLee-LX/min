@@ -80,6 +80,9 @@ function frameFor(
     const width = displayWidth(gutter);
     return { gutter, blank: gutter, bodyWidth: Math.max(1, columns - width) };
   }
+  if (kind === "banner" || kind === "banner-meta") {
+    return { gutter: "", blank: "", bodyWidth: Math.max(1, columns) };
+  }
   const chromeWidth = Math.max(1, frames.chromeWidth);
   const label = (CHROME_LABELS[kind] ?? "·").padEnd(chromeWidth, " ");
   return {

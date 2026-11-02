@@ -25,6 +25,8 @@ function key(partial: Partial<InputKey> = {}): InputKey {
     backspace: false,
     delete: false,
     meta: false,
+    mouseWheelUp: false,
+    mouseWheelDown: false,
     ...partial,
   };
 }
@@ -127,6 +129,26 @@ describe("inputAction", () => {
     expect(inputAction("", key({ return: true, ctrl: true }))).toEqual({ type: "submit" });
     expect(inputAction("", key({ pageUp: true }))).toEqual({ type: "scroll", direction: "up" });
     expect(inputAction("", key({ pageDown: true }))).toEqual({ type: "scroll", direction: "down" });
+    expect(inputAction("", key({ mouseWheelUp: true }))).toEqual({
+      type: "scroll",
+      direction: "up",
+      delta: 3,
+    });
+    expect(inputAction("", key({ mouseWheelDown: true }))).toEqual({
+      type: "scroll",
+      direction: "down",
+      delta: 3,
+    });
+    expect(inputAction("", key({ ctrl: true, upArrow: true }))).toEqual({
+      type: "scroll",
+      direction: "up",
+    });
+    expect(inputAction("", key({ ctrl: true, downArrow: true }))).toEqual({
+      type: "scroll",
+      direction: "down",
+    });
+    expect(inputAction("b", key({ ctrl: true }))).toEqual({ type: "edit", op: { op: "left" } });
+    expect(inputAction("f", key({ ctrl: true }))).toEqual({ type: "edit", op: { op: "right" } });
     expect(inputAction("c", key({ ctrl: true }))).toEqual({ type: "interrupt" });
     expect(inputAction("", key({ escape: true }))).toEqual({ type: "interrupt" });
     expect(inputAction("o", key({ ctrl: true }))).toEqual({ type: "toggle-tool-output" });

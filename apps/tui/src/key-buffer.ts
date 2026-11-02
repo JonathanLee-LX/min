@@ -19,7 +19,7 @@ export function isIncompleteKeySequence(buf: string): boolean {
   if (buf === "\x1bO") return true;
   if (buf === "\x1b[200~") return true; // bracketed paste start alone
   // CSI / SS3 still open: ESC [ ... (no final byte yet)
-  if (/^\x1b\[[0-9;?]*$/.test(buf)) return true;
+  if (/^\x1b\[[0-?]*[ -/]*$/.test(buf)) return true;
   if (/^\x1bO[0-9;]*$/.test(buf)) return true;
   // Bracketed paste body not closed
   if (buf.startsWith("\x1b[200~") && !buf.includes("\x1b[201~")) return true;
@@ -39,18 +39,25 @@ export function takeCompleteSequence(buf: string): { sequence: string; rest: str
   }
 
   if (buf[0] !== "\x1b") {
-    // Paste / burst of printable chars — take the whole non-ESC run.
-    const esc = buf.indexOf("\x1b");
-    if (esc === -1) return { sequence: buf, rest: "" };
-    if (esc === 0) return null;
-    return { sequence: buf.slice(0, esc), rest: buf.slice(esc) };
+    const code = buf.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) {
+      return { sequence: buf[0]!, rest: buf.slice(1) };
+    }
+    // Run of printable chars — stop before the next ESC or control char.
+    let end = 1;
+    while (end < buf.length) {
+      const c = buf.charCodeAt(end);
+      if (c <= 0x1f || c === 0x7f) break;
+      end++;
+    }
+    return { sequence: buf.slice(0, end), rest: buf.slice(end) };
   }
 
   if (isIncompleteKeySequence(buf)) return null;
 
   // Complete ESC sequence: longest incomplete prefix + one more byte, or known finals.
-  // CSI: ESC [ params final   final = @A-Z\\^_`a-z{|}~
-  const csi = /^\x1b\[[0-9;?]*[@-~]/.exec(buf);
+  // CSI: ESC [ params intermediate final   final = @A-Z\\^_`a-z{|}~
+  const csi = /^\x1b\[[0-?]*[ -/]*[@-~]/.exec(buf);
   if (csi) {
     const sequence = csi[0]!;
     return { sequence, rest: buf.slice(sequence.length) };

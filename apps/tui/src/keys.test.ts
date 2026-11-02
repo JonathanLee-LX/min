@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { actionFromChunk } from "./keys.js";
+import { inputAction } from "./editor.js";
+import { actionFromChunk, createInputDecoder } from "./keys.js";
 
 describe("actionFromChunk", () => {
   it("treats the Backspace byte as a backward delete", () => {
@@ -21,6 +22,16 @@ describe("actionFromChunk", () => {
     expect(actionFromChunk("\x1b[D")).toEqual({ type: "edit", op: { op: "left" } });
     expect(actionFromChunk("\x1b[5~")).toEqual({ type: "scroll", direction: "up" });
     expect(actionFromChunk("\x1b[6~")).toEqual({ type: "scroll", direction: "down" });
+    expect(actionFromChunk("\x1b[<64;12;8M")).toEqual({
+      type: "scroll",
+      direction: "up",
+      delta: 3,
+    });
+    expect(actionFromChunk("\x1b[<65;12;8M")).toEqual({
+      type: "scroll",
+      direction: "down",
+      delta: 3,
+    });
     expect(actionFromChunk("\x03")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x1b")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x0f")).toEqual({ type: "toggle-tool-output" });
@@ -45,5 +56,53 @@ describe("actionFromChunk", () => {
   it("swallows unknown CSI instead of inserting it as text", () => {
     expect(actionFromChunk("\x1b[999;5u")).toEqual({ type: "ignore" });
     expect(actionFromChunk("\x1b[27;5;1~")).toEqual({ type: "ignore" });
+  });
+
+  it("reassembles a PageUp sequence split by stdin", () => {
+    const decoder = createInputDecoder();
+    expect(decoder.push("\x1b")).toEqual([]);
+    expect(decoder.push("[5")).toEqual([]);
+    const [decoded] = decoder.push("~");
+    expect(decoded).toBeDefined();
+    expect(decoded && inputAction(decoded.input, decoded.key)).toEqual({
+      type: "scroll",
+      direction: "up",
+    });
+  });
+
+  it("reassembles arrow sequences split by stdin", () => {
+    const expected = [
+      ["A", { type: "edit", op: { op: "up" } }],
+      ["B", { type: "edit", op: { op: "down" } }],
+      ["C", { type: "edit", op: { op: "right" } }],
+      ["D", { type: "edit", op: { op: "left" } }],
+    ] as const;
+
+    for (const [finalByte, action] of expected) {
+      const decoder = createInputDecoder();
+      expect(decoder.push("\x1b[")).toEqual([]);
+      const [decoded] = decoder.push(finalByte);
+      expect(decoded && inputAction(decoded.input, decoded.key)).toEqual(action);
+    }
+  });
+
+  it("keeps a bracketed paste together across stdin chunks", () => {
+    const decoder = createInputDecoder();
+    expect(decoder.push("\x1b[200~hello")).toEqual([]);
+    const [decoded] = decoder.push("\nworld\x1b[201~");
+    expect(decoded).toMatchObject({ input: "hello\nworld" });
+    expect(decoded && inputAction(decoded.input, decoded.key)).toEqual({
+      type: "edit",
+      op: { op: "insert", text: "hello\nworld" },
+    });
+  });
+
+  it("separates a batched return key from ordinary typed text", () => {
+    const decoder = createInputDecoder();
+    const actions = decoder.push("/help\r").map(({ input, key }) => inputAction(input, key));
+    expect(actions).toEqual([
+      { type: "edit", op: { op: "insert", text: "/help" } },
+      { type: "submit" },
+    ]);
   });
 });

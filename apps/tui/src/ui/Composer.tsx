@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { wrapText } from "../text.js";
+import { nextBound, wrapText } from "../text.js";
 import type { TuiTheme } from "../theme.js";
 
 /** Input content is one terminal row by default (grows with wrap / newlines). */
@@ -44,32 +44,110 @@ export function composerBodyRowCount(text: string, columns: number): number {
   return composerPaddingRows() * 2 + composerContentRowCount(text, columns);
 }
 
+/** Lines broken down into fragments for inverse cursor rendering. */
+export function composerLinesWithCursor(
+  text: string,
+  cursor: number,
+  columns: number,
+): Array<{ before: string; caret?: string; after: string }> {
+  const clampedCursor = Math.max(0, Math.min(cursor, text.length));
+  const width = Math.max(1, columns);
+  const logicalLines = text.split("\n");
+  const result: Array<{ before: string; caret?: string; after: string }> = [];
+
+  let globalOffset = 0;
+  let caretPlaced = false;
+
+  for (let l = 0; l < logicalLines.length; l++) {
+    const line = logicalLines[l]!;
+    const lineStart = globalOffset;
+    const lineEnd = lineStart + line.length;
+    const isLastLogical = l === logicalLines.length - 1;
+    const wrapped = wrapText(line, width);
+    let wrappedOffsetInLine = 0;
+
+    for (let w = 0; w < wrapped.length; w++) {
+      const row = wrapped[w]!;
+      const rowStart = lineStart + wrappedOffsetInLine;
+      const rowEnd = rowStart + row.length;
+      const isLastRowOfLine = w === wrapped.length - 1;
+
+      const cursorInRow =
+        !caretPlaced &&
+        (clampedCursor < rowEnd ||
+          (clampedCursor === rowEnd && (isLastRowOfLine || isLastLogical)));
+
+      if (cursorInRow) {
+        caretPlaced = true;
+        const localIndex = clampedCursor - rowStart;
+        const before = row.slice(0, localIndex);
+        const end = nextBound(row, localIndex);
+        const caret = row.slice(localIndex, end) || " ";
+        const after = row.slice(localIndex + caret.length);
+        result.push({ before, caret, after });
+      } else {
+        result.push({ before: row, after: "" });
+      }
+
+      wrappedOffsetInLine += row.length;
+    }
+
+    globalOffset = lineEnd + 1;
+  }
+
+  if (!caretPlaced) {
+    if (result.length > 0) {
+      const last = result[result.length - 1]!;
+      last.caret = " ";
+    } else {
+      result.push({ before: "", caret: " ", after: "" });
+    }
+  }
+
+  return result;
+}
+
 /**
  * Framed composer: brand rules + one-row content by default.
  * Soft wraps and hard newlines grow the body; paddingY is floored to cells.
  */
 export function Composer({
   text,
+  cursor,
   columns,
   color,
   borderColor,
 }: {
   text: string;
+  cursor?: number;
   columns: number;
   color?: string;
   borderColor: string;
   theme?: TuiTheme;
 }) {
   const width = Math.max(1, columns);
-  const lines = composerContentRows(text, width);
+  const lines: Array<{ before: string; caret?: string; after: string }> =
+    cursor !== undefined
+      ? composerLinesWithCursor(text, cursor, width)
+      : composerContentRows(text, width).map((line) => ({ before: line, after: "" }));
   const rule = "─".repeat(width);
   const pad = composerPaddingRows();
 
   const body = lines.map((line, index) => (
     <Box key={`composer:${index}`} height={1} width={width} flexShrink={0}>
-      <Text color={color} wrap="truncate">
-        {line.length > 0 ? line : " "}
-      </Text>
+      {line.caret !== undefined ? (
+        <Text>
+          {line.before ? <Text color={color}>{line.before}</Text> : null}
+          <Text color={color} inverse>
+            {line.caret}
+          </Text>
+          {line.after ? <Text color={color}>{line.after}</Text> : null}
+        </Text>
+      ) : (
+        <Text color={color}>
+          {line.before.length > 0 ? line.before : " "}
+        </Text>
+      )}
     </Box>
   ));
 

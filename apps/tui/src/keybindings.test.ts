@@ -24,6 +24,8 @@ function key(partial: Partial<InputKey> = {}): InputKey {
     backspace: false,
     delete: false,
     meta: false,
+    mouseWheelUp: false,
+    mouseWheelDown: false,
     ...partial,
   };
 }
@@ -37,6 +39,16 @@ describe("keybindings", () => {
     });
     expect(DEFAULT_KEYBINDINGS.enter).toBe("submit");
     expect(DEFAULT_KEYBINDINGS["shift+enter"]).toBe("newline");
+    expect(DEFAULT_KEYBINDINGS["shift+up"]).toBe("scroll-up");
+    expect(DEFAULT_KEYBINDINGS["alt+up"]).toBe("scroll-up");
+    expect(lookupKeybinding("", key({ upArrow: true, shift: true }))).toEqual({
+      type: "scroll",
+      direction: "up",
+    });
+    expect(lookupKeybinding("", key({ upArrow: true, meta: true }))).toEqual({
+      type: "scroll",
+      direction: "up",
+    });
   });
 
   it("merges sparse overrides onto defaults", () => {

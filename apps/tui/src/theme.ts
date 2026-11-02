@@ -170,6 +170,18 @@ export const defaultTheme: TuiTheme = {
       dimBody: true,
     },
     gap: { dimLabel: true, dimBody: true },
+    banner: {
+      label: mocha.lightGreen,
+      body: mocha.lightGreen,
+      dimLabel: false,
+      dimBody: false,
+    },
+    "banner-meta": {
+      label: mocha.subtext,
+      body: mocha.subtext,
+      dimLabel: true,
+      dimBody: true,
+    },
   },
   frames: {
     chatBar: "▌ ",

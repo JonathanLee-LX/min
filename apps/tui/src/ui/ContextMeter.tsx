@@ -14,6 +14,7 @@ export function ContextMeter({
   usage,
   branch,
   dim,
+  scrollHint,
 }: {
   cwd: string;
   model: string;
@@ -22,8 +23,9 @@ export function ContextMeter({
   /** Kept for call-site compatibility; status lines are dim text only. */
   theme?: TuiTheme;
   dim: boolean;
+  scrollHint?: string;
 }) {
-  const lines = bottomStatusLines(cwd, model, usage, branch);
+  const lines = bottomStatusLines(cwd, model, usage, branch, scrollHint);
   return (
     <Box flexDirection="column" flexShrink={0}>
       {lines.map((line) => (

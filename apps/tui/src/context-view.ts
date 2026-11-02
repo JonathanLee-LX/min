@@ -33,8 +33,9 @@ export function bottomStatusLines(
   providerId: string,
   usage: ContextUsage | undefined,
   branch?: string | null,
+  scrollHint?: string,
 ): string[] {
-  return statusBarLines(cwd, providerId, usage, branch);
+  return statusBarLines(cwd, providerId, usage, branch, scrollHint);
 }
 
 /** @deprecated Prefer {@link contextPercentLabel} from status-bar. */

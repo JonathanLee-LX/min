@@ -7,6 +7,7 @@ import {
   composerContentRows,
   composerPadTop,
   composerPaddingRows,
+  composerLinesWithCursor,
 } from "./Composer.js";
 
 describe("composerContentRows", () => {
@@ -27,5 +28,28 @@ describe("composerContentRows", () => {
     expect(composerBodyRowCount("abcdefgh", 4)).toBe(2);
     expect(composerContentRows("a\nb\nc", 40)).toEqual(["a", "b", "c"]);
     expect(composerBodyRowCount("a\nb\nc", 40)).toBe(3);
+  });
+
+  it("calculates lines and cursor fragments for single and multi-line drafts", () => {
+    // Empty draft
+    expect(composerLinesWithCursor("", 0, 40)).toEqual([
+      { before: "", caret: " ", after: "" },
+    ]);
+
+    // Single line at end
+    expect(composerLinesWithCursor("hello", 5, 40)).toEqual([
+      { before: "hello", caret: " ", after: "" },
+    ]);
+
+    // Single line mid cursor
+    expect(composerLinesWithCursor("hello", 2, 40)).toEqual([
+      { before: "he", caret: "l", after: "lo" },
+    ]);
+
+    // Multi line cursor on second line
+    expect(composerLinesWithCursor("hello\nworld", 7, 40)).toEqual([
+      { before: "hello", after: "" },
+      { before: "w", caret: "o", after: "rld" },
+    ]);
   });
 });

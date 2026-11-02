@@ -1,4 +1,4 @@
-import { Alert, Badge, ThemeProvider } from "@inkjs/ui";
+import { Alert, ThemeProvider } from "@inkjs/ui";
 import {
   createAutoPermissionApprover,
   createClient,
@@ -11,7 +11,7 @@ import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
-import { minBannerLines, minBannerRows } from "./banner.js";
+import { minBannerLines } from "./banner.js";
 import {
   TUI_HELP,
   applyCommandCompletion,
@@ -44,6 +44,7 @@ import {
   activityFor,
   createPaintCache,
   toneFor,
+  type PaintedRow,
   type TranscriptSource,
 } from "./paint.js";
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
@@ -92,7 +93,7 @@ interface PendingPermission {
 export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  const { setRawMode, internal_eventEmitter } = useStdin();
+  const { stdin, setRawMode } = useStdin();
   const { theme, keybindings } = useMemo(() => {
     const { config } = resolveMinConfig(
       { cwd: args.cwd },
@@ -656,10 +657,10 @@ export function App({ args }: { args: TuiArgs }) {
     }
     if (action.type === "scroll") {
       setScroll((current) => {
-        const page = Math.max(1, viewRef.current.height);
+        const step = action.delta ?? Math.max(1, viewRef.current.height);
         const max = Math.max(0, viewRef.current.total - viewRef.current.height);
-        if (action.direction === "up") return Math.min(max, current + page);
-        return Math.max(0, current - page);
+        if (action.direction === "up") return Math.min(max, current + step);
+        return Math.max(0, current - step);
       });
       return;
     }
@@ -733,10 +734,7 @@ export function App({ args }: { args: TuiArgs }) {
 
   useEffect(() => {
     setRawMode(true);
-    return () => setRawMode(false);
-  }, [setRawMode]);
-
-  useEffect(() => {
+    stdin.resume();
     const buffer = createKeyBuffer((sequence) => {
       const focus = focusStateFromChunk(sequence);
       if (focus !== null) {
@@ -746,7 +744,7 @@ export function App({ args }: { args: TuiArgs }) {
       const { input, key } = decodeInput(sequence);
       handleInput.current(input, key);
     });
-    const onChunk = (chunk: string | Buffer) => {
+    const onData = (chunk: string | Buffer) => {
       const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
       // Focus reports are complete on their own; don't buffer-merge with keys.
       const focus = focusStateFromChunk(text);
@@ -756,12 +754,13 @@ export function App({ args }: { args: TuiArgs }) {
       }
       buffer.push(text);
     };
-    internal_eventEmitter.on("input", onChunk);
+    stdin.on("data", onData);
     return () => {
-      internal_eventEmitter.off("input", onChunk);
+      stdin.off("data", onData);
       buffer.dispose();
+      setRawMode(false);
     };
-  }, [internal_eventEmitter]);
+  }, [stdin, setRawMode]);
 
   const activity = activityFor(
     {
@@ -800,12 +799,8 @@ export function App({ args }: { args: TuiArgs }) {
   const modelId = client?.getStatus().provider ?? "";
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
   const bottomStatusRows = contextMeterRows(cwdPath, modelId);
-  const bannerRows = minBannerRows(innerWidth);
-  /** Banner + session meta (fixed 1 row) + transcript top margin. */
-  const headerRows = bannerRows + 1 + 1;
   const permBlockRows = pendingPerm ? permissionPromptRows(pendingPerm) : 0;
   const reserved =
-    headerRows +
     activityRows +
     permBlockRows +
     composerBorderRows +
@@ -814,7 +809,7 @@ export function App({ args }: { args: TuiArgs }) {
     bottomStatusRows;
   const logHeight = Math.max(1, paintRows - reserved);
   const rowsAboveComposer =
-    headerRows + logHeight + activityRows + permBlockRows + 1; /* top rule */
+    logHeight + activityRows + permBlockRows + 1; /* top rule */
   const rowsBelowComposer = 1 /* bottom rule */ + suggestRows + bottomStatusRows;
   const userTone = toneFor("user", theme);
   const imeAnchor =
@@ -835,7 +830,49 @@ export function App({ args }: { args: TuiArgs }) {
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
     toolOutputExpanded,
   });
-  const rowCount = painted.length;
+
+  const bannerLines = minBannerLines(innerWidth);
+  const bannerRows: PaintedRow[] = bannerLines.map((line, index) => ({
+    key: `banner:${index}`,
+    kind: "banner",
+    lead: false,
+    gutter: "",
+    body: line,
+    text: line,
+    spans: [{ text: line, tone: "plain", bold: true, italic: false }],
+  }));
+  const metaText = client
+    ? `${shortId(client.getStatus().sessionId)} · ${statusLabel}${queueSize > 0 ? ` · queue ${queueSize}` : ""}`
+    : "";
+  const bannerMetaRow: PaintedRow[] = metaText
+    ? [
+        {
+          key: "banner:meta",
+          kind: "banner-meta",
+          lead: false,
+          gutter: "",
+          body: metaText,
+          text: metaText,
+          spans: [{ text: metaText, tone: "dim", bold: false, italic: false }],
+        },
+      ]
+    : [];
+  const bannerGapRow: PaintedRow = {
+    key: "banner:gap",
+    kind: "gap",
+    lead: false,
+    gutter: "",
+    body: " ",
+    text: " ",
+    spans: [],
+  };
+  const allPainted: PaintedRow[] = [
+    ...bannerRows,
+    ...bannerMetaRow,
+    bannerGapRow,
+    ...painted,
+  ];
+  const rowCount = allPainted.length;
 
   useLayoutEffect(() => {
     if (!client) return;
@@ -873,7 +910,7 @@ export function App({ args }: { args: TuiArgs }) {
   }, [slashOpenRows, slashFillRows]);
 
   viewRef.current = { total: rowCount, height: logHeight };
-  const layout = sliceViewport(painted, logHeight, scroll);
+  const layout = sliceViewport(allPainted, logHeight, scroll);
 
   // Re-park the caret inside each Ink stdout write. The hook also turns
   // eraseLines into an in-place frame so stream paints do not flash blank.
@@ -919,37 +956,16 @@ export function App({ args }: { args: TuiArgs }) {
     );
   }
 
-  const status = client.getStatus();
   const scrollHint =
     layout.hiddenAbove || layout.hiddenBelow
-      ? ` · ↑${layout.hiddenAbove} ↓${layout.hiddenBelow}`
+      ? `↑${layout.hiddenAbove} ↓${layout.hiddenBelow}`
       : "";
-
-  const banner = minBannerLines(innerWidth);
 
   return (
     <ThemeProvider theme={inkChromeTheme}>
     <Box flexDirection="column" paddingX={1} width={columns} height={paintRows}>
-      <Box flexDirection="column" flexShrink={0}>
-        {banner.map((line, index) => (
-          <Text key={`banner:${index}`} bold color={theme.chrome.brand} wrap="truncate">
-            {line}
-          </Text>
-        ))}
-        <Box height={1} flexShrink={0} overflow="hidden">
-          <Text dimColor={theme.chrome.statusDim} wrap="truncate">
-            {`${shortId(status.sessionId)} · `}
-          </Text>
-          <Badge color={theme.chrome.brand}>{statusLabel}</Badge>
-          <Text dimColor={theme.chrome.statusDim} wrap="truncate">
-            {` · queue ${queueSize}${scrollHint}`}
-          </Text>
-        </Box>
-      </Box>
-
-      <Box flexDirection="column" marginTop={1} height={logHeight} overflow="hidden">
+      <Box flexDirection="column" height={logHeight} overflow="hidden">
         {layout.visible.map((row) => {
-          const tone = toneFor(row.kind, theme);
           if (row.kind === "gap") {
             return (
               <Box key={row.key} height={1} flexShrink={0}>
@@ -957,6 +973,25 @@ export function App({ args }: { args: TuiArgs }) {
               </Box>
             );
           }
+          if (row.kind === "banner") {
+            return (
+              <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
+                <Text bold color={theme.chrome.brand} wrap="truncate">
+                  {row.text}
+                </Text>
+              </Box>
+            );
+          }
+          if (row.kind === "banner-meta") {
+            return (
+              <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
+                <Text dimColor={theme.chrome.statusDim} wrap="truncate">
+                  {row.text}
+                </Text>
+              </Box>
+            );
+          }
+          const tone = toneFor(row.kind, theme);
           return (
             <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
               <Text wrap="truncate" backgroundColor={tone.background ?? undefined}>
@@ -1031,6 +1066,7 @@ export function App({ args }: { args: TuiArgs }) {
 
       <Composer
         text={editor.text}
+        cursor={editor.cursor}
         columns={innerWidth}
         color={userTone.body}
         borderColor={theme.chrome.brand}
@@ -1063,6 +1099,7 @@ export function App({ args }: { args: TuiArgs }) {
         branch={gitBranch}
         theme={theme}
         dim={theme.chrome.statusDim}
+        scrollHint={scrollHint || undefined}
       />
     </Box>
     </ThemeProvider>

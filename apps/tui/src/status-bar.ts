@@ -70,8 +70,11 @@ export function bottomStatusLines(
   providerId: string,
   usage: ContextUsage | undefined,
   branch?: string | null,
+  scrollHint?: string,
 ): string[] {
-  return [workspaceStatusLine(cwd, branch), modelStatusLine(providerId, usage)];
+  const dir = workspaceStatusLine(cwd, branch);
+  const line1 = scrollHint ? `${dir}  · ${scrollHint}` : dir;
+  return [line1, modelStatusLine(providerId, usage)];
 }
 
 /** Read the current branch for a git working tree; undefined when not a repo. */

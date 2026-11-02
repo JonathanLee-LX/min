@@ -17,10 +17,78 @@ export function actionFromChunk(
   return inputAction(decoded.input, decoded.key, bindings);
 }
 
+/**
+ * stdin is a byte stream: a terminal may split one escape sequence across
+ * multiple `data` events. Keep an unfinished escape sequence until its final
+ * byte arrives so PageUp/PageDown do not turn into ignored editor input.
+ */
+export function createInputDecoder(): {
+  push(chunk: string): Array<{ input: string; key: InputKey }>;
+  reset(): void;
+} {
+  let pending = "";
+  return {
+    push(chunk) {
+      pending += chunk;
+      const decoded: Array<{ input: string; key: InputKey }> = [];
+      while (pending) {
+        if (pending.startsWith(PASTE_START)) {
+          const end = pending.indexOf(PASTE_END, PASTE_START.length);
+          if (end === -1) break;
+          decoded.push(plain(pending.slice(PASTE_START.length, end)));
+          pending = pending.slice(end + PASTE_END.length);
+          continue;
+        }
+        if (PASTE_START.startsWith(pending)) break;
+
+        const csi = /^\x1b\[[0-?]*[ -/]*[@-~]/.exec(pending);
+        if (csi) {
+          decoded.push(decodeInput(csi[0]));
+          pending = pending.slice(csi[0].length);
+          continue;
+        }
+        if (pending.startsWith("\x1b[")) break;
+
+        const ss3 = /^\x1bO./.exec(pending);
+        if (ss3) {
+          decoded.push(decodeInput(ss3[0]));
+          pending = pending.slice(ss3[0].length);
+          continue;
+        }
+        if (pending === "\x1bO") break;
+
+        if (pending.startsWith("\x1b")) {
+          if (pending.length === 1) break;
+          decoded.push(decodeInput(pending.slice(0, 2)));
+          pending = pending.slice(2);
+          continue;
+        }
+
+        const nextEscape = pending.indexOf("\x1b");
+        const text = nextEscape === -1 ? pending : pending.slice(0, nextEscape);
+        decoded.push(...decodeText(text));
+        pending = nextEscape === -1 ? "" : pending.slice(nextEscape);
+      }
+      return decoded;
+    },
+    reset() {
+      pending = "";
+    },
+  };
+}
+
 export function decodeInput(chunk: string): { input: string; key: InputKey } {
   const pasted = chunk.match(/^\x1b\[200~([\s\S]*)\x1b\[201~$/);
   if (pasted) return plain(pasted[1] ?? "");
   if (chunk === "\x1b[200~" || chunk === "\x1b[201~") return plain("");
+
+  const mouse = /^\x1b\[<(\d+);\d+;\d+([Mm])$/.exec(chunk);
+  if (mouse && mouse[2] === "M") {
+    const button = Number(mouse[1]);
+    if ((button & 0x40) !== 0) {
+      return flagged({ mouseWheelUp: (button & 1) === 0, mouseWheelDown: (button & 1) !== 0 });
+    }
+  }
 
   if (chunk === "\x7f" || chunk === "\b") return flagged({ backspace: true });
   if (chunk === "\x1b\x7f" || chunk === "\x1b\b") return flagged({ backspace: true, meta: true });
@@ -59,6 +127,8 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
       key: flagged({ meta: true, shift: ch >= "A" && ch <= "Z" }).key,
     };
   }
+
+  if (chunk.startsWith("\x1b")) return flagged({ escape: true });
 
   if (chunk.length === 1 && chunk >= "A" && chunk <= "Z") {
     return { input: chunk, key: flagged({ shift: true }).key };
@@ -101,10 +171,11 @@ function decodeEnhancedCode(
 }
 
 function navigation(chunk: string): { input: string; key: InputKey } | null {
-  const arrow = /^\x1b(?:\[|O)(?:1;)?(\d+)?([ABCD])$/.exec(chunk);
+  const arrow = /^(\x1b+)(?:\[|O)(?:1;)?(\d+)?([ABCD])$/.exec(chunk);
   if (arrow) {
-    const flags = modifiers(arrow[1]);
-    const which = arrow[2];
+    const flags = modifiers(arrow[2]);
+    if ((arrow[1]?.length ?? 1) > 1) flags.meta = true;
+    const which = arrow[3];
     if (which === "A") flags.upArrow = true;
     if (which === "B") flags.downArrow = true;
     if (which === "C") flags.rightArrow = true;
@@ -139,6 +210,28 @@ function plain(input: string): { input: string; key: InputKey } {
   return { input, key: flagged({}).key };
 }
 
+/** Keep terminal controls distinct even when stdin batches them with text. */
+function decodeText(text: string): Array<{ input: string; key: InputKey }> {
+  const out: Array<{ input: string; key: InputKey }> = [];
+  let buffered = "";
+  const flush = () => {
+    if (!buffered) return;
+    out.push(plain(buffered));
+    buffered = "";
+  };
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    if (char === "\x7f" || code <= 0x1a) {
+      flush();
+      out.push(decodeInput(char));
+    } else {
+      buffered += char;
+    }
+  }
+  flush();
+  return out;
+}
+
 function flagged(partial: Partial<InputKey>): { input: string; key: InputKey } {
   return {
     input: "",
@@ -157,7 +250,12 @@ function flagged(partial: Partial<InputKey>): { input: string; key: InputKey } {
       backspace: false,
       delete: false,
       meta: false,
+      mouseWheelUp: false,
+      mouseWheelDown: false,
       ...partial,
     },
   };
 }
+
+const PASTE_START = "\x1b[200~";
+const PASTE_END = "\x1b[201~";

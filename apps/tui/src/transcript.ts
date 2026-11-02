@@ -20,7 +20,9 @@ export type LogKind =
   | "error"
   | "notice"
   | "sys"
-  | "gap";
+  | "gap"
+  | "banner"
+  | "banner-meta";
 
 export interface LogLine {
   id: number;

@@ -44,13 +44,15 @@ export interface InputKey {
   backspace: boolean;
   delete: boolean;
   meta: boolean;
+  mouseWheelUp: boolean;
+  mouseWheelDown: boolean;
 }
 
 export type InputAction =
   | { type: "edit"; op: EditorOp }
   | { type: "submit" }
   | { type: "complete" }
-  | { type: "scroll"; direction: "up" | "down" }
+  | { type: "scroll"; direction: "up" | "down"; delta?: number }
   | { type: "toggle-tool-output" }
   | { type: "interrupt" }
   | { type: "ignore" };
@@ -137,6 +139,8 @@ export function inputAction(
   key: InputKey,
   bindings: KeybindingTable = DEFAULT_KEYBINDINGS,
 ): InputAction {
+  if (key.mouseWheelUp) return { type: "scroll", direction: "up", delta: 3 };
+  if (key.mouseWheelDown) return { type: "scroll", direction: "down", delta: 3 };
   const bound = lookupKeybinding(input, key, bindings);
   if (bound) return bound;
   if (key.ctrl || key.meta) return { type: "ignore" };
