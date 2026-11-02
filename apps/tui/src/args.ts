@@ -75,6 +75,7 @@ Commands:
   /compact           summarize older turns and rewrite stored history
   /reset             clear conversation history
   /queue             show the follow-up queue
+  /thinking          expand / collapse thinking content
   /dense <text>      queue text as a dense-latest supplement
   /exit /quit        quit
 
@@ -85,7 +86,7 @@ Keys:
   Up/Down            previous line, or input history at the ends
   Mouse wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
-  Ctrl+O             expand / collapse tool output
+  Ctrl+O             expand / collapse tool output & thinking
   Esc                abort the run while it is busy
   Ctrl+C             abort the run, or quit when idle
   Ctrl+A / Ctrl+E    start / end of line

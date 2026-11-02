@@ -8,7 +8,7 @@ import {
   type TableAlign,
 } from "./render.js";
 import { defaultTheme, type TuiTheme } from "./theme.js";
-import { foldToolOutput } from "./tool-fold.js";
+import { foldThinking, foldToolOutput } from "./tool-fold.js";
 import type { LogKind } from "./transcript.js";
 import { displayWidth, wrapText } from "./text.js";
 
@@ -18,6 +18,8 @@ export { toneFor } from "./theme.js";
 export interface PaintOptions {
   /** When false (default), multi-line tool output collapses to one summary line. */
   toolOutputExpanded?: boolean;
+  /** When false (default), multi-line thinking collapses to one summary line. */
+  thinkingExpanded?: boolean;
 }
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
@@ -145,12 +147,13 @@ export function createPaintCache(theme: TuiTheme = defaultTheme): {
   const cache = new Map<string, { sig: string; rows: PaintedRow[] }>();
   return {
     paint(lines, columns, options = {}) {
-      const expanded = options.toolOutputExpanded === true ? "1" : "0";
+      const toolExpanded = options.toolOutputExpanded === true ? "1" : "0";
+      const thinkExpanded = options.thinkingExpanded === true ? "1" : "0";
       const seen = new Set<string>();
       const rows: PaintedRow[] = [];
       for (const line of separateTurns(lines)) {
         seen.add(line.key);
-        const sig = `${theme.id}\0${columns}\0${expanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const sig = `${theme.id}\0${columns}\0${toolExpanded}\0${thinkExpanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
         const cached = cache.get(line.key);
         if (cached?.sig === sig) {
           rows.push(...cached.rows);
@@ -191,7 +194,9 @@ function paintOne(
   const sourceText =
     line.kind === "tool-result" || line.kind === "tool-error"
       ? foldToolOutput(line.text, options.toolOutputExpanded === true)
-      : line.text;
+      : line.kind === "thinking"
+        ? foldThinking(line.text, options.thinkingExpanded === true)
+        : line.text;
   const blocks = renderContent({
     role: roleFor(line.kind),
     text: sourceText,

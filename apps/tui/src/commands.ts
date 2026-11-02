@@ -19,7 +19,8 @@ export type TuiCommand =
   | { type: "reset" }
   | { type: "queue" }
   | { type: "dense"; text: string }
-  | { type: "dense-usage" };
+  | { type: "dense-usage" }
+  | { type: "thinking" };
 
 export type SubmitRoute =
   | { type: "empty" }
@@ -46,6 +47,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "compact", hint: "summarize older turns and rewrite stored history" },
   { name: "reset", hint: "clear conversation history" },
   { name: "queue", hint: "show the follow-up queue" },
+  { name: "thinking", hint: "expand / collapse thinking content" },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
   { name: "exit", hint: "quit" },
   { name: "quit", hint: "quit" },
@@ -62,6 +64,7 @@ export const TUI_HELP = `Commands:
   /compact           summarize older turns and rewrite stored history
   /reset             clear conversation history
   /queue             show the follow-up queue
+  /thinking          expand / collapse thinking content
   /dense <text>      queue text as a dense-latest supplement
   /exit /quit        quit
 
@@ -73,7 +76,7 @@ Keys:
   Up/Down            previous line, or input history at the ends
   Mouse wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
-  Ctrl+O             expand / collapse tool output
+  Ctrl+O             expand / collapse tool output & thinking
   Esc                abort the run while it is busy
   Ctrl+C             abort the run, or quit when idle
   Ctrl+A / Ctrl+E    start / end of line
@@ -152,6 +155,7 @@ export function parseTuiCommand(line: string): TuiCommand {
   if (name === "compact") return { type: "compact" };
   if (name === "reset") return { type: "reset" };
   if (name === "queue") return { type: "queue" };
+  if (name === "thinking" || name === "think") return { type: "thinking" };
   if (name === "dense") {
     const text = rest.join(" ").trim();
     return text ? { type: "dense", text } : { type: "dense-usage" };

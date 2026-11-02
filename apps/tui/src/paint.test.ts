@@ -52,6 +52,31 @@ describe("paintTranscript", () => {
     expect(rows.map((row) => row.text).join("")).not.toMatch(/think/i);
   });
 
+  it("collapses multi-line thinking by default and expands with thinkingExpanded", () => {
+    const text = "first understand requirements\nthen check files\nfinally write the solution";
+    const collapsed = paintTranscript(
+      [{ key: "th", kind: "thinking", text }],
+      80,
+    );
+    expect(collapsed).toHaveLength(1);
+    expect(collapsed[0]?.body).toContain("thinking: first understand requirements");
+    expect(collapsed[0]?.body).toContain("3 lines");
+    expect(collapsed[0]?.body).toContain("Ctrl+O");
+
+    const expanded = paintTranscript(
+      [{ key: "th", kind: "thinking", text }],
+      80,
+      undefined,
+      { thinkingExpanded: true },
+    );
+    expect(expanded).toHaveLength(3);
+    expect(expanded.map((r) => r.body.trimEnd())).toEqual([
+      "first understand requirements",
+      "then check files",
+      "finally write the solution",
+    ]);
+  });
+
   it("nests tool output under the call and collapses it by default", () => {
     const rows = paintTranscript(
       [

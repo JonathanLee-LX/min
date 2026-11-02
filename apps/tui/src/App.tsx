@@ -132,6 +132,8 @@ export function App({ args }: { args: TuiArgs }) {
   const [scroll, setScroll] = useState(0);
   /** Tool results start collapsed; Ctrl+O toggles. */
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
+  /** Thinking content starts collapsed; Ctrl+O toggles. */
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [focused, setFocused] = useState(true);
   const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>();
@@ -418,6 +420,14 @@ export function App({ args }: { args: TuiArgs }) {
 
   const runCommand = useCallback(
     async (live: MinClient, command: TuiCommand) => {
+      if (command.type === "thinking") {
+        setThinkingExpanded((current) => {
+          const next = !current;
+          pushLine("sys", next ? "thinking expanded" : "thinking collapsed");
+          return next;
+        });
+        return;
+      }
       if (command.type === "exit") {
         exit();
         return;
@@ -666,6 +676,7 @@ export function App({ args }: { args: TuiArgs }) {
     }
     if (action.type === "toggle-tool-output") {
       setToolOutputExpanded((current) => !current);
+      setThinkingExpanded((current) => !current);
       return;
     }
     if (pendingPerm) {
@@ -829,6 +840,7 @@ export function App({ args }: { args: TuiArgs }) {
   termColumnsRef.current = columns;
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
     toolOutputExpanded,
+    thinkingExpanded,
   });
 
   const bannerLines = minBannerLines(innerWidth);

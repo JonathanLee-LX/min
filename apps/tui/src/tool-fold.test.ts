@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { foldToolOutput, toolOutputFoldable } from "./tool-fold.js";
+import {
+  foldThinking,
+  foldToolOutput,
+  thinkingFoldable,
+  toolOutputFoldable,
+} from "./tool-fold.js";
 
 describe("foldToolOutput", () => {
   it("leaves short single-line bodies alone when collapsed", () => {
@@ -25,6 +30,36 @@ describe("foldToolOutput", () => {
     const long = "x".repeat(120);
     const folded = foldToolOutput(long, false);
     expect(folded.length).toBeLessThan(long.length);
+    expect(folded).toContain("Ctrl+O");
+  });
+});
+
+describe("foldThinking", () => {
+  it("leaves short single-line thinking alone when collapsed", () => {
+    expect(foldThinking("pondering", false)).toBe("pondering");
+    expect(thinkingFoldable("pondering")).toBe(false);
+  });
+
+  it("collapses multi-line thinking to a one-line summary", () => {
+    const text = "analyze the problem\ncheck directory structure\nwrite patch";
+    const folded = foldThinking(text, false);
+    expect(folded).toContain("thinking: analyze the problem");
+    expect(folded).toContain("3 lines");
+    expect(folded).toContain("Ctrl+O");
+    expect(folded).not.toContain("\n");
+    expect(thinkingFoldable(text)).toBe(true);
+  });
+
+  it("returns the full thinking body when expanded", () => {
+    const text = "analyze the problem\ncheck directory structure\nwrite patch";
+    expect(foldThinking(text, true)).toBe(text);
+  });
+
+  it("collapses a long single-line thinking", () => {
+    const long = "x".repeat(120);
+    const folded = foldThinking(long, false);
+    expect(folded.length).toBeLessThan(long.length);
+    expect(folded).toContain("thinking:");
     expect(folded).toContain("Ctrl+O");
   });
 });
