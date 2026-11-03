@@ -84,20 +84,20 @@ export type ThemeOverrides = {
 
 /**
  * Built-in palette inspired by Catppuccin Mocha. Chat rows stay on the
- * terminal background. Notices are the exception: a peach band so a system
- * warning stays readable at a glance. Overrides may still set `background`
+ * terminal background. Notices are the exception: a warm band behind the
+ * text, with yellow copy. Overrides may still set `background`
  * on any role.
  * https://github.com/catppuccin/catppuccin
  */
 const mocha = {
-  /** Dark ink used on the notice band. */
-  crust: "#11111b",
   text: "#cdd6f4",
   subtext: "#a6adc8",
   /** Darker muted tone for secondary / reasoning copy. */
   overlay: "#7f849c",
   /** Surface behind inline / fenced code. */
   surface: "#313244",
+  /** Warm band behind a notice. Dark enough for light warning text. */
+  notice: "#5b3d2e",
   green: "#a6e3a1",
   /**
    * Brand mint for the MIN banner / composer rules.
@@ -161,9 +161,9 @@ export const defaultTheme: TuiTheme = {
       dimBody: false,
     },
     notice: {
-      label: mocha.crust,
-      body: mocha.crust,
-      background: mocha.peach,
+      label: mocha.yellow,
+      body: mocha.yellow,
+      background: mocha.notice,
       dimLabel: false,
       dimBody: false,
     },

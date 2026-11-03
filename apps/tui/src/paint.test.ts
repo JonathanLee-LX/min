@@ -142,15 +142,23 @@ describe("paintTranscript", () => {
     expect(rows.map((row) => row.body).join("\n")).toContain("flowchart");
   });
 
-  it("pads a notice to the full row so the background is a solid band", () => {
+  it("keeps a notice background on the text instead of the whole row", () => {
     const rows = paintTranscript(
       [{ key: "n", kind: "notice", text: "move the old file" }],
       32,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.gutter).toBe("note ");
-    expect(displayWidth(rows[0]!.text)).toBe(32);
-    expect(displayWidth(rows[0]!.body)).toBe(27);
+    expect(rows[0]?.body).toBe("move the old file ");
+    expect(displayWidth(rows[0]!.text)).toBe(23);
+
+    const filled = paintTranscript(
+      [{ key: "n", kind: "notice", text: "x".repeat(80) }],
+      20,
+    );
+    expect(filled.length).toBeGreaterThan(1);
+    for (const row of filled) expect(displayWidth(row.text)).toBeLessThanOrEqual(20);
+    expect(displayWidth(filled[0]!.body)).toBe(15);
   });
 
   it("opens a gap before a new turn", () => {

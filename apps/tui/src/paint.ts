@@ -209,18 +209,24 @@ function paintOne(
   return appendCaret(rows, line, gutter, blank, bodyWidth, fillBackground);
 }
 
-/** Pad a row to full width only when a role background needs a solid fill. */
+/**
+ * Pad a row when its role has a background.
+ * Chat rows fill the viewport. A notice only keeps one trailing cell so the
+ * band ends with the text instead of running to the edge of the terminal.
+ */
 function fillRowWidth(row: PaintedRow, bodyWidth: number, fillBackground: boolean): void {
   if (!fillBackground) {
     row.text = row.gutter + row.body;
     return;
   }
   const used = displayWidth(row.body);
-  if (used >= bodyWidth) {
+  const target =
+    row.kind === "notice" ? Math.min(bodyWidth, used + 1) : bodyWidth;
+  if (used >= target) {
     row.text = row.gutter + row.body;
     return;
   }
-  const pad = " ".repeat(bodyWidth - used);
+  const pad = " ".repeat(target - used);
   row.body += pad;
   row.spans.push({ text: pad, tone: "plain", bold: false, italic: false });
   row.text = row.gutter + row.body;
