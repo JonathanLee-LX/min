@@ -58,6 +58,21 @@ describe("theme", () => {
     expect(themed.roles.assistant.background).toBeUndefined();
   });
 
+  it("paints notices on a peach band", () => {
+    expect(toneFor("notice")).toMatchObject({
+      label: "#11111b",
+      body: "#11111b",
+      background: "#fab387",
+    });
+    const rows = paintTranscript(
+      [{ key: "n", kind: "notice", text: "legacy config is ignored" }],
+      40,
+    );
+    expect(rows[0]?.gutter).toBe("note ");
+    expect(rows[0]?.text.length).toBe(40);
+    expect(rows[0]?.body.endsWith(" ")).toBe(true);
+  });
+
   it("keeps default user/assistant roles free of background fills", () => {
     expect(defaultTheme.roles.user.background).toBeUndefined();
     expect(defaultTheme.roles.assistant.background).toBeUndefined();

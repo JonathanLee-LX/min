@@ -83,12 +83,15 @@ export type ThemeOverrides = {
 };
 
 /**
- * Built-in palette inspired by Catppuccin Mocha: accent foregrounds on the
- * terminal's own background (no chat-block fills). Overrides may still set
- * `background` when a host wants filled rows.
+ * Built-in palette inspired by Catppuccin Mocha. Chat rows stay on the
+ * terminal background. Notices are the exception: a peach band so a system
+ * warning stays readable at a glance. Overrides may still set `background`
+ * on any role.
  * https://github.com/catppuccin/catppuccin
  */
 const mocha = {
+  /** Dark ink used on the notice band. */
+  crust: "#11111b",
   text: "#cdd6f4",
   subtext: "#a6adc8",
   /** Darker muted tone for secondary / reasoning copy. */
@@ -110,7 +113,7 @@ const mocha = {
   sky: "#89dceb",
 } as const;
 
-/** Built-in Catppuccin-inspired accents without block backgrounds. */
+/** Built-in Catppuccin-inspired accents. Only notices use a block fill. */
 export const defaultTheme: TuiTheme = {
   id: "default",
   name: "Default",
@@ -158,8 +161,9 @@ export const defaultTheme: TuiTheme = {
       dimBody: false,
     },
     notice: {
-      label: mocha.peach,
-      body: mocha.peach,
+      label: mocha.crust,
+      body: mocha.crust,
+      background: mocha.peach,
       dimLabel: false,
       dimBody: false,
     },

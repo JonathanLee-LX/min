@@ -142,6 +142,17 @@ describe("paintTranscript", () => {
     expect(rows.map((row) => row.body).join("\n")).toContain("flowchart");
   });
 
+  it("pads a notice to the full row so the background is a solid band", () => {
+    const rows = paintTranscript(
+      [{ key: "n", kind: "notice", text: "move the old file" }],
+      32,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.gutter).toBe("note ");
+    expect(displayWidth(rows[0]!.text)).toBe(32);
+    expect(displayWidth(rows[0]!.body)).toBe(27);
+  });
+
   it("opens a gap before a new turn", () => {
     const rows = paintTranscript(
       [
