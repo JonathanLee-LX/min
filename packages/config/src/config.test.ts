@@ -12,6 +12,9 @@ import {
   projectSettingsLocalPath,
   projectSettingsPath,
   resolveMinConfig,
+  legacyConfigNotice,
+  legacyProjectConfigPath,
+  legacyUserConfigPath,
   userConfigPath,
   userKeybindingsPath,
   userMcpPath,
@@ -82,13 +85,13 @@ describe("merge and load", () => {
     const userDir = path.join(root, "user");
     const project = path.join(root, "project");
     mkdirSync(path.dirname(userConfigPath(userDir)), { recursive: true });
-    mkdirSync(path.join(project, ".min"), { recursive: true });
+    mkdirSync(path.dirname(userProjectConfigPath(project, userDir)), { recursive: true });
     writeFileSync(
       userConfigPath(userDir),
       JSON.stringify({ version: 1, provider: "user-provider", ui: { theme: "default" } }),
     );
     writeFileSync(
-      path.join(project, ".min", "config.json"),
+      userProjectConfigPath(project, userDir),
       JSON.stringify({
         version: 1,
         model: "project-model",
@@ -175,6 +178,40 @@ describe("merge and load", () => {
       { name: "local", transport: "stdio", command: "user" },
     ]);
     expect(projectId(project).length).toBeGreaterThan(0);
+  });
+
+  it("reads a legacy config.json without letting it change settings", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "min-legacy-"));
+    const home = path.join(root, "home");
+    const project = path.join(root, "repo");
+    mkdirSync(path.dirname(legacyUserConfigPath(home)), { recursive: true });
+    mkdirSync(path.dirname(legacyProjectConfigPath(project)), { recursive: true });
+    mkdirSync(path.dirname(userConfigPath(home)), { recursive: true });
+    writeFileSync(
+      legacyUserConfigPath(home),
+      JSON.stringify({
+        version: 1,
+        provider: "old-user",
+        ui: { theme: "old", keybindings: { enter: "newline" } },
+      }),
+    );
+    writeFileSync(
+      legacyProjectConfigPath(project),
+      JSON.stringify({ version: 1, model: "old-model", runtime: { maxTurns: 9 } }),
+    );
+    writeFileSync(userConfigPath(home), JSON.stringify({ version: 1, provider: "new-user" }));
+
+    const loaded = loadMinConfig({ cwd: project, home, env: {} });
+    expect(loaded.config.provider).toBe("new-user");
+    expect(loaded.config.model).toBeUndefined();
+    expect(loaded.config.ui.theme).toBeUndefined();
+    expect(loaded.config.ui.keybindings).toBeUndefined();
+    expect(loaded.config.runtime).toEqual({});
+    expect(loaded.config.sources).toEqual(["defaults", userConfigPath(home)]);
+    expect(loaded.warnings).toEqual([
+      legacyConfigNotice(legacyUserConfigPath(home), userConfigPath(home)),
+      legacyConfigNotice(legacyProjectConfigPath(project), userProjectConfigPath(project, home)),
+    ]);
   });
 
   it("applyFlagOverrides does not invent a flags source when empty", () => {

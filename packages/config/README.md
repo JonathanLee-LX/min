@@ -41,20 +41,21 @@ Suggested gitignore. `.min/*` hides local settings, the grant ledger, and sessio
 !.min/settings.json
 ```
 
-`<cwd>/.min/config.json` is the previous project preferences path. It is still read, below the user files and below `<cwd>/.min/settings.json`. New preferences belong in `~/.min/config.json` or `~/.min/projects/{project}/config.json`. The suggested gitignore hides the old project file.
+`<cwd>/.min/config.json` and `~/.config/min/config.json` are previous preference files. When one of them exists and is not empty, min reads it only to print a notice. The file does not change provider, model, theme, or anything else, and min does not write it. Move user preferences to `~/.min/config.json`, and per-project preferences to `~/.min/projects/{project}/config.json`.
 
 ## Layers (low → high)
 
 1. Built-in defaults
-2. Legacy user file `~/.config/min/config.json`, then `~/.min/config.json`
+2. `~/.min/config.json`
 3. `~/.min/keybindings.json` (merged onto `ui.keybindings` from the preference files)
 4. `~/.min/settings.json`, then `providers.json`, `auth.json`, `cron/jobs.json`, and `mcp.json`
-5. Legacy project file `<cwd>/.min/config.json`
-6. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
-7. `~/.min/projects/{project}/config.json` and `mcp.json`
-8. `<cwd>/.min/settings.local.json`
-9. Environment (`MIN_*`)
-10. CLI / host flags
+5. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
+6. `~/.min/projects/{project}/config.json` and `mcp.json`
+7. `<cwd>/.min/settings.local.json`
+8. Environment (`MIN_*`)
+9. CLI / host flags
+
+`~/.config/min/config.json` and `<cwd>/.min/config.json` are not layers. A non-empty file produces one notice and leaves the resolved config unchanged.
 
 Settings merge field by field. A later `permissions.bash` replaces an earlier one and leaves `permissions.read` in place. Hooks merge the same way. MCP servers merge by name: a later file replaces the whole entry for that name and leaves the other names in place.
 

@@ -26,7 +26,8 @@ export function sessionDirFor(args: CliArgs): string {
 }
 
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
-  const { config } = resolveMinConfig({ cwd: args.cwd }, args.flags);
+  const { config, warnings } = resolveMinConfig({ cwd: args.cwd }, args.flags);
+  for (const warning of warnings) console.error(warning);
   applyAuthToEnv(config.auth);
   const resolved: CliArgs = {
     ...args,

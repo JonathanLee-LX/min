@@ -94,8 +94,8 @@ export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { stdin, setRawMode } = useStdin();
-  const { theme, keybindings, config } = useMemo(() => {
-    const { config } = resolveMinConfig(
+  const { theme, keybindings, config, warnings } = useMemo(() => {
+    const loaded = resolveMinConfig(
       { cwd: args.cwd },
       {
         ...(args.theme ? { theme: args.theme } : {}),
@@ -104,9 +104,10 @@ export function App({ args }: { args: TuiArgs }) {
       },
     );
     return {
-      config,
-      theme: themeFromConfig(config.ui),
-      keybindings: resolveKeybindings(config.ui.keybindings),
+      config: loaded.config,
+      warnings: loaded.warnings,
+      theme: themeFromConfig(loaded.config.ui),
+      keybindings: resolveKeybindings(loaded.config.ui.keybindings),
     };
   }, [args.cwd, args.theme, args.provider, args.model]);
   const [client, setClient] = useState<MinClient | null>(null);
@@ -390,6 +391,7 @@ export function App({ args }: { args: TuiArgs }) {
         });
         const snapshot = created.getSession();
         replaceLogs(snapshot.messages);
+        for (const warning of warnings) pushLine("notice", warning);
         const status = created.getStatus();
         pushLine(
           "sys",
@@ -401,7 +403,10 @@ export function App({ args }: { args: TuiArgs }) {
         setContextUsage(status.context);
         setClient(created);
       } catch (err) {
-        if (!cancelled) setError(messageOf(err));
+        if (!cancelled) {
+          for (const warning of warnings) pushLine("notice", warning);
+          setError(messageOf(err));
+        }
       }
     })();
 
@@ -422,6 +427,7 @@ export function App({ args }: { args: TuiArgs }) {
     args.yes,
     config,
     pushLine,
+    warnings,
     replaceLogs,
   ]);
 

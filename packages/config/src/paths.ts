@@ -99,12 +99,12 @@ export function projectMcpPath(cwd: string): string {
   return path.join(cwd, ".mcp.json");
 }
 
-/** Previous user preferences path. Still read, below `~/.min/config.json`. */
+/** Previous user preferences path. Detected and reported; it does not change settings. */
 export function legacyUserConfigPath(home = os.homedir()): string {
   return path.join(home, ".config", "min", "config.json");
 }
 
-/** Previous project preferences path. Still read, below user config. */
+/** Previous project preferences path. Detected and reported; it does not change settings. */
 export function legacyProjectConfigPath(cwd: string): string {
   return path.join(cwd, ".min", "config.json");
 }

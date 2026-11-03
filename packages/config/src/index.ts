@@ -48,5 +48,5 @@ export {
   toResolved,
 } from "./merge.js";
 
-export { applyAuthToEnv, loadMinConfig, resolveMinConfig } from "./load.js";
+export { applyAuthToEnv, legacyConfigNotice, loadMinConfig, resolveMinConfig } from "./load.js";
 export type { LoadMinConfigResult } from "./load.js";

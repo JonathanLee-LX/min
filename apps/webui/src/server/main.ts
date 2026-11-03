@@ -35,7 +35,8 @@ async function getClient(): Promise<MinClient> {
   if (!clientPromise) {
     clientPromise = (async () => {
       await loadProviderExtensions();
-      const { config } = resolveMinConfig({ cwd: CWD });
+      const { config, warnings } = resolveMinConfig({ cwd: CWD });
+      for (const warning of warnings) console.error(warning);
       applyAuthToEnv(config.auth);
       const c = await createClient({
         cwd: CWD,

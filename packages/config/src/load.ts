@@ -53,11 +53,14 @@ export interface LoadMinConfigResult {
  * Does not throw on missing or partial files.
  *
  * Low → high:
- * defaults, legacy user config, ~/.min/config.json, keybindings,
- * ~/.min/settings.json, providers, user mcp, legacy project config,
+ * defaults, ~/.min/config.json, keybindings,
+ * ~/.min/settings.json, providers, user mcp,
  * <cwd>/.min/settings.json, <cwd>/.mcp.json, per-project state,
  * per-project mcp, <cwd>/.min/settings.local.json, env.
  * `auth.json` and `cron/jobs.json` are attached, not merged into preferences.
+ *
+ * `~/.config/min/config.json` and `<cwd>/.min/config.json` are read only to
+ * detect a previous install. They do not change the resolved config.
  */
 export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
   const env = opts.env ?? process.env;
@@ -97,7 +100,7 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
     if (isolatedUser) {
       takeConfig(opts.userPath!);
     } else {
-      takeConfig(legacyUserConfigPath(home));
+      noteLegacyConfig(legacyUserConfigPath(home), userConfigPath(home), warnings);
       takeConfig(userConfigPath(home));
       const bindings = readTypedFile(userKeybindingsPath(home), parseKeybindingFile, warnings);
       if (bindings && Object.keys(bindings).length > 0) {
@@ -124,7 +127,8 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
       takeMcp(userMcpPath(home));
     }
 
-    takeConfig(opts.projectPath ?? legacyProjectConfigPath(cwd));
+    if (opts.projectPath) takeConfig(opts.projectPath);
+    else noteLegacyConfig(legacyProjectConfigPath(cwd), userProjectConfigPath(cwd, home), warnings);
     takeSettings(projectSettingsPath(cwd));
     takeMcp(projectMcpPath(cwd));
     if (!opts.projectPath && !isolatedUser) takeConfig(userProjectConfigPath(cwd, home));
@@ -190,6 +194,22 @@ function mergeMcp(base: readonly McpServerEntry[], overlay: readonly McpServerEn
   const byName = new Map(base.map((server) => [server.name, server]));
   for (const server of overlay) byName.set(server.name, server);
   return [...byName.values()];
+}
+
+/** Notice shown when a previous config.json is present. It does not change settings. */
+export function legacyConfigNotice(file: string, replacement: string): string {
+  return `legacy config ${file} is read for compatibility only and does not change settings. Move it to ${replacement}.`;
+}
+
+function noteLegacyConfig(file: string, replacement: string, warnings: string[]): void {
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch {
+    return;
+  }
+  if (!raw.trim()) return;
+  warnings.push(legacyConfigNotice(file, replacement));
 }
 
 function readConfigFile(file: string, warnings: string[]): MinConfigDocument | undefined {

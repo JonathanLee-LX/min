@@ -8,6 +8,7 @@ import {
   parseConfigDocument,
   projectSettingsPath,
   userConfigPath,
+  userProjectConfigPath,
 } from "./index.js";
 
 describe("config architecture contracts", () => {
@@ -23,9 +24,10 @@ describe("config architecture contracts", () => {
 
   it("loads a project file without rejecting future extension keys", () => {
     const root = mkdtempSync(path.join(tmpdir(), "min-cfg-arch-"));
-    mkdirSync(path.join(root, ".min"), { recursive: true });
+    const home = path.join(root, "empty-home");
+    mkdirSync(path.dirname(userProjectConfigPath(root, home)), { recursive: true });
     writeFileSync(
-      path.join(root, ".min", "config.json"),
+      userProjectConfigPath(root, home),
       JSON.stringify({
         version: 1,
         ui: { theme: "default" },
@@ -34,7 +36,7 @@ describe("config architecture contracts", () => {
     );
     const loaded = loadMinConfig({
       cwd: root,
-      home: path.join(root, "empty-home"),
+      home,
       env: {},
     });
     expect(loaded.config.ui.theme).toBe("default");

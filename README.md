@@ -84,7 +84,7 @@ User files live under `~/.min/`. A project commits `.min/settings.json` and `.mc
 
 `{project}` is the absolute working directory with separators turned into `--` (`/work/app` → `work--app`).
 
-Low → high: defaults, `~/.config/min/config.json`, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/config.json` (legacy), `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags.
+Low → high: defaults, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags. A non-empty `~/.config/min/config.json` or `<cwd>/.min/config.json` prints a notice and does not change settings.
 
 `MIN_PROVIDER`, `MIN_MODEL`, `MIN_THEME`, `MIN_MAX_TURNS`, `MIN_MAX_CONTEXT_TOKENS`, and `MIN_CONTEXT_STRATEGY` override the files. A flag such as `--provider` or `--max-turns` overrides those variables. `auth.json` fills an environment variable only when it is still unset, so `.env` wins.
 

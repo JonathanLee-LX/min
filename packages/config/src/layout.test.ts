@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { applyAuthToEnv, loadMinConfig, resolveMinConfig } from "./load.js";
+import { applyAuthToEnv, legacyConfigNotice, loadMinConfig, resolveMinConfig } from "./load.js";
 import {
   defaultSessionDir,
   legacyProjectConfigPath,
@@ -126,7 +126,6 @@ describe("layered files", () => {
     const loaded = loadMinConfig({ cwd: project, home, env: {} });
     expect(loaded.config.sources).toEqual([
       "defaults",
-      legacyUserConfigPath(home),
       userConfigPath(home),
       userKeybindingsPath(home),
       userSettingsPath(home),
@@ -134,7 +133,6 @@ describe("layered files", () => {
       userAuthPath(home),
       userCronJobsPath(home),
       userMcpPath(home),
-      legacyProjectConfigPath(project),
       projectSettingsPath(project),
       projectMcpPath(project),
       userProjectConfigPath(project, home),
@@ -142,7 +140,11 @@ describe("layered files", () => {
       projectSettingsLocalPath(project),
     ]);
     expect(loaded.config.provider).toBe("user");
-    expect(loaded.config.model).toBe("repo");
+    expect(loaded.config.model).toBeUndefined();
+    expect(loaded.warnings).toEqual([
+      legacyConfigNotice(legacyUserConfigPath(home), userConfigPath(home)),
+      legacyConfigNotice(legacyProjectConfigPath(project), userProjectConfigPath(project, home)),
+    ]);
     expect(loaded.config.ui.theme).toBe("machine");
     expect(loaded.config.ui.keybindings).toEqual({ esc: "clear", enter: "newline" });
     expect(loaded.config.settings).toEqual({
