@@ -40,7 +40,7 @@ min-web
 
 `[a]lways` writes the remembered pattern to `<cwd>/.min/permissions.json`. `--auto` remembers only for that process and does not write the file.
 
-Preferences use `@min-agent/config`. User files live in `~/.min/` (`config.json`, `settings.json`, `auth.json`, `providers.json`, `keybindings.json`, `mcp.json`). A project commits `.min/settings.json` and `.mcp.json`, and gitignores `.min/settings.local.json`. Per-project machine state is `~/.min/projects/{project}/`. `MIN_*` env and CLI flags still win. Unknown keys are kept under `extensions`. Remembered grants stay in `.min/permissions.json`; sessions stay in `.min/sessions/`.
+Preferences, settings, and credentials use `@min-agent/config`. The file layout and the fields each app actually applies are in [Configuration](#configuration).
 
 Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, mermaid diagrams, and a context usage meter (estimated chars÷4). Chat turns and the composer use accent foregrounds without block fills; tool output collapses by default (Ctrl+O expands). Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. Assistant Markdown goes through `@min-agent/render` (`markdown-it` → `RenderBlock`); TUI and Web paint that model separately. Web and some CLI startup flags are still thinner. There is no authentication.
 
@@ -57,6 +57,43 @@ The workflow rejects the release when the root version differs from the tag, or 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
 Wait to push a version tag until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for the current alpha version. Provenance publish requires `repository.url` on the packed `@min-agent/min` manifest to match this GitHub repo.
+
+## Configuration
+
+User files live under `~/.min/`. A project commits `.min/settings.json` and `.mcp.json`, and gitignores the rest of `.min/`. Later layers win. The full schemas, including auth, providers, keybindings, MCP, and cron, are in [`packages/config/README.md`](packages/config/README.md).
+
+```text
+~/.min/
+├── config.json         preferences (provider, model, runtime, theme)
+├── settings.json       hooks, permission policy, MCP enablement
+├── auth.json           credentials · host-managed
+├── providers.json      custom BYOK providers
+├── keybindings.json    chord → command overrides
+├── mcp.json            user-scope MCP servers
+├── cron/jobs.json      scheduled jobs · managed
+└── projects/{project}/
+    ├── config.json     per-project state on this machine
+    └── mcp.json        per-project MCP servers on this machine
+
+<project>/
+├── .min/
+│   ├── settings.json        commit this
+│   └── settings.local.json  gitignore this
+└── .mcp.json                commit this
+```
+
+`{project}` is the absolute working directory with separators turned into `--` (`/work/app` → `work--app`).
+
+Low → high: defaults, `~/.config/min/config.json`, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/config.json` (legacy), `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags.
+
+`MIN_PROVIDER`, `MIN_MODEL`, `MIN_THEME`, `MIN_MAX_TURNS`, `MIN_MAX_CONTEXT_TOKENS`, and `MIN_CONTEXT_STRATEGY` override the files. A flag such as `--provider` or `--max-turns` overrides those variables. `auth.json` fills an environment variable only when it is still unset, so `.env` wins.
+
+The CLI, TUI, and Web server apply provider, model, runtime limits, and the bash/write permission policy. The TUI also applies theme and keybindings. Remembered grants stay in `.min/permissions.json`. Sessions stay in `.min/sessions/`. `providers.json`, the MCP files, and `cron/jobs.json` are loaded onto the resolved config; the apps do not register those providers, connect MCP, or run jobs yet.
+
+```gitignore
+.min/*
+!.min/settings.json
+```
 
 ## Monorepo
 

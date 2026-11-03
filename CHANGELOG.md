@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Config files follow a Command Code-style layout: `~/.min/` for preferences, credentials, providers, keybindings, and MCP; `<cwd>/.min/settings.json` (commit) and `settings.local.json` (gitignore) for project policy; `<cwd>/.mcp.json` for shared MCP servers.
+- Config files follow a Command Code-style layout: `~/.min/` for preferences, credentials, providers, keybindings, and MCP; `<cwd>/.min/settings.json` (commit) and `settings.local.json` (gitignore) for project policy; `<cwd>/.mcp.json` for shared MCP servers. Field schemas and which of those files the CLI, TUI, and Web server apply are in `packages/config/README.md`.
 
 ## 0.1.0-alpha.4
 

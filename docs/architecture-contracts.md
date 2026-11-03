@@ -22,7 +22,7 @@ core
   └─ mcp
 runtime ← core, providers, session, skills, tools
 client  ← core, runtime, session
-apps    ← client (+ config for TUI)
+apps    ← client, config
 ```
 
 ## Behavioral locks
@@ -37,7 +37,7 @@ apps    ← client (+ config for TUI)
 | Runtime | Default tool set has no MCP; permissions live on the runtime; deny → `tool_result.isError` then `done` |
 | Client | `tool_end` always carries `preview` + `content`; `ClientEvent` / `MinClient` surfaces frozen; `done` is not a ClientEvent |
 | Client grants | `persistPermissionGrants: false` must not write `.min/permissions.json` |
-| Config | Unknown JSON keys go under `extensions`; `version` is 1; user files live under `~/.min/`; committed project settings are `.min/settings.json`; permissions/sessions stay sidecars |
+| Config | Unknown JSON keys go under `extensions`; `version` is 1; user files live under `~/.min/`; committed project settings are `.min/settings.json`; auth and cron are attached, not merged into preferences; permissions/sessions stay sidecars |
 | Sidecar paths | `config.permissionRulesPath` formula matches `tools.permissionRulesPath`; sessions live under `.min/sessions` |
 | Tools | Sandbox rejects `..` escapes; permission rules file is `version: 1`; `grantRoot` is the escaped dir |
 | Skills | `appendSystem` grows on catalog + `load_skill`; `allowed-tools` pre-approve only |

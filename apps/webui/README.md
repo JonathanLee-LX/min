@@ -29,6 +29,8 @@ pnpm --filter=@min-agent/webui dev
 # Vite http://127.0.0.1:43128  (proxies /api and /events)
 ```
 
+The server reads the same `@min-agent/config` files as the CLI, with `cwd` from `MIN_CWD` (otherwise the process working directory). It applies provider, model, runtime limits, `settings.permissions.bash: "allow"`, and `settings.permissions.write: "ask"`. `PROVIDER` and `MODEL` override the config file. `auth.json` fills an API key only when that variable is still unset. Schemas are in [`packages/config/README.md`](../../packages/config/README.md).
+
 Env: same as CLI (`DEEPSEEK_API_KEY`, `PROVIDER`, …). Optional:
 
 | var | meaning |
