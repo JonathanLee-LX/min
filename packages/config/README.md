@@ -222,6 +222,7 @@ These variables are a layer above every file. A blank value is ignored. Counts m
 | `MIN_MAX_TURNS` | `runtime.maxTurns` |
 | `MIN_MAX_CONTEXT_TOKENS` | `runtime.maxContextTokens` |
 | `MIN_CONTEXT_STRATEGY` | `runtime.contextStrategy` |
+| `MIN_SIMULATE_NOTICE=1` | one sample legacy-config notice for a local UI check. Settings stay unchanged. |
 
 The Web server also treats `PROVIDER` and `MODEL` as overrides of the resolved provider and model. `MIN_WEB_PORT`, `MIN_CWD`, `MIN_YES`, `MIN_AUTO`, and `MIN_NO_TOOLS` are process switches, not config-file fields.
 

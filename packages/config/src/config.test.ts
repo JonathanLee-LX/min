@@ -221,6 +221,23 @@ describe("merge and load", () => {
     ]);
   });
 
+  it("adds one sample notice when MIN_SIMULATE_NOTICE=1", () => {
+    const home = "/home/me";
+    const loaded = loadMinConfig({
+      cwd: "/tmp",
+      home,
+      skipFiles: true,
+      env: { MIN_SIMULATE_NOTICE: "1" },
+    });
+    expect(loaded.config.provider).toBeUndefined();
+    expect(loaded.warnings).toEqual([
+      legacyConfigNotice(legacyUserConfigPath(home), userConfigPath(home)),
+    ]);
+    expect(loadMinConfig({ cwd: "/tmp", skipFiles: true, env: { MIN_SIMULATE_NOTICE: "0" } }).warnings).toEqual(
+      [],
+    );
+  });
+
   it("applyFlagOverrides does not invent a flags source when empty", () => {
     const base = loadMinConfig({ cwd: "/tmp", skipFiles: true, env: {} }).config;
     expect(applyFlagOverrides(base, {}).sources).toEqual(["defaults"]);

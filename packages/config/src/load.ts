@@ -149,6 +149,7 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
   config.providers = providers;
   config.mcpServers = mcpServers;
   config.cronJobs = cronJobs;
+  noteSimulatedNotice(env, opts.home ?? os.homedir(), warnings);
   for (const message of warnings) {
     noticeLog.record({ level: "warning", source: "config", message });
   }
@@ -198,6 +199,16 @@ function mergeMcp(base: readonly McpServerEntry[], overlay: readonly McpServerEn
   const byName = new Map(base.map((server) => [server.name, server]));
   for (const server of overlay) byName.set(server.name, server);
   return [...byName.values()];
+}
+
+/**
+ * `MIN_SIMULATE_NOTICE=1` adds one sample legacy-config notice.
+ * It does not change settings. For local UI checks only.
+ */
+function noteSimulatedNotice(env: NodeJS.ProcessEnv, home: string, warnings: string[]): void {
+  const raw = env.MIN_SIMULATE_NOTICE?.trim().toLowerCase();
+  if (raw !== "1" && raw !== "true" && raw !== "yes" && raw !== "on") return;
+  warnings.push(legacyConfigNotice(legacyUserConfigPath(home), userConfigPath(home)));
 }
 
 /** Notice shown when a previous config.json is present. It does not change settings. */
