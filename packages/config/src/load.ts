@@ -127,7 +127,7 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
     takeConfig(opts.projectPath ?? legacyProjectConfigPath(cwd));
     takeSettings(projectSettingsPath(cwd));
     takeMcp(projectMcpPath(cwd));
-    if (!opts.projectPath) takeConfig(userProjectConfigPath(cwd, home));
+    if (!opts.projectPath && !isolatedUser) takeConfig(userProjectConfigPath(cwd, home));
     if (!isolatedUser) takeMcp(userProjectMcpPath(cwd, home));
     takeSettings(projectSettingsLocalPath(cwd));
   }
