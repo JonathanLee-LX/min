@@ -1,25 +1,69 @@
 # `@min-agent/config`
 
-Layered configuration for min. One document shape, several sources, later layers win.
+Layered configuration for min. Preferences, settings, credentials, providers, keybindings, and MCP each have their own file. Later layers win.
+
+## User — `~/.min/`
+
+```text
+~/.min/
+├── config.json         preferences (provider, model, runtime, theme)
+├── settings.json       hooks, permission policy, MCP enablement
+├── auth.json           credentials · host-managed, not a preferences file
+├── providers.json      custom BYOK providers (kind, model, base URL, apiKeyEnv)
+├── keybindings.json    chord → command overrides
+├── mcp.json            user-scope MCP servers
+├── cron/jobs.json      scheduled jobs · managed
+└── projects/{project}/
+    ├── config.json     per-project state on this machine
+    └── mcp.json        per-project MCP servers on this machine
+```
+
+`{project}` is the absolute cwd with separators turned into `--` (`/work/app` → `work--app`).
+
+## Project — `<cwd>/`
+
+```text
+<cwd>/
+├── .min/
+│   ├── settings.json        shared hooks and permission policy · commit
+│   ├── settings.local.json  this machine only · gitignore
+│   ├── permissions.json     remembered grants · managed, gitignore
+│   └── sessions/            conversation store · managed, gitignore
+└── .mcp.json                shared MCP servers · commit
+```
+
+Suggested gitignore:
+
+```gitignore
+.min/*
+!.min/settings.json
+```
 
 ## Layers (low → high)
 
 1. Built-in defaults
-2. User file: `~/.config/min/config.json`
-3. Project file: `<cwd>/.min/config.json`
-4. Environment (`MIN_*`)
-5. CLI / host flags
+2. Legacy user file `~/.config/min/config.json`, then `~/.min/config.json`
+3. `~/.min/keybindings.json`
+4. `~/.min/settings.json`, `providers.json`, `mcp.json`
+5. Legacy project file `<cwd>/.min/config.json`
+6. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
+7. `~/.min/projects/{project}/config.json` and `mcp.json`
+8. `<cwd>/.min/settings.local.json`
+9. Environment (`MIN_*`)
+10. CLI / host flags
 
-Missing files are fine. Each file is a **sparse** document: only set what you override.
+`auth.json` and `cron/jobs.json` are attached to the resolved config. They do not override preferences. `applyAuthToEnv` copies auth keys into the environment only when that variable is unset.
 
-## Compatibility rules
+Missing files are fine. Each file is sparse: only set what you override.
 
-- `version` is required when a file is present. Unknown future versions load what they can and keep the rest in `extensions`.
-- Unknown top-level keys are moved into `extensions` (not rejected), so older min can open newer files.
-- `<cwd>/.min/permissions.json` and `<cwd>/.min/sessions/` stay separate. They are written often and security-sensitive; the config document holds preferences, not the grant ledger.
-- `.env` / `~/.config/min/.env` still load secrets and process env. Config does not store API keys.
+## Compatibility
 
-## Document shape (v1)
+- `version` is `1`. Unknown future versions load known fields.
+- Unknown preference keys land in `extensions`.
+- `<cwd>/.min/permissions.json` and `<cwd>/.min/sessions/` stay separate. They are written often. Settings hold the permission policy (`allow` / `ask` / `deny`), not the grant ledger.
+- API keys belong in `auth.json` or `.env`, not in `config.json`.
+
+## Preference document
 
 ```json
 {
@@ -29,25 +73,25 @@ Missing files are fine. Each file is a **sparse** document: only set what you ov
   "runtime": {
     "maxTurns": 40,
     "maxContextTokens": 256000,
-    "contextStrategy": "hybrid",
-    "sessionDir": null
+    "contextStrategy": "hybrid"
   },
   "ui": {
     "theme": "default",
-    "themeOverrides": {
-      "roles": {
-        "user": { "background": "green", "body": "black" }
-      }
-    },
-    "keybindings": {
-      "enter": "submit",
-      "shift+enter": "newline"
-    }
-  },
-  "extensions": {}
+    "themeOverrides": {}
+  }
 }
 ```
 
-`ui.keybindings` is a sparse chord → command map. The TUI merges it onto built-in defaults (Enter sends, Shift+Enter inserts a newline). Known commands include `submit`, `newline`, `interrupt`, `complete`, `scroll-up`, `scroll-down`, and the editor motions.
+Keybindings live in `~/.min/keybindings.json`:
 
-Hosts call `loadMinConfig({ cwd })`, then apply CLI flags with `applyFlagOverrides`.
+```json
+{ "version": 1, "bindings": { "enter": "submit", "shift+enter": "newline" } }
+```
+
+MCP files use `mcpServers`:
+
+```json
+{ "mcpServers": { "docs": { "command": "npx", "args": ["-y", "some-mcp"] } } }
+```
+
+Hosts call `loadMinConfig({ cwd })`, then `applyFlagOverrides` or `resolveMinConfig`.

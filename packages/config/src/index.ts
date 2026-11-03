@@ -1,9 +1,15 @@
 export { CONFIG_VERSION } from "./types.js";
 export type {
+  AuthDocument,
   ConfigVersion,
+  CronJob,
   FlagOverrides,
   LoadMinConfigOptions,
+  McpServerEntry,
   MinConfigDocument,
+  MinSettings,
+  PermissionModeName,
+  ProviderSpec,
   ResolvedMinConfig,
   RuntimeConfig,
   ThemeOverrideConfig,
@@ -12,9 +18,24 @@ export type {
 
 export {
   defaultSessionDir,
+  legacyProjectConfigPath,
+  legacyUserConfigPath,
   permissionRulesPath,
-  projectConfigPath,
+  projectId,
+  projectMcpPath,
+  projectSettingsLocalPath,
+  projectSettingsPath,
+  userAuthPath,
   userConfigPath,
+  userCronJobsPath,
+  userKeybindingsPath,
+  userMcpPath,
+  userMinDir,
+  userProjectConfigPath,
+  userProjectDir,
+  userProjectMcpPath,
+  userProvidersPath,
+  userSettingsPath,
 } from "./paths.js";
 
 export { emptyDocument, parseConfigDocument } from "./parse.js";
@@ -27,5 +48,5 @@ export {
   toResolved,
 } from "./merge.js";
 
-export { loadMinConfig, resolveMinConfig } from "./load.js";
+export { applyAuthToEnv, loadMinConfig, resolveMinConfig } from "./load.js";
 export type { LoadMinConfigResult } from "./load.js";

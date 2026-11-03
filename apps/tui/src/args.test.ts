@@ -29,7 +29,7 @@ describe("tui parseArgs", () => {
     expect(help).toContain("/version");
     expect(help).toContain("Shift+Enter");
     expect(help).toContain("Alt+Enter");
-    expect(help).toContain("ui.keybindings");
+    expect(help).toContain("keybindings.json");
     expect(help).toContain("PageUp/PageDown");
     expect(help).toContain("Ctrl+O");
   });

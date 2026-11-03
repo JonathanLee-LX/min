@@ -27,8 +27,8 @@ export type KeyCommand =
  * Chord → command. Chords are lowercase, modifiers ordered
  * `ctrl`, `alt`, `shift`, then the key (`enter`, `j`, `pageup`, …).
  *
- * Future customization: merge user/project `ui.keybindings` on top of
- * {@link DEFAULT_KEYBINDINGS} via {@link resolveKeybindings}.
+ * `~/.min/keybindings.json` merges onto {@link DEFAULT_KEYBINDINGS}
+ * via {@link resolveKeybindings}.
  */
 export type KeybindingTable = Readonly<Record<string, KeyCommand>>;
 

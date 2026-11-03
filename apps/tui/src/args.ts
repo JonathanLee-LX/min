@@ -55,10 +55,14 @@ Options:
   --session <id>      resume a saved session
   --theme <id>        theme id from config / registry (MIN_THEME also works)
 
-Config files (later layers win):
-  ~/.config/min/config.json
-  <cwd>/.min/config.json
-  Permissions stay in <cwd>/.min/permissions.json
+Config (later layers win):
+  ~/.min/config.json            preferences
+  ~/.min/keybindings.json       key overrides
+  ~/.min/settings.json          hooks, permission policy, MCP
+  <cwd>/.min/settings.json      shared project settings (commit)
+  <cwd>/.min/settings.local.json  this machine (gitignore)
+  <cwd>/.mcp.json               shared MCP servers
+  Remembered grants stay in <cwd>/.min/permissions.json
   --no-tools          disable workspace tools
   -y, --yes           auto-approve tool prompts once
   --auto              full-auto (bash + session grants + root grants)
@@ -94,8 +98,8 @@ Keys:
   Ctrl+W / Ctrl+U    delete the previous word / to the line start
   y / n / a          answer a permission prompt (no answer denies in 2 minutes)
 
-Keybindings can be overridden in config.json under ui.keybindings
-(chord → command), e.g. { "enter": "submit", "shift+enter": "newline" }.
+Keybindings can be overridden in ~/.min/keybindings.json
+(chord → command), e.g. { "version": 1, "bindings": { "enter": "submit" } }.
 `;
 }
 

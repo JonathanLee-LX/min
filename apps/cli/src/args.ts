@@ -1,3 +1,4 @@
+import type { FlagOverrides } from "@min-agent/config";
 import { DEFAULT_MAX_CONTEXT_TOKENS } from "@min-agent/session";
 
 export interface CliArgs {
@@ -49,6 +50,8 @@ export interface CliArgs {
     | "sticky-trim"
     | "hybrid";
   prompt?: string;
+  /** Values the user set with flags. Env defaults stay out of this object. */
+  flags: FlagOverrides;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
@@ -70,6 +73,7 @@ export function parseArgs(argv: string[]): CliArgs {
     ),
     maxTurns: Number(process.env.MIN_MAX_TURNS ?? 40),
     contextStrategy: parseStrategy(process.env.MIN_CONTEXT_STRATEGY),
+    flags: {},
   };
 
   const positional: string[] = [];
@@ -107,6 +111,7 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (a === "--session-dir") {
       args.sessionDir = argv[++i];
       if (!args.sessionDir) throw new Error("--session-dir requires a path");
+      args.flags.sessionDir = args.sessionDir;
     } else if (a === "--max-context-tokens") {
       const raw = argv[++i];
       const n = Number(raw);
@@ -114,6 +119,7 @@ export function parseArgs(argv: string[]): CliArgs {
         throw new Error("--max-context-tokens must be a number >= 1024");
       }
       args.maxContextTokens = n;
+      args.flags.maxContextTokens = n;
     } else if (a === "--max-user-turns") {
       const raw = argv[++i];
       const n = Number(raw);
@@ -128,6 +134,7 @@ export function parseArgs(argv: string[]): CliArgs {
         throw new Error("--max-turns must be a positive integer");
       }
       args.maxTurns = Math.floor(n);
+      args.flags.maxTurns = args.maxTurns;
     } else if (a === "--context-strategy") {
       const raw = argv[++i];
       const parsed = parseStrategy(raw);
@@ -137,12 +144,15 @@ export function parseArgs(argv: string[]): CliArgs {
         );
       }
       args.contextStrategy = parsed;
+      args.flags.contextStrategy = parsed;
     } else if (a === "--cwd") {
       args.cwd = argv[++i] ?? args.cwd;
     } else if (a === "--provider") {
       args.provider = argv[++i];
+      if (args.provider) args.flags.provider = args.provider;
     } else if (a === "--model") {
       args.model = argv[++i];
+      if (args.model) args.flags.model = args.model;
     } else if (a === "--skills") {
       args.skillsDir = argv[++i];
     } else if (a === "-p" || a === "--prompt") {
@@ -231,6 +241,14 @@ Context:
   /compact     on-demand LLM summary that rewrites stored history (not a strategy)
   Assistant text streams as it arrives; tool traces print on stderr-friendly lines.
 
+Config (later layers win):
+  ~/.min/config.json
+  ~/.min/keybindings.json
+  ~/.min/settings.json
+  <cwd>/.min/settings.json
+  <cwd>/.min/settings.local.json
+  <cwd>/.mcp.json
+
 Env:
   DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY
   MIN_AUTO=1          same as --auto
@@ -248,7 +266,7 @@ function envFlagTrue(raw: string | undefined): boolean {
 }
 
 
-function parseStrategy(
+export function parseStrategy(
   raw: string | undefined,
 ): CliArgs["contextStrategy"] | undefined {
   if (!raw) return undefined;

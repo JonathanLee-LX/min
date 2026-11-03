@@ -7,8 +7,16 @@ import {
   loadMinConfig,
   mergeDocuments,
   parseConfigDocument,
-  projectConfigPath,
+  projectId,
+  projectMcpPath,
+  projectSettingsLocalPath,
+  projectSettingsPath,
   resolveMinConfig,
+  userConfigPath,
+  userKeybindingsPath,
+  userMcpPath,
+  userProjectConfigPath,
+  userSettingsPath,
 } from "./index.js";
 
 describe("parseConfigDocument", () => {
@@ -73,14 +81,14 @@ describe("merge and load", () => {
     const root = mkdtempSync(path.join(tmpdir(), "min-config-"));
     const userDir = path.join(root, "user");
     const project = path.join(root, "project");
-    mkdirSync(path.join(userDir, ".config", "min"), { recursive: true });
+    mkdirSync(path.dirname(userConfigPath(userDir)), { recursive: true });
     mkdirSync(path.join(project, ".min"), { recursive: true });
     writeFileSync(
-      path.join(userDir, ".config", "min", "config.json"),
+      userConfigPath(userDir),
       JSON.stringify({ version: 1, provider: "user-provider", ui: { theme: "default" } }),
     );
     writeFileSync(
-      projectConfigPath(project),
+      path.join(project, ".min", "config.json"),
       JSON.stringify({
         version: 1,
         model: "project-model",
@@ -91,7 +99,7 @@ describe("merge and load", () => {
 
     const loaded = loadMinConfig({
       cwd: project,
-      userPath: path.join(userDir, ".config", "min", "config.json"),
+      home: userDir,
       env: { MIN_THEME: "env-theme", MIN_MAX_TURNS: "12" },
     });
     expect(loaded.config.provider).toBe("user-provider");
@@ -105,7 +113,7 @@ describe("merge and load", () => {
     const resolved = resolveMinConfig(
       {
         cwd: project,
-        userPath: path.join(userDir, ".config", "min", "config.json"),
+        home: userDir,
         env: { MIN_THEME: "env-theme" },
       },
       { theme: "flag-theme", provider: "flag-provider" },
@@ -113,6 +121,60 @@ describe("merge and load", () => {
     expect(resolved.config.ui.theme).toBe("flag-theme");
     expect(resolved.config.provider).toBe("flag-provider");
     expect(resolved.config.sources.at(-1)).toBe("flags");
+  });
+
+  it("stacks command-code files and lets later mcp and keybindings win", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "min-layout-"));
+    const home = path.join(root, "home");
+    const project = path.join(root, "repo");
+    mkdirSync(path.dirname(userConfigPath(home)), { recursive: true });
+    mkdirSync(path.dirname(userProjectConfigPath(project, home)), { recursive: true });
+    mkdirSync(path.join(project, ".min"), { recursive: true });
+
+    writeFileSync(
+      userConfigPath(home),
+      JSON.stringify({ version: 1, ui: { theme: "user" } }),
+    );
+    writeFileSync(
+      userKeybindingsPath(home),
+      JSON.stringify({ version: 1, bindings: { enter: "newline" } }),
+    );
+    writeFileSync(
+      userSettingsPath(home),
+      JSON.stringify({ version: 1, permissions: { bash: "ask" }, hooks: { start: "a" } }),
+    );
+    writeFileSync(
+      userMcpPath(home),
+      JSON.stringify({ mcpServers: { docs: { command: "user-docs" }, local: { command: "user" } } }),
+    );
+    writeFileSync(
+      projectSettingsPath(project),
+      JSON.stringify({ version: 1, permissions: { bash: "allow" } }),
+    );
+    writeFileSync(
+      projectMcpPath(project),
+      JSON.stringify({ mcpServers: { docs: { command: "repo-docs" } } }),
+    );
+    writeFileSync(
+      userProjectConfigPath(project, home),
+      JSON.stringify({ version: 1, ui: { theme: "machine" } }),
+    );
+    writeFileSync(
+      projectSettingsLocalPath(project),
+      JSON.stringify({ version: 1, permissions: { write: "ask" }, mcp: { enabled: false } }),
+    );
+
+    const loaded = loadMinConfig({ cwd: project, home, env: {} });
+    expect(loaded.config.ui.theme).toBe("machine");
+    expect(loaded.config.ui.keybindings).toEqual({ enter: "newline" });
+    expect(loaded.config.settings.permissions).toEqual({ bash: "allow", write: "ask" });
+    expect(loaded.config.settings.hooks).toEqual({ start: "a" });
+    expect(loaded.config.settings.mcp).toEqual({ enabled: false });
+    expect(loaded.config.mcpServers).toEqual([
+      { name: "docs", transport: "stdio", command: "repo-docs" },
+      { name: "local", transport: "stdio", command: "user" },
+    ]);
+    expect(projectId(project).length).toBeGreaterThan(0);
   });
 
   it("applyFlagOverrides does not invent a flags source when empty", () => {

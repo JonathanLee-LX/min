@@ -80,6 +80,11 @@ export function defaultResolved(): import("./types.js").ResolvedMinConfig {
     version: CONFIG_VERSION,
     runtime: {},
     ui: {},
+    settings: {},
+    auth: {},
+    providers: {},
+    mcpServers: [],
+    cronJobs: [],
     extensions: {},
     sources: ["defaults"],
   };

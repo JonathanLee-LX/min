@@ -50,7 +50,7 @@ import {
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer } from "./permission-view.js";
 import { readGitBranch } from "./status-bar.js";
-import { resolveMinConfig } from "@min-agent/config";
+import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
 import { themeFromConfig } from "./theme.js";
 import {
   linesFromMessages,
@@ -94,7 +94,7 @@ export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { stdin, setRawMode } = useStdin();
-  const { theme, keybindings } = useMemo(() => {
+  const { theme, keybindings, config } = useMemo(() => {
     const { config } = resolveMinConfig(
       { cwd: args.cwd },
       {
@@ -104,6 +104,7 @@ export function App({ args }: { args: TuiArgs }) {
       },
     );
     return {
+      config,
       theme: themeFromConfig(config.ui),
       keybindings: resolveKeybindings(config.ui.keybindings),
     };
@@ -261,17 +262,22 @@ export function App({ args }: { args: TuiArgs }) {
     (async () => {
       try {
         await loadProviderExtensions();
+        applyAuthToEnv(config.auth);
         const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
         const created = await createClient({
           cwd: args.cwd,
           provider: resolveProvider({
-            provider: args.provider,
-            model: args.model,
+            provider: config.provider,
+            model: config.model,
           }),
           sessionId: args.sessionId,
+          sessionDir: config.runtime.sessionDir,
           noTools: args.noTools,
-          allowBash: args.yes || args.auto,
-          askWrite: false,
+          allowBash: args.yes || args.auto || config.settings.permissions?.bash === "allow",
+          askWrite: config.settings.permissions?.write === "ask",
+          maxContextTokens: config.runtime.maxContextTokens,
+          maxTurns: config.runtime.maxTurns,
+          contextStrategy: contextStrategyFrom(config.runtime.contextStrategy),
           applyRootGrant: true,
           persistPermissionGrants: !args.auto,
           autoApprovePermission: autoMode
@@ -414,6 +420,7 @@ export function App({ args }: { args: TuiArgs }) {
     args.provider,
     args.sessionId,
     args.yes,
+    config,
     pushLine,
     replaceLogs,
   ]);
@@ -1115,6 +1122,21 @@ export function App({ args }: { args: TuiArgs }) {
     </Box>
     </ThemeProvider>
   );
+}
+
+function contextStrategyFrom(
+  value: string | undefined,
+): "trim" | "hmt" | "tool-offload" | "sticky-trim" | "hybrid" | undefined {
+  if (
+    value === "trim" ||
+    value === "hmt" ||
+    value === "tool-offload" ||
+    value === "sticky-trim" ||
+    value === "hybrid"
+  ) {
+    return value;
+  }
+  return undefined;
 }
 
 function toDisplayLines(

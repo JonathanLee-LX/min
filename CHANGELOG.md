@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Config files follow a Command Code-style layout: `~/.min/` for preferences, credentials, providers, keybindings, and MCP; `<cwd>/.min/settings.json` (commit) and `settings.local.json` (gitignore) for project policy; `<cwd>/.mcp.json` for shared MCP servers.
+
 ## 0.1.0-alpha.4
 
 TUI composer, Markdown, and paint.

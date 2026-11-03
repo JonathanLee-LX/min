@@ -4,8 +4,9 @@
  * Design goals:
  * - Sparse files: omit what you do not override.
  * - Forward compatible: unknown keys land in `extensions`.
- * - Layered: defaults < user < project < env < flags.
- * - Stable sidecars: permissions and sessions stay outside this file.
+ * - Layered like Command Code: user files, committed project settings,
+ *   machine-local project state, then env, then flags.
+ * - Stable sidecars: the grant ledger and sessions stay outside these files.
  */
 
 export const CONFIG_VERSION = 1 as const;
@@ -64,6 +65,52 @@ export interface MinConfigDocument {
   extensions?: Record<string, unknown>;
 }
 
+export type PermissionModeName = "allow" | "ask" | "deny";
+
+/** `settings.json`: hooks, permission policy, MCP enablement. */
+export interface MinSettings {
+  permissions?: {
+    read?: PermissionModeName;
+    write?: PermissionModeName;
+    bash?: PermissionModeName;
+  };
+  hooks?: Record<string, unknown>;
+  mcp?: { enabled?: boolean };
+  extensions?: Record<string, unknown>;
+}
+
+/** `auth.json`: secret values keyed by environment variable name. */
+export interface AuthDocument {
+  version: ConfigVersion;
+  keys: Record<string, string>;
+}
+
+/** One entry in `providers.json`. The key lives in `auth.json` or the environment. */
+export interface ProviderSpec {
+  kind: string;
+  model?: string;
+  baseUrl?: string;
+  apiKeyEnv?: string;
+}
+
+/** One MCP server after `mcp.json` / `.mcp.json` files are merged by name. */
+export interface McpServerEntry {
+  name: string;
+  transport: "stdio" | "sse";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+}
+
+/** One managed row in `cron/jobs.json`. */
+export interface CronJob {
+  id: string;
+  schedule?: string;
+  prompt?: string;
+  enabled?: boolean;
+}
+
 /** Fully resolved view after all layers. */
 export interface ResolvedMinConfig {
   version: ConfigVersion;
@@ -71,6 +118,12 @@ export interface ResolvedMinConfig {
   model?: string;
   runtime: RuntimeConfig;
   ui: UiConfig;
+  settings: MinSettings;
+  /** Credential map from `auth.json`. Values are secrets. */
+  auth: Record<string, string>;
+  providers: Record<string, ProviderSpec>;
+  mcpServers: McpServerEntry[];
+  cronJobs: CronJob[];
   extensions: Record<string, unknown>;
   /** Paths that contributed, lowest first. */
   sources: string[];
@@ -78,9 +131,14 @@ export interface ResolvedMinConfig {
 
 export interface LoadMinConfigOptions {
   cwd: string;
-  /** Override user config path (tests). */
+  /** Home directory used for `~/.min`. Tests pass a temp directory. */
+  home?: string;
+  /**
+   * Replace the user preference file. When set, the user home tree
+   * (`~/.min/*`) is not scanned.
+   */
   userPath?: string;
-  /** Override project config path (tests). */
+  /** Extra project preference file, read in the legacy project-config slot. */
   projectPath?: string;
   env?: NodeJS.ProcessEnv;
   /** Skip reading the filesystem (defaults + env + flags only). */

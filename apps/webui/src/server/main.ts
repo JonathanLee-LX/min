@@ -4,6 +4,7 @@ import {
   type ClientEvent,
   type MinClient,
 } from "@min-agent/client";
+import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
 import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -34,15 +35,24 @@ async function getClient(): Promise<MinClient> {
   if (!clientPromise) {
     clientPromise = (async () => {
       await loadProviderExtensions();
+      const { config } = resolveMinConfig({ cwd: CWD });
+      applyAuthToEnv(config.auth);
       const c = await createClient({
         cwd: CWD,
         provider: resolveProvider({
-          provider: process.env.PROVIDER,
-          model: process.env.MODEL,
+          provider: process.env.PROVIDER ?? config.provider,
+          model: process.env.MODEL ?? config.model,
         }),
+        sessionDir: config.runtime.sessionDir,
+        maxContextTokens: config.runtime.maxContextTokens,
+        maxTurns: config.runtime.maxTurns,
+        contextStrategy: contextStrategyFrom(config.runtime.contextStrategy),
         noTools: process.env.MIN_NO_TOOLS === "1",
         allowBash:
-          process.env.MIN_AUTO === "1" || process.env.MIN_YES === "1",
+          process.env.MIN_AUTO === "1" ||
+          process.env.MIN_YES === "1" ||
+          config.settings.permissions?.bash === "allow",
+        askWrite: config.settings.permissions?.write === "ask",
         applyRootGrant: true,
         persistPermissionGrants: process.env.MIN_AUTO !== "1",
         autoApprovePermission:
@@ -262,6 +272,21 @@ server.listen(PORT, HOST, () => {
   console.error(`min-web listening on http://${HOST}:${PORT}`);
   console.error(`cwd=${CWD}  (browser is isolated; MinClient lives in this process)`);
 });
+
+function contextStrategyFrom(
+  value: string | undefined,
+): "trim" | "hmt" | "tool-offload" | "sticky-trim" | "hybrid" | undefined {
+  if (
+    value === "trim" ||
+    value === "hmt" ||
+    value === "tool-offload" ||
+    value === "sticky-trim" ||
+    value === "hybrid"
+  ) {
+    return value;
+  }
+  return undefined;
+}
 
 async function shutdown(): Promise<void> {
   for (const res of sseClients) res.end();

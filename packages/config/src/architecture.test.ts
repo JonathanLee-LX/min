@@ -6,7 +6,7 @@ import {
   CONFIG_VERSION,
   loadMinConfig,
   parseConfigDocument,
-  projectConfigPath,
+  projectSettingsPath,
   userConfigPath,
 } from "./index.js";
 
@@ -14,10 +14,10 @@ describe("config architecture contracts", () => {
   it("pins document version and stable path helpers", () => {
     expect(CONFIG_VERSION).toBe(1);
     expect(userConfigPath("/home/me")).toBe(
-      path.join("/home/me", ".config", "min", "config.json"),
+      path.join("/home/me", ".min", "config.json"),
     );
-    expect(projectConfigPath("/repo")).toBe(
-      path.join("/repo", ".min", "config.json"),
+    expect(projectSettingsPath("/repo")).toBe(
+      path.join("/repo", ".min", "settings.json"),
     );
   });
 
@@ -25,7 +25,7 @@ describe("config architecture contracts", () => {
     const root = mkdtempSync(path.join(tmpdir(), "min-cfg-arch-"));
     mkdirSync(path.join(root, ".min"), { recursive: true });
     writeFileSync(
-      projectConfigPath(root),
+      path.join(root, ".min", "config.json"),
       JSON.stringify({
         version: 1,
         ui: { theme: "default" },
@@ -34,7 +34,7 @@ describe("config architecture contracts", () => {
     );
     const loaded = loadMinConfig({
       cwd: root,
-      userPath: path.join(root, "missing-user.json"),
+      home: path.join(root, "empty-home"),
       env: {},
     });
     expect(loaded.config.ui.theme).toBe("default");

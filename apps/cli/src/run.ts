@@ -4,13 +4,14 @@ import {
   type MinClient,
   type PermissionAnswer,
 } from "@min-agent/client";
+import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
 import {
   loadProviderExtensions,
   resolveProvider,
   sessionDirFor as appSessionDir,
 } from "@min-agent/runtime";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
-import type { CliArgs } from "./args.js";
+import { parseStrategy, type CliArgs } from "./args.js";
 import { createEventPrinter } from "./events.js";
 import { isAbortError, withSigintAbort } from "./interrupt.js";
 import { contextBudgetLog } from "./session-extensions.js";
@@ -25,26 +26,39 @@ export function sessionDirFor(args: CliArgs): string {
 }
 
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
+  const { config } = resolveMinConfig({ cwd: args.cwd }, args.flags);
+  applyAuthToEnv(config.auth);
+  const resolved: CliArgs = {
+    ...args,
+    provider: config.provider ?? args.provider,
+    model: config.model ?? args.model,
+    sessionDir: config.runtime.sessionDir ?? args.sessionDir,
+    maxTurns: config.runtime.maxTurns ?? args.maxTurns,
+    maxContextTokens: config.runtime.maxContextTokens ?? args.maxContextTokens,
+    contextStrategy: parseStrategy(config.runtime.contextStrategy) ?? args.contextStrategy,
+    allowBash: args.allowBash || config.settings.permissions?.bash === "allow",
+    askWrite: args.askWrite || config.settings.permissions?.write === "ask",
+  };
   await loadProviderExtensions();
-  const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
+  const autoMode = resolved.auto ? "auto" : resolved.yes ? "yes" : undefined;
   const client = await createClient({
-    cwd: args.cwd,
+    cwd: resolved.cwd,
     provider: resolveProvider({
-      provider: args.provider,
-      model: args.model,
+      provider: resolved.provider,
+      model: resolved.model,
     }),
-    sessionId: args.sessionId,
-    sessionDir: args.sessionDir,
-    noSessionStore: args.noSessionStore,
-    noTools: args.noTools,
-    skillsDir: args.skillsDir,
-    addRoots: args.addRoots,
-    askWrite: args.askWrite,
-    allowBash: args.allowBash || args.yes || args.auto,
-    maxContextTokens: args.maxContextTokens,
-    maxUserTurns: args.maxUserTurns,
-    maxTurns: args.maxTurns,
-    contextStrategy: args.contextStrategy,
+    sessionId: resolved.sessionId,
+    sessionDir: resolved.sessionDir,
+    noSessionStore: resolved.noSessionStore,
+    noTools: resolved.noTools,
+    skillsDir: resolved.skillsDir,
+    addRoots: resolved.addRoots,
+    askWrite: resolved.askWrite,
+    allowBash: resolved.allowBash || resolved.yes || resolved.auto,
+    maxContextTokens: resolved.maxContextTokens,
+    maxUserTurns: resolved.maxUserTurns,
+    maxTurns: resolved.maxTurns,
+    contextStrategy: resolved.contextStrategy,
     sessionExtensions: [contextBudgetLog()],
     // Interactive CLI applies grantRoot itself; auto/yes+root-grant use Client.
     applyRootGrant: args.auto || args.allowRootGrant,
@@ -56,7 +70,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
         })
       : undefined,
   });
-  return { client, args };
+  return { client, args: resolved };
 }
 
 /** List sessions through @min-agent/client (same store Runtime would use). */

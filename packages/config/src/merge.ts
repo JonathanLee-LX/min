@@ -32,7 +32,15 @@ export function toResolved(
       ...(document.ui?.themeOverrides
         ? { themeOverrides: { ...document.ui.themeOverrides } }
         : {}),
+      ...(document.ui?.keybindings
+        ? { keybindings: { ...document.ui.keybindings } }
+        : {}),
     },
+    settings: {},
+    auth: {},
+    providers: {},
+    mcpServers: [],
+    cronJobs: [],
     extensions: { ...(document.extensions ?? {}) },
     sources: [...sources],
   };
