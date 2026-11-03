@@ -5,7 +5,9 @@
 对外只暴露：
 
 `send` · `abort` · `subscribe(ClientEvent)` · `queue` · `respondPermission` ·
-`listSessions` / `openSession` / `newSession` / `reset`.
+`listSessions` / `openSession` / `newSession` / `reset` · `notices`.
+
+`notices.list()` / `notices.subscribe()` 是进程级提示日志的界面接口。配置加载把警告写入这份日志，界面从这里取，不直接读 loader 的 `warnings`。
 
 ## 实现目标
 

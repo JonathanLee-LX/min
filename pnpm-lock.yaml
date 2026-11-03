@@ -294,6 +294,10 @@ importers:
         version: 3.25.76
 
   packages/config:
+    dependencies:
+      '@min-agent/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^22.14.0

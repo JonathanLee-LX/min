@@ -11,7 +11,7 @@ const PACKAGES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
  */
 const ALLOWED: Record<string, readonly string[]> = {
   "@min-agent/core": [],
-  "@min-agent/config": [],
+  "@min-agent/config": ["@min-agent/core"],
   "@min-agent/tools": ["@min-agent/core"],
   "@min-agent/session": ["@min-agent/core"],
   "@min-agent/skills": ["@min-agent/core", "@min-agent/tools"],

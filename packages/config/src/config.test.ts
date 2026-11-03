@@ -1,3 +1,4 @@
+import { noticeLog } from "@min-agent/core";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -201,7 +202,13 @@ describe("merge and load", () => {
     );
     writeFileSync(userConfigPath(home), JSON.stringify({ version: 1, provider: "new-user" }));
 
+    const before = new Set(noticeLog.list().map((notice) => notice.id));
     const loaded = loadMinConfig({ cwd: project, home, env: {} });
+    const recorded = noticeLog.list().filter((notice) => !before.has(notice.id));
+    expect(recorded.map((notice) => notice.message)).toEqual(loaded.warnings);
+    expect(recorded.every((notice) => notice.source === "config" && notice.level === "warning")).toBe(
+      true,
+    );
     expect(loaded.config.provider).toBe("new-user");
     expect(loaded.config.model).toBeUndefined();
     expect(loaded.config.ui.theme).toBeUndefined();

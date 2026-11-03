@@ -13,8 +13,8 @@ These invariants are locked by unit tests under `**/architecture.test.ts`, `**/c
 ## Dependency DAG
 
 ```text
-config
 core
+  ├─ config          (process notice log)
   ├─ tools
   │    └─ skills
   ├─ session
@@ -35,7 +35,7 @@ apps    ← client, config
 | Core agent | `Agent` keys are `provider` / `tools` / `run` / `dispose` only |
 | Session | Canonical `session.messages` stay full; assemblers only change the model view; `bindPermissionAsk` clears after run |
 | Runtime | Default tool set has no MCP; permissions live on the runtime; deny → `tool_result.isError` then `done` |
-| Client | `tool_end` always carries `preview` + `content`; `ClientEvent` / `MinClient` surfaces frozen; `done` is not a ClientEvent |
+| Client | `tool_end` always carries `preview` + `content`; `ClientEvent` / `MinClient` surfaces frozen; `done` is not a ClientEvent; `notices` reads the process log |
 | Client grants | `persistPermissionGrants: false` must not write `.min/permissions.json` |
 | Config | Unknown JSON keys go under `extensions`; `version` is 1; user files live under `~/.min/`; committed project settings are `.min/settings.json`; legacy `config.json` files are reported and do not change settings; auth and cron are attached, not merged into preferences; permissions/sessions stay sidecars |
 | Sidecar paths | `config.permissionRulesPath` formula matches `tools.permissionRulesPath`; sessions live under `.min/sessions` |

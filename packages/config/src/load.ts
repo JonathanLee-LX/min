@@ -1,3 +1,4 @@
+import { noticeLog } from "@min-agent/core";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import {
@@ -148,6 +149,9 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
   config.providers = providers;
   config.mcpServers = mcpServers;
   config.cronJobs = cronJobs;
+  for (const message of warnings) {
+    noticeLog.record({ level: "warning", source: "config", message });
+  }
   return { config, warnings };
 }
 

@@ -239,6 +239,8 @@ applyAuthToEnv(config.auth);
 
 `resolveMinConfig` loads the files and the environment, then applies flags. Pass only the flags the user actually set. An env default copied into the flags object would beat the files.
 
+Each warning is also recorded on the process notice log (`noticeLog` in `@min-agent/core`, source `config`). CLI, TUI, and Web read it through `client.notices` and do not print the `warnings` array themselves.
+
 `loadMinConfig` stops before flags. `applyFlagOverrides` is the same last step, and it leaves settings, auth, providers, MCP, cron, and keybindings in place.
 
 Options on the load call:

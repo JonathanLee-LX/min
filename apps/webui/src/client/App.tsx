@@ -23,6 +23,7 @@ type ClientEvent =
   | { type: "queued"; queueSize: number }
   | { type: "follow_up"; texts: readonly string[] }
   | { type: "error"; message: string; aborted?: boolean }
+  | { type: "notice"; id: number; level: "info" | "warning"; source: string; message: string }
   | {
       type: "session";
       id: string;
@@ -112,6 +113,10 @@ export default function App() {
       if (event.type === "error") {
         setError(event.aborted ? null : event.message);
         if (event.message) push({ kind: "sys", text: event.message });
+        return;
+      }
+      if (event.type === "notice") {
+        push({ kind: "sys", text: event.message });
         return;
       }
       if (event.type === "session") {

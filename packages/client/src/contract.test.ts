@@ -113,6 +113,7 @@ describe("client architecture contracts", () => {
         "getStatus",
         "listSessions",
         "newSession",
+        "notices",
         "openSession",
         "queue",
         "reset",

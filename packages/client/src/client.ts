@@ -1,4 +1,4 @@
-import type { RunEvent, ToolCallPart } from "@min-agent/core";
+import { noticeLog, type RunEvent, type ToolCallPart } from "@min-agent/core";
 import {
   createRuntime,
   type Runtime,
@@ -83,6 +83,7 @@ export async function createClient(
       });
 
   const listeners = new Set<ClientEventHandler>();
+  const noticeUnsubs = new Set<() => void>();
   const translator = createEventTranslator();
   let status: ClientStatus = "idle";
   let abortController: AbortController | undefined;
@@ -317,9 +318,25 @@ export async function createClient(
 
     async dispose() {
       client.abort();
+      for (const unsub of noticeUnsubs) unsub();
+      noticeUnsubs.clear();
       await runtime.session.dispose();
       await runtime.agent.dispose();
       listeners.clear();
+    },
+
+    notices: {
+      list() {
+        return noticeLog.list();
+      },
+      subscribe(handler) {
+        const unsub = noticeLog.subscribe(handler);
+        noticeUnsubs.add(unsub);
+        return () => {
+          unsub();
+          noticeUnsubs.delete(unsub);
+        };
+      },
     },
 
     getStatus,

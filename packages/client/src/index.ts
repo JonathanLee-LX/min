@@ -11,6 +11,7 @@ export {
 } from "./events.js";
 export { createPermissionBridge } from "./permission-bridge.js";
 export type {
+  ClientNotices,
   ClientEvent,
   ClientEventHandler,
   ClientOptions,

@@ -26,8 +26,7 @@ export function sessionDirFor(args: CliArgs): string {
 }
 
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
-  const { config, warnings } = resolveMinConfig({ cwd: args.cwd }, args.flags);
-  for (const warning of warnings) console.error(warning);
+  const { config } = resolveMinConfig({ cwd: args.cwd }, args.flags);
   applyAuthToEnv(config.auth);
   const resolved: CliArgs = {
     ...args,
@@ -71,6 +70,8 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
         })
       : undefined,
   });
+  for (const notice of client.notices.list()) console.error(notice.message);
+  client.notices.subscribe((notice) => console.error(notice.message));
   return { client, args: resolved };
 }
 

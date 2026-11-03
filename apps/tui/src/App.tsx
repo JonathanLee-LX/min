@@ -94,8 +94,8 @@ export function App({ args }: { args: TuiArgs }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const { stdin, setRawMode } = useStdin();
-  const { theme, keybindings, config, warnings } = useMemo(() => {
-    const loaded = resolveMinConfig(
+  const { theme, keybindings, config } = useMemo(() => {
+    const { config } = resolveMinConfig(
       { cwd: args.cwd },
       {
         ...(args.theme ? { theme: args.theme } : {}),
@@ -104,10 +104,9 @@ export function App({ args }: { args: TuiArgs }) {
       },
     );
     return {
-      config: loaded.config,
-      warnings: loaded.warnings,
-      theme: themeFromConfig(loaded.config.ui),
-      keybindings: resolveKeybindings(loaded.config.ui.keybindings),
+      config,
+      theme: themeFromConfig(config.ui),
+      keybindings: resolveKeybindings(config.ui.keybindings),
     };
   }, [args.cwd, args.theme, args.provider, args.model]);
   const [client, setClient] = useState<MinClient | null>(null);
@@ -254,6 +253,7 @@ export function App({ args }: { args: TuiArgs }) {
   useEffect(() => {
     let cancelled = false;
     let unsub: (() => void) | undefined;
+    let unsubNotices: (() => void) | undefined;
 
     const syncQueue = () => {
       const live = clientRef.current;
@@ -391,7 +391,10 @@ export function App({ args }: { args: TuiArgs }) {
         });
         const snapshot = created.getSession();
         replaceLogs(snapshot.messages);
-        for (const warning of warnings) pushLine("notice", warning);
+        for (const notice of created.notices.list()) pushLine("notice", notice.message);
+        unsubNotices = created.notices.subscribe((notice) => {
+          pushLine("notice", notice.message);
+        });
         const status = created.getStatus();
         pushLine(
           "sys",
@@ -403,16 +406,14 @@ export function App({ args }: { args: TuiArgs }) {
         setContextUsage(status.context);
         setClient(created);
       } catch (err) {
-        if (!cancelled) {
-          for (const warning of warnings) pushLine("notice", warning);
-          setError(messageOf(err));
-        }
+        if (!cancelled) setError(messageOf(err));
       }
     })();
 
     return () => {
       cancelled = true;
       unsub?.();
+      unsubNotices?.();
       const live = clientRef.current;
       clientRef.current = null;
       if (live) void live.dispose();
@@ -427,7 +428,6 @@ export function App({ args }: { args: TuiArgs }) {
     args.yes,
     config,
     pushLine,
-    warnings,
     replaceLogs,
   ]);
 

@@ -18,6 +18,13 @@ export {
 } from "./provider.js";
 export { Runner, type RunnerOptions } from "./runner.js";
 export {
+  createNoticeLog,
+  noticeLog,
+  type Notice,
+  type NoticeInput,
+  type NoticeLog,
+} from "./notices.js";
+export {
   defineTool,
   ToolRegistry,
   toolToDefinition,

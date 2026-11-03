@@ -35,8 +35,7 @@ async function getClient(): Promise<MinClient> {
   if (!clientPromise) {
     clientPromise = (async () => {
       await loadProviderExtensions();
-      const { config, warnings } = resolveMinConfig({ cwd: CWD });
-      for (const warning of warnings) console.error(warning);
+      const { config } = resolveMinConfig({ cwd: CWD });
       applyAuthToEnv(config.auth);
       const c = await createClient({
         cwd: CWD,
@@ -64,13 +63,37 @@ async function getClient(): Promise<MinClient> {
               : undefined /* interactive via /api/permission */,
       });
       c.subscribe((event) => broadcast(event));
+      c.notices.subscribe((notice) => broadcast(noticeEvent(notice)));
       return c;
     })();
   }
   return clientPromise;
 }
 
-function broadcast(event: ClientEvent): void {
+type ViewNotice = {
+  type: "notice";
+  id: number;
+  level: "info" | "warning";
+  source: string;
+  message: string;
+};
+
+function noticeEvent(notice: {
+  id: number;
+  level: "info" | "warning";
+  source: string;
+  message: string;
+}): ViewNotice {
+  return {
+    type: "notice",
+    id: notice.id,
+    level: notice.level,
+    source: notice.source,
+    message: notice.message,
+  };
+}
+
+function broadcast(event: ClientEvent | ViewNotice): void {
   const payload = `data: ${JSON.stringify(event)}\n\n`;
   for (const res of sseClients) {
     res.write(payload);
@@ -172,8 +195,13 @@ async function handler(
         Connection: "keep-alive",
       });
       res.write(": ok\n\n");
+      const client = await getClient();
+      const seen = client.notices.list();
       sseClients.add(res);
-      const status = (await getClient()).getStatus();
+      for (const notice of seen) {
+        res.write(`data: ${JSON.stringify(noticeEvent(notice))}\n\n`);
+      }
+      const status = client.getStatus();
       res.write(
         `data: ${JSON.stringify({ type: "session", id: status.sessionId, messageCount: 0 })}\n\n`,
       );

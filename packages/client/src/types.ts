@@ -1,4 +1,4 @@
-import type { Message, ToolCallPart } from "@min-agent/core";
+import type { Message, Notice, ToolCallPart } from "@min-agent/core";
 import type { Runtime, RuntimeOptions } from "@min-agent/runtime";
 import type { InputQueueMode, SessionMeta } from "@min-agent/session";
 
@@ -176,8 +176,19 @@ export interface ClientOptions {
  * and keep layers decoupled. Does not replace Runtime (composition) or
  * Session (history / queue authority).
  */
+/**
+ * View-facing handle on the process notice log.
+ * `list` is a snapshot. `subscribe` receives notices recorded after the call.
+ */
+export interface ClientNotices {
+  list(): readonly Notice[];
+  subscribe(handler: (notice: Notice) => void): () => void;
+}
+
 export interface MinClient {
   readonly queue: ClientQueueApi;
+  /** System notices collected before and during this process. */
+  readonly notices: ClientNotices;
 
   send(text: string, opts?: SendOptions): Promise<void>;
   abort(): void;

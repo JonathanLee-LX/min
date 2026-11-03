@@ -88,7 +88,7 @@ Low → high: defaults, `~/.min/config.json`, `keybindings.json`, user settings 
 
 `MIN_PROVIDER`, `MIN_MODEL`, `MIN_THEME`, `MIN_MAX_TURNS`, `MIN_MAX_CONTEXT_TOKENS`, and `MIN_CONTEXT_STRATEGY` override the files. A flag such as `--provider` or `--max-turns` overrides those variables. `auth.json` fills an environment variable only when it is still unset, so `.env` wins.
 
-The CLI, TUI, and Web server apply provider, model, runtime limits, and the bash/write permission policy. The TUI also applies theme and keybindings. Remembered grants stay in `.min/permissions.json`. Sessions stay in `.min/sessions/`. `providers.json`, the MCP files, and `cron/jobs.json` are loaded onto the resolved config; the apps do not register those providers, connect MCP, or run jobs yet.
+The CLI, TUI, and Web server apply provider, model, runtime limits, and the bash/write permission policy. The TUI also applies theme and keybindings. Remembered grants stay in `.min/permissions.json`. Sessions stay in `.min/sessions/`. `providers.json`, the MCP files, and `cron/jobs.json` are loaded onto the resolved config; the apps do not register those providers, connect MCP, or run jobs yet. Config warnings, including a legacy `config.json` notice, go to the process notice log. Views read them with `client.notices`.
 
 ```gitignore
 .min/*
