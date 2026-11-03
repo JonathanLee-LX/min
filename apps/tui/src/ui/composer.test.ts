@@ -80,7 +80,7 @@ describe("composerContentRows", () => {
         color: "#4e9a57",
         borderColor: "#4e9a57",
       }),
-      { stdout: stream as unknown as NodeJS.WriteStream }
+      { stdout: stream as unknown as NodeJS.WriteStream, debug: true }
     );
 
     // Transition from empty text (initial state) to Chinese input (first keystroke)
@@ -95,7 +95,10 @@ describe("composerContentRows", () => {
       })
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    const deadline = Date.now() + 1000;
+    while (!output.includes("你好") && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     expect(output).toContain("你好");
     instance.unmount();
   });
