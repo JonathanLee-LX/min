@@ -58,11 +58,11 @@ describe("theme", () => {
     expect(themed.roles.assistant.background).toBeUndefined();
   });
 
-  it("paints notices on a warm band that hugs the text", () => {
+  it("paints notices as peach copy on a raised slate band", () => {
     expect(toneFor("notice")).toMatchObject({
-      label: "#f9e2af",
-      body: "#f9e2af",
-      background: "#5b3d2e",
+      label: "#fab387",
+      body: "#fab387",
+      background: "#45475a",
     });
     const rows = paintTranscript(
       [{ key: "n", kind: "notice", text: "legacy config is ignored" }],

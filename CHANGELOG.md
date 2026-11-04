@@ -4,7 +4,7 @@
 
 - Config files follow a Command Code-style layout: `~/.min/` for preferences, credentials, providers, keybindings, and MCP; `<cwd>/.min/settings.json` (commit) and `settings.local.json` (gitignore) for project policy; `<cwd>/.mcp.json` for shared MCP servers. Field schemas and which of those files the CLI, TUI, and Web server apply are in `packages/config/README.md`.
 - `~/.config/min/config.json` and `<cwd>/.min/config.json` are read only for compatibility. They do not change settings. The notice is recorded on the process notice log and shown through `client.notices` in the CLI, TUI, and Web UI.
-- TUI notices use a warm background that hugs the text, with yellow copy, so the warning stands out without filling the row.
+- TUI notices use peach copy on a raised slate band that hugs the text, so the warning stands out from tool lines without filling the row.
 
 ## 0.1.0-alpha.4
 
