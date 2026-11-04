@@ -17,3 +17,12 @@ export {
   type ProviderFactory,
   type ProviderOptions,
 } from "./registry.js";
+export {
+  modelControls,
+  tunableProvider,
+  type ModelControls,
+  type ModelProviderChange,
+  type ModelSelection,
+  type TunableProvider,
+} from "./tunable.js";
+export { modelsFor } from "./catalog.js";

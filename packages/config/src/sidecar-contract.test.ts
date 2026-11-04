@@ -40,6 +40,7 @@ describe("config sidecar contracts", () => {
       MIN_CONTEXT_STRATEGY: "hybrid",
       MIN_PROVIDER: "openai",
       MIN_MODEL: "gpt-test",
+      MIN_REASONING_EFFORT: "low",
     });
     expect(doc).toMatchObject({
       ui: { theme: "forest" },
@@ -50,6 +51,7 @@ describe("config sidecar contracts", () => {
       },
       provider: "openai",
       model: "gpt-test",
+      reasoningEffort: "low",
     });
   });
 });

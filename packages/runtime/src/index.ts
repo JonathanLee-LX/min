@@ -1,4 +1,11 @@
 export { loadProviderExtensions, resolveProvider } from "./provider.js";
+export { parseReasoningEffort, type ReasoningEffort } from "@min-agent/core";
+export {
+  modelControls,
+  type ModelControls,
+  type ModelProviderChange,
+  type ModelSelection,
+} from "@min-agent/providers";
 export {
   BASE_SYSTEM,
   DEFAULT_MAX_TURNS,

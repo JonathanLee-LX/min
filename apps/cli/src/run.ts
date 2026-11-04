@@ -46,6 +46,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     provider: resolveProvider({
       provider: resolved.provider,
       model: resolved.model,
+      reasoningEffort: config.reasoningEffort,
     }),
     sessionId: resolved.sessionId,
     sessionDir: resolved.sessionDir,

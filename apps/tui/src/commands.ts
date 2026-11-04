@@ -20,7 +20,11 @@ export type TuiCommand =
   | { type: "queue" }
   | { type: "dense"; text: string }
   | { type: "dense-usage" }
-  | { type: "thinking" };
+  | { type: "thinking" }
+  | { type: "model" }
+  | { type: "model-set"; args: string[] }
+  | { type: "effort" }
+  | { type: "effort-set"; value: string };
 
 export type SubmitRoute =
   | { type: "empty" }
@@ -48,6 +52,8 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "reset", hint: "clear conversation history" },
   { name: "queue", hint: "show the follow-up queue" },
   { name: "thinking", hint: "expand / collapse thinking content" },
+  { name: "model", hint: "show or switch the model", arg: true },
+  { name: "effort", hint: "show or set thinking intensity", arg: true },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
   { name: "exit", hint: "quit" },
   { name: "quit", hint: "quit" },
@@ -65,6 +71,13 @@ export const TUI_HELP = `Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
+  /model             show provider, model, and thinking effort
+  /model <model>     switch model on the current provider
+  /model <provider> <model>
+                     switch provider and model
+  /model <name>      a providers.json name selects that saved entry
+  /effort            show thinking intensity
+  /effort <level>    none, low, medium, high, max, or default
   /dense <text>      queue text as a dense-latest supplement
   /exit /quit        quit
 
@@ -133,7 +146,15 @@ export function cycleCommandIndex(
   return direction === "down" ? (at + 1) % count : (at - 1 + count) % count;
 }
 
-const BUSY_BLOCKED = new Set(["resume", "resume-pick", "new", "reset", "compact"]);
+const BUSY_BLOCKED = new Set([
+  "resume",
+  "resume-pick",
+  "new",
+  "reset",
+  "compact",
+  "model-set",
+  "effort-set",
+]);
 
 export function parseTuiCommand(line: string): TuiCommand {
   const trimmed = line.trim();
@@ -156,6 +177,14 @@ export function parseTuiCommand(line: string): TuiCommand {
   if (name === "reset") return { type: "reset" };
   if (name === "queue") return { type: "queue" };
   if (name === "thinking" || name === "think") return { type: "thinking" };
+  if (name === "model") {
+    const args = rest.filter(Boolean);
+    return args.length > 0 ? { type: "model-set", args } : { type: "model" };
+  }
+  if (name === "effort") {
+    const value = rest.join(" ").trim();
+    return value ? { type: "effort-set", value } : { type: "effort" };
+  }
   if (name === "dense") {
     const text = rest.join(" ").trim();
     return text ? { type: "dense", text } : { type: "dense-usage" };
@@ -171,10 +200,93 @@ export function routeSubmit(line: string, busy: boolean): SubmitRoute {
     return busy ? { type: "queue", text: command.text } : { type: "send", text: command.text };
   }
   if (busy && BUSY_BLOCKED.has(command.type)) {
-    const name = command.type === "resume-pick" ? "resume" : command.type;
-    return { type: "busy-blocked", name };
+    return { type: "busy-blocked", name: blockedCommandName(command.type) };
   }
   return { type: "command", command };
+}
+
+function blockedCommandName(type: TuiCommand["type"]): string {
+  if (type === "resume-pick") return "resume";
+  if (type === "model-set") return "model";
+  if (type === "effort-set") return "effort";
+  return type;
+}
+
+export interface NamedProviderSpec {
+  kind: string;
+  model?: string;
+  baseUrl?: string;
+  apiKeyEnv?: string;
+}
+
+export type ModelChange =
+  | { type: "show" }
+  | { type: "model"; model: string }
+  | {
+      type: "provider";
+      kind: string;
+      model?: string;
+      baseURL?: string;
+      apiKey?: string;
+    }
+  | { type: "error"; message: string };
+
+/**
+ * `/model` with no args shows the current selection.
+ * One arg is a model id, unless it is a providers.json name.
+ * Two args are provider kind and model id.
+ */
+export function resolveModelArgs(
+  args: readonly string[],
+  named: Readonly<Record<string, NamedProviderSpec>>,
+  env: NodeJS.ProcessEnv = process.env,
+): ModelChange {
+  if (args.length === 0) return { type: "show" };
+  if (args.length > 2) {
+    return {
+      type: "error",
+      message: "usage: /model <model> | /model <provider> <model>",
+    };
+  }
+  if (args.length === 2) {
+    const kind = args[0]?.trim() ?? "";
+    const model = args[1]?.trim() ?? "";
+    if (!kind || !model) {
+      return { type: "error", message: "usage: /model <provider> <model>" };
+    }
+    return { type: "provider", kind, model };
+  }
+  const name = args[0]?.trim() ?? "";
+  if (!name) return { type: "error", message: "model name is empty" };
+  const spec = named[name];
+  if (spec) {
+    const apiKey = spec.apiKeyEnv ? env[spec.apiKeyEnv] : undefined;
+    return {
+      type: "provider",
+      kind: spec.kind,
+      ...(spec.model ? { model: spec.model } : {}),
+      ...(spec.baseUrl ? { baseURL: spec.baseUrl } : {}),
+      ...(apiKey ? { apiKey } : {}),
+    };
+  }
+  return { type: "model", model: name };
+}
+
+export function formatModelStatus(info: {
+  kind: string;
+  model: string;
+  effort?: string;
+  models: readonly string[];
+  saved: readonly string[];
+}): string {
+  const lines = [
+    `provider ${info.kind}`,
+    `model ${info.model}`,
+    `effort ${info.effort ?? "(default)"}`,
+  ];
+  if (info.models.length > 0) lines.push(`models: ${info.models.join(", ")}`);
+  if (info.saved.length > 0) lines.push(`saved: ${info.saved.join(", ")}`);
+  return lines.join("\n");
 }
 
 export function formatSession(info: {

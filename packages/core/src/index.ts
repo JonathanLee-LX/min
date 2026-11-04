@@ -16,6 +16,11 @@ export {
   type ModelProvider,
   type MockTurn,
 } from "./provider.js";
+export {
+  REASONING_EFFORTS,
+  parseReasoningEffort,
+  type ReasoningEffort,
+} from "./effort.js";
 export { Runner, type RunnerOptions } from "./runner.js";
 export {
   createNoticeLog,

@@ -1,3 +1,4 @@
+import { parseReasoningEffort } from "@min-agent/core";
 import {
   CONFIG_VERSION,
   type MinConfigDocument,
@@ -18,6 +19,7 @@ const KNOWN_TOP = new Set([
   "version",
   "provider",
   "model",
+  "reasoningEffort",
   "runtime",
   "ui",
   "extensions",
@@ -61,6 +63,7 @@ export function parseConfigDocument(value: unknown): ParseResult {
     ...(typeof raw.model === "string" && raw.model.trim()
       ? { model: raw.model.trim() }
       : {}),
+    ...readEffort(raw.reasoningEffort, warnings),
     ...(parseRuntime(raw.runtime)
       ? { runtime: parseRuntime(raw.runtime) }
       : {}),
@@ -69,6 +72,21 @@ export function parseConfigDocument(value: unknown): ParseResult {
   };
 
   return { document, unknownKeys, warnings };
+}
+
+function readEffort(
+  value: unknown,
+  warnings: string[],
+): { reasoningEffort: import("@min-agent/core").ReasoningEffort } | Record<string, never> {
+  if (value === undefined) return {};
+  const effort = parseReasoningEffort(value);
+  if (effort) return { reasoningEffort: effort };
+  if (typeof value === "string" && value.trim()) {
+    warnings.push(
+      `ignored reasoningEffort "${value.trim()}"; expected none, low, medium, high, or max`,
+    );
+  }
+  return {};
 }
 
 export function emptyDocument(): MinConfigDocument {

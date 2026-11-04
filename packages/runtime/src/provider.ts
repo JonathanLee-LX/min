@@ -1,9 +1,11 @@
-import type { ModelProvider } from "@min-agent/core";
-import { createProvider, importProviderModules } from "@min-agent/providers";
+import { parseReasoningEffort, type ModelProvider, type ReasoningEffort } from "@min-agent/core";
+import { importProviderModules, tunableProvider } from "@min-agent/providers";
 
 export function resolveProvider(opts: {
   provider?: string;
   model?: string;
+  /** `none` | `low` | `medium` | `high` | `max`. Unknown strings are ignored. */
+  reasoningEffort?: ReasoningEffort | string;
 }): ModelProvider {
   const kind =
     opts.provider ??
@@ -16,7 +18,16 @@ export function resolveProvider(opts: {
           ? "anthropic"
           : "mock");
 
-  return createProvider(kind, { model: opts.model });
+  const effort =
+    typeof opts.reasoningEffort === "string"
+      ? parseReasoningEffort(opts.reasoningEffort)
+      : opts.reasoningEffort;
+
+  return tunableProvider({
+    kind,
+    model: opts.model,
+    reasoningEffort: effort,
+  });
 }
 
 /**

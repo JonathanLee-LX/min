@@ -1,4 +1,4 @@
-import type { ModelProvider } from "@min-agent/core";
+import type { ModelProvider, ReasoningEffort } from "@min-agent/core";
 
 /**
  * Options passed to a registered provider factory.
@@ -11,6 +11,11 @@ export interface ProviderOptions {
   maxTokens?: number;
   /** DeepSeek / OpenAI-compatible protocol. */
   api?: "responses" | "chat";
+  /**
+   * Thinking intensity. Omit for the adapter default
+   * (DeepSeek responses uses high; OpenAI infers from the model id).
+   */
+  reasoningEffort?: ReasoningEffort;
 }
 
 export type ProviderFactory = (opts: ProviderOptions) => ModelProvider;

@@ -35,6 +35,8 @@ const PUBLIC_EXPORTS = [
   "createNoticeLog",
   "mockProvider",
   "noticeLog",
+  "parseReasoningEffort",
+  "REASONING_EFFORTS",
   "systemMessage",
   "textPart",
   "toolCallPart",

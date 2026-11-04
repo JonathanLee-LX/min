@@ -69,7 +69,8 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 
 | Resolved field | CLI | TUI | Web server |
 |---|---|---|---|
-| `provider`, `model` | yes, flags win | yes, flags win | yes, `PROVIDER` / `MODEL` win |
+| `provider`, `model` | yes, flags win | yes, flags win; `/model` switches them for this process | yes, `PROVIDER` / `MODEL` win |
+| `reasoningEffort` | yes, the next model call | yes; `/effort` changes it for this process | yes, the next model call |
 | `runtime.maxTurns`, `maxContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
 | `ui.keybindings` | — | yes, merged onto the built-in chords | — |
@@ -77,9 +78,10 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 | `settings.permissions.write` set to `ask` | confirms writes | confirms writes | confirms writes |
 | `auth` | copied into the environment when the variable is unset | same | same |
 | `settings.permissions.read`, `settings.hooks`, `settings.mcp` | loaded only | loaded only | loaded only |
-| `providers`, `mcpServers`, `cronJobs` | loaded only | loaded only | loaded only |
+| `providers` | loaded only | `/model <name>` selects an entry | loaded only |
+| `mcpServers`, `cronJobs` | loaded only | loaded only | loaded only |
 
-`createRuntime` does not connect MCP. A host that wants those servers calls `mcp().connect()` itself. Nothing in the apps registers `providers.json` or runs `cron/jobs.json` yet.
+`createRuntime` does not connect MCP. A host that wants those servers calls `mcp().connect()` itself. The TUI selects a `providers.json` entry with `/model <name>`. Nothing in the apps runs `cron/jobs.json` yet.
 
 Permission *policy* (`allow` / `ask` / `deny`) lives in settings. The remembered grant ledger stays in `<cwd>/.min/permissions.json`, and sessions stay in `<cwd>/.min/sessions/`. Those two paths are not read by this package.
 
@@ -92,6 +94,7 @@ User preferences, and the per-project state file under `~/.min/projects/{project
   "version": 1,
   "provider": "deepseek",
   "model": "deepseek-flash",
+  "reasoningEffort": "high",
   "runtime": {
     "maxTurns": 40,
     "maxContextTokens": 256000,
@@ -106,7 +109,7 @@ User preferences, and the per-project state file under `~/.min/projects/{project
 }
 ```
 
-Blank strings are dropped. `maxTurns` and `maxContextTokens` must be positive integers. `contextStrategy` is one of `trim`, `hmt`, `tool-offload`, `sticky-trim`, `hybrid`. `ui.keybindings` here is the same sparse chord map as `keybindings.json`; the dedicated file is the one to edit.
+Blank strings are dropped. `maxTurns` and `maxContextTokens` must be positive integers. `contextStrategy` is one of `trim`, `hmt`, `tool-offload`, `sticky-trim`, `hybrid`. `reasoningEffort` is one of `none`, `low`, `medium`, `high`, `max`; anything else is dropped with a warning. Omit it to keep the provider default (DeepSeek responses uses `high`). `ui.keybindings` here is the same sparse chord map as `keybindings.json`; the dedicated file is the one to edit.
 
 ## `settings.json`
 
@@ -152,7 +155,7 @@ Only string values under `keys` are kept. `applyAuthToEnv` copies a key into the
 }
 ```
 
-`kind` is required. `model`, `baseUrl`, and `apiKeyEnv` are optional and trimmed. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`.
+`kind` is required. `model`, `baseUrl`, and `apiKeyEnv` are optional and trimmed. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, `/model <name>` selects one of these entries for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
 
 ## `keybindings.json`
 
@@ -218,6 +221,7 @@ These variables are a layer above every file. A blank value is ignored. Counts m
 |---|---|
 | `MIN_PROVIDER` | `provider` |
 | `MIN_MODEL` | `model` |
+| `MIN_REASONING_EFFORT` | `reasoningEffort` (`none`, `low`, `medium`, `high`, `max`) |
 | `MIN_THEME` | `ui.theme` |
 | `MIN_MAX_TURNS` | `runtime.maxTurns` |
 | `MIN_MAX_CONTEXT_TOKENS` | `runtime.maxContextTokens` |

@@ -7,7 +7,13 @@ import {
   type ContextUsage,
   type MinClient,
 } from "@min-agent/client";
-import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
+import {
+  loadProviderExtensions,
+  modelControls,
+  parseReasoningEffort,
+  resolveProvider,
+  type ModelControls,
+} from "@min-agent/runtime";
 import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
@@ -18,9 +24,11 @@ import {
   commandSuggestions,
   cycleCommandIndex,
   formatCompact,
+  formatModelStatus,
   formatQueue,
   formatSession,
   formatSessionList,
+  resolveModelArgs,
   routeSubmit,
   type SessionListItem,
   type TuiCommand,
@@ -141,6 +149,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [gitBranch, setGitBranch] = useState<string | undefined>();
   const seq = useRef(0);
   const clientRef = useRef<MinClient | null>(null);
+  const modelRef = useRef<ModelControls | null>(null);
   const focusedRef = useRef(true);
   const pendingStreamRef = useRef<string | null>(null);
   const pendingThinkingRef = useRef<string | null>(null);
@@ -265,12 +274,15 @@ export function App({ args }: { args: TuiArgs }) {
         await loadProviderExtensions();
         applyAuthToEnv(config.auth);
         const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
+        const provider = resolveProvider({
+          provider: config.provider,
+          model: config.model,
+          reasoningEffort: config.reasoningEffort,
+        });
+        modelRef.current = modelControls(provider) ?? null;
         const created = await createClient({
           cwd: args.cwd,
-          provider: resolveProvider({
-            provider: config.provider,
-            model: config.model,
-          }),
+          provider,
           sessionId: args.sessionId,
           sessionDir: config.runtime.sessionDir,
           noTools: args.noTools,
@@ -412,6 +424,7 @@ export function App({ args }: { args: TuiArgs }) {
 
     return () => {
       cancelled = true;
+      modelRef.current = null;
       unsub?.();
       unsubNotices?.();
       const live = clientRef.current;
@@ -433,6 +446,68 @@ export function App({ args }: { args: TuiArgs }) {
 
   const runCommand = useCallback(
     async (live: MinClient, command: TuiCommand) => {
+      if (command.type === "model" || command.type === "model-set") {
+        const controls = modelRef.current;
+        if (!controls) {
+          pushLine("error", "model controls are unavailable");
+          return;
+        }
+        const change = resolveModelArgs(
+          command.type === "model-set" ? command.args : [],
+          config.providers,
+        );
+        if (change.type === "error") {
+          pushLine("error", change.message);
+          return;
+        }
+        try {
+          if (change.type === "model") controls.setModel(change.model);
+          if (change.type === "provider") {
+            controls.setProvider({
+              kind: change.kind,
+              model: change.model,
+              baseURL: change.baseURL,
+              apiKey: change.apiKey,
+            });
+          }
+          const selected = controls.selection();
+          pushLine(
+            "sys",
+            formatModelStatus({
+              kind: selected.kind,
+              model: selected.model,
+              effort: selected.effort,
+              models: controls.models(),
+              saved: Object.keys(config.providers),
+            }),
+          );
+        } catch (err) {
+          pushLine("error", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "effort" || command.type === "effort-set") {
+        const controls = modelRef.current;
+        if (!controls) {
+          pushLine("error", "model controls are unavailable");
+          return;
+        }
+        if (command.type === "effort-set") {
+          if (command.value.toLowerCase() === "default") {
+            controls.setEffort(undefined);
+          } else {
+            const effort = parseReasoningEffort(command.value);
+            if (!effort) {
+              pushLine("error", "effort must be none, low, medium, high, max, or default");
+              return;
+            }
+            controls.setEffort(effort);
+          }
+        }
+        const selected = controls.selection();
+        pushLine("sys", `effort ${selected.effort ?? "(default)"}`);
+        return;
+      }
       if (command.type === "thinking") {
         setThinkingExpanded((current) => {
           const next = !current;
@@ -571,7 +646,7 @@ export function App({ args }: { args: TuiArgs }) {
         }
       }
     },
-    [exit, pushLine],
+    [config.providers, exit, pushLine],
   );
 
   const submitLine = useCallback(

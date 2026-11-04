@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 import type {
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
-import type { ModelProvider } from "@min-agent/core";
+import type { ModelProvider, ReasoningEffort } from "@min-agent/core";
 import type {
   CompletionChunk,
   CompletionRequest,
@@ -20,6 +22,8 @@ export interface OpenAIChatProviderOptions {
   maxTokens?: number;
   /** Provider id prefix, e.g. "deepseek" or "openai-chat". */
   id?: string;
+  /** Chat Completions `reasoning_effort`, when the host supports it. */
+  reasoningEffort?: ReasoningEffort;
   /** Injected client for tests. */
   client?: OpenAI;
 }
@@ -37,7 +41,6 @@ export function openaiChatProvider(
       apiKey: opts.apiKey ?? process.env.OPENAI_API_KEY,
       baseURL: opts.baseURL,
     });
-  const defaultMaxTokens = opts.maxTokens ?? 4096;
   const prefix = opts.id ?? "openai-chat";
 
   return {
@@ -47,17 +50,7 @@ export function openaiChatProvider(
       const messages = toChatMessages(req);
 
       const response = await client.chat.completions.create(
-        {
-          model: opts.model,
-          messages,
-          max_tokens: req.maxTokens ?? defaultMaxTokens,
-          ...(req.tools?.length
-            ? {
-                tools: toChatTools(req.tools),
-                tool_choice: "auto" as const,
-              }
-            : {}),
-        },
+        chatParams(opts, req, messages),
         { signal: req.signal },
       );
 
@@ -113,18 +106,7 @@ export function openaiChatProvider(
       const messages = toChatMessages(req);
 
       const stream = await client.chat.completions.create(
-        {
-          model: opts.model,
-          messages,
-          max_tokens: req.maxTokens ?? defaultMaxTokens,
-          stream: true,
-          ...(req.tools?.length
-            ? {
-                tools: toChatTools(req.tools),
-                tool_choice: "auto" as const,
-              }
-            : {}),
-        },
+        chatStreamParams(opts, req, messages),
         { signal: req.signal },
       );
 
@@ -208,6 +190,36 @@ function toChatTools(tools: ToolDefinition[]): ChatCompletionTool[] {
       parameters: t.inputSchema as Record<string, unknown>,
     },
   }));
+}
+
+function chatParams(
+  opts: OpenAIChatProviderOptions,
+  req: CompletionRequest,
+  messages: ChatCompletionMessageParam[],
+): ChatCompletionCreateParamsNonStreaming {
+  const maxTokens = opts.maxTokens ?? 4096;
+  const params: ChatCompletionCreateParamsNonStreaming = {
+    model: opts.model,
+    messages,
+    max_tokens: req.maxTokens ?? maxTokens,
+    ...(req.tools?.length
+      ? { tools: toChatTools(req.tools), tool_choice: "auto" as const }
+      : {}),
+  };
+  // Hosts such as DeepSeek accept none and max; the SDK union stops at high.
+  if (opts.reasoningEffort) {
+    params.reasoning_effort =
+      opts.reasoningEffort as ChatCompletionCreateParamsNonStreaming["reasoning_effort"];
+  }
+  return params;
+}
+
+function chatStreamParams(
+  opts: OpenAIChatProviderOptions,
+  req: CompletionRequest,
+  messages: ChatCompletionMessageParam[],
+): ChatCompletionCreateParamsStreaming {
+  return { ...chatParams(opts, req, messages), stream: true };
 }
 
 function toChatMessages(req: CompletionRequest): ChatCompletionMessageParam[] {

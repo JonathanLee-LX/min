@@ -240,4 +240,13 @@ describe("parseConfigDocument edges", () => {
     expect(parsed.document.ui?.theme).toBeUndefined();
     expect(parsed.document.ui?.keybindings).toEqual({ enter: "submit" });
   });
+
+  it("keeps a known reasoning effort and warns on an unknown one", () => {
+    expect(parseConfigDocument({ version: 1, reasoningEffort: " High " }).document.reasoningEffort).toBe(
+      "high",
+    );
+    const rejected = parseConfigDocument({ version: 1, reasoningEffort: "turbo" });
+    expect(rejected.document.reasoningEffort).toBeUndefined();
+    expect(rejected.warnings.some((warning) => warning.includes("reasoningEffort"))).toBe(true);
+  });
 });

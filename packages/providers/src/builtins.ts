@@ -21,6 +21,7 @@ registerProvider("openai", (opts) =>
     model: opts.model ?? process.env.OPENAI_MODEL ?? "gpt-4.1",
     baseURL: opts.baseURL,
     maxTokens: opts.maxTokens,
+    reasoningEffort: opts.reasoningEffort,
   }),
 );
 
@@ -31,6 +32,7 @@ registerProvider("openai-chat", (opts) =>
     baseURL: opts.baseURL,
     maxTokens: opts.maxTokens,
     id: "openai-chat",
+    reasoningEffort: opts.reasoningEffort,
   }),
 );
 
@@ -40,6 +42,7 @@ registerProvider("anthropic", (opts) =>
     model: opts.model ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
     baseURL: opts.baseURL,
     maxTokens: opts.maxTokens,
+    reasoningEffort: opts.reasoningEffort,
   }),
 );
 
@@ -57,5 +60,6 @@ registerProvider("deepseek", (opts) => {
     model,
     baseURL: opts.baseURL,
     maxTokens: opts.maxTokens,
+    reasoningEffort: opts.reasoningEffort,
   });
 });

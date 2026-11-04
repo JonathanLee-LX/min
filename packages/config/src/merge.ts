@@ -1,3 +1,4 @@
+import { parseReasoningEffort } from "@min-agent/core";
 import { emptyDocument } from "./parse.js";
 import type {
   FlagOverrides,
@@ -26,6 +27,7 @@ export function toResolved(
     version: CONFIG_VERSION,
     ...(document.provider ? { provider: document.provider } : {}),
     ...(document.model ? { model: document.model } : {}),
+    ...(document.reasoningEffort ? { reasoningEffort: document.reasoningEffort } : {}),
     runtime: { ...(document.runtime ?? {}) },
     ui: {
       ...(document.ui?.theme ? { theme: document.ui.theme } : {}),
@@ -92,9 +94,17 @@ export function documentFromEnv(env: NodeJS.ProcessEnv): MinConfigDocument {
     version: CONFIG_VERSION,
     ...(env.MIN_PROVIDER?.trim() ? { provider: env.MIN_PROVIDER.trim() } : {}),
     ...(env.MIN_MODEL?.trim() ? { model: env.MIN_MODEL.trim() } : {}),
+    ...effortFromEnv(env),
     ...(Object.keys(runtime).length > 0 ? { runtime } : {}),
     ...(Object.keys(ui).length > 0 ? { ui } : {}),
   };
+}
+
+function effortFromEnv(
+  env: NodeJS.ProcessEnv,
+): { reasoningEffort: import("@min-agent/core").ReasoningEffort } | Record<string, never> {
+  const effort = parseReasoningEffort(env.MIN_REASONING_EFFORT);
+  return effort ? { reasoningEffort: effort } : {};
 }
 
 function mergeTwo(base: MinConfigDocument, overlay: MinConfigDocument): MinConfigDocument {
@@ -102,6 +112,7 @@ function mergeTwo(base: MinConfigDocument, overlay: MinConfigDocument): MinConfi
     version: CONFIG_VERSION,
     provider: overlay.provider ?? base.provider,
     model: overlay.model ?? base.model,
+    reasoningEffort: overlay.reasoningEffort ?? base.reasoningEffort,
     runtime: mergeRuntime(base.runtime, overlay.runtime),
     ui: mergeUi(base.ui, overlay.ui),
     extensions: { ...(base.extensions ?? {}), ...(overlay.extensions ?? {}) },

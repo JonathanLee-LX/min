@@ -90,6 +90,22 @@ describe("openaiProvider", () => {
     expect(create.mock.calls[0]![0].reasoning).toEqual({ effort: "high" });
   });
 
+  it("sends an explicit effort even for models that do not auto-reason", async () => {
+    const create = vi.fn().mockResolvedValue({
+      status: "completed",
+      output: [{ type: "message", content: [{ type: "output_text", text: "ok" }] }],
+    });
+    const provider = openaiProvider({
+      model: "gpt-4.1",
+      reasoningEffort: "low",
+      client: { responses: { create } } as never,
+    });
+    await provider.complete({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+    expect(create.mock.calls[0]![0].reasoning).toEqual({ effort: "low" });
+  });
+
   it("detects models that usually expose reasoning", () => {
     expect(modelLikelyReasons("o3-mini")).toBe(true);
     expect(modelLikelyReasons("deepseek-flash")).toBe(true);

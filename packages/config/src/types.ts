@@ -1,3 +1,5 @@
+import type { ReasoningEffort } from "@min-agent/core";
+
 /**
  * min configuration document.
  *
@@ -56,6 +58,11 @@ export interface MinConfigDocument {
   version: ConfigVersion;
   provider?: string;
   model?: string;
+  /**
+   * Thinking intensity: `none`, `low`, `medium`, `high`, or `max`.
+   * Omit it to keep the provider default. DeepSeek responses defaults to `high`.
+   */
+  reasoningEffort?: ReasoningEffort;
   runtime?: RuntimeConfig;
   ui?: UiConfig;
   /**
@@ -116,6 +123,7 @@ export interface ResolvedMinConfig {
   version: ConfigVersion;
   provider?: string;
   model?: string;
+  reasoningEffort?: ReasoningEffort;
   runtime: RuntimeConfig;
   ui: UiConfig;
   settings: MinSettings;

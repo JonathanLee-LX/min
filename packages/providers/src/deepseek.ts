@@ -1,5 +1,5 @@
 import type OpenAI from "openai";
-import type { ModelProvider } from "@min-agent/core";
+import type { ModelProvider, ReasoningEffort } from "@min-agent/core";
 import { openaiChatProvider } from "./openai-chat.js";
 import { openaiProvider } from "./openai.js";
 
@@ -18,6 +18,11 @@ export interface DeepSeekProviderOptions {
    * - `chat`: OpenAI Chat Completions (legacy / broader gateway support)
    */
   api?: "responses" | "chat";
+  /**
+   * Responses thinking intensity. Default `high`.
+   * `none` turns thinking off. Chat Completions receives the same value.
+   */
+  reasoningEffort?: ReasoningEffort;
   /** Injected client for tests. */
   client?: OpenAI;
 }
@@ -48,6 +53,7 @@ export function deepseekProvider(
       baseURL,
       maxTokens,
       id: "deepseek",
+      reasoningEffort: opts.reasoningEffort,
       client: opts.client,
     });
   }
@@ -60,7 +66,7 @@ export function deepseekProvider(
     model,
     baseURL,
     maxTokens,
-    reasoningEffort: "high",
+    reasoningEffort: opts.reasoningEffort ?? "high",
     client: opts.client,
   });
   return {

@@ -272,6 +272,7 @@ function layerHasValues(doc: MinConfigDocument): boolean {
   return !!(
     doc.provider ||
     doc.model ||
+    doc.reasoningEffort ||
     (doc.runtime && Object.keys(doc.runtime).length > 0) ||
     (doc.ui && Object.keys(doc.ui).length > 0) ||
     (doc.extensions && Object.keys(doc.extensions).length > 0)

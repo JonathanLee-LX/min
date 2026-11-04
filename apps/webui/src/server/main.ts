@@ -42,6 +42,7 @@ async function getClient(): Promise<MinClient> {
         provider: resolveProvider({
           provider: process.env.PROVIDER ?? config.provider,
           model: process.env.MODEL ?? config.model,
+          reasoningEffort: config.reasoningEffort,
         }),
         sessionDir: config.runtime.sessionDir,
         maxContextTokens: config.runtime.maxContextTokens,

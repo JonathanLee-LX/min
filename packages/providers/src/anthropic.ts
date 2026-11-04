@@ -3,11 +3,12 @@ import type {
   ContentBlock,
   ContentBlockParam,
   MessageParam,
+  ThinkingConfigParam,
   Tool as AnthropicTool,
   ToolResultBlockParam,
   ToolUseBlock,
 } from "@anthropic-ai/sdk/resources/messages";
-import type { ModelProvider } from "@min-agent/core";
+import type { ModelProvider, ReasoningEffort } from "@min-agent/core";
 import type {
   CompletionRequest,
   CompletionResult,
@@ -21,6 +22,11 @@ export interface AnthropicProviderOptions {
   model: string;
   baseURL?: string;
   maxTokens?: number;
+  /**
+   * Extended-thinking budget. `none` disables it.
+   * Omit to leave thinking off, which is the previous default.
+   */
+  reasoningEffort?: ReasoningEffort;
   /** Injected client for tests. */
   client?: Anthropic;
 }
@@ -39,12 +45,14 @@ export function anthropicProvider(opts: AnthropicProviderOptions): ModelProvider
 
     async complete(req: CompletionRequest): Promise<CompletionResult> {
       const { system, messages } = splitSystem(req);
+      const thinking = anthropicThinking(opts.reasoningEffort, req.maxTokens ?? defaultMaxTokens);
       const params: Anthropic.MessageCreateParamsNonStreaming = {
         model: opts.model,
-        max_tokens: req.maxTokens ?? defaultMaxTokens,
+        max_tokens: thinking.max_tokens,
         messages: toAnthropicMessages(messages),
         ...(system ? { system } : {}),
         ...(req.tools?.length ? { tools: toAnthropicTools(req.tools) } : {}),
+        ...(thinking.thinking ? { thinking: thinking.thinking } : {}),
       };
 
       const response = await client.messages.create(params, {
@@ -68,6 +76,27 @@ export function anthropicProvider(opts: AnthropicProviderOptions): ModelProvider
         },
       };
     },
+  };
+}
+
+const THINKING_BUDGET = {
+  low: 1024,
+  medium: 4096,
+  high: 8192,
+  max: 16384,
+} as const;
+
+/** Map a shared effort name onto Claude's extended-thinking budget. */
+function anthropicThinking(
+  effort: ReasoningEffort | undefined,
+  maxTokens: number,
+): { max_tokens: number; thinking?: ThinkingConfigParam } {
+  if (!effort) return { max_tokens: maxTokens };
+  if (effort === "none") return { max_tokens: maxTokens, thinking: { type: "disabled" } };
+  const budget = THINKING_BUDGET[effort];
+  return {
+    max_tokens: Math.max(maxTokens, budget + 1024),
+    thinking: { type: "enabled", budget_tokens: budget },
   };
 }
 

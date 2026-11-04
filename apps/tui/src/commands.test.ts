@@ -5,8 +5,10 @@ import {
   commandSuggestions,
   cycleCommandIndex,
   formatCompact,
+  formatModelStatus,
   formatQueue,
   parseTuiCommand,
+  resolveModelArgs,
   routeSubmit,
   selectCommandCompletion,
 } from "./commands.js";
@@ -37,13 +39,32 @@ describe("routeSubmit", () => {
       type: "command",
       command: { type: "dense", text: "keep this" },
     });
+    expect(routeSubmit("/model", true)).toEqual({ type: "command", command: { type: "model" } });
+    expect(routeSubmit("/effort", true)).toEqual({ type: "command", command: { type: "effort" } });
     expect(routeSubmit("/exit", true)).toEqual({ type: "command", command: { type: "exit" } });
     expect(routeSubmit("/quit", false)).toEqual({ type: "command", command: { type: "exit" } });
     expect(routeSubmit("/q", false)).toEqual({ type: "command", command: { type: "exit" } });
     expect(commandSuggestions("/qui").map((command) => command.name)).toEqual(["quit"]);
-    for (const line of ["/resume abc", "/resume", "/open abc", "/new", "/reset", "/compact"]) {
+    for (const line of [
+      "/resume abc",
+      "/resume",
+      "/open abc",
+      "/new",
+      "/reset",
+      "/compact",
+      "/model gpt-4.1",
+      "/effort high",
+    ]) {
       expect(routeSubmit(line, true).type).toBe("busy-blocked");
     }
+    expect(routeSubmit("/model gpt-4.1", true)).toEqual({
+      type: "busy-blocked",
+      name: "model",
+    });
+    expect(routeSubmit("/effort high", true)).toEqual({
+      type: "busy-blocked",
+      name: "effort",
+    });
     expect(routeSubmit("/compact", false)).toEqual({
       type: "command",
       command: { type: "compact" },
@@ -65,6 +86,52 @@ describe("routeSubmit", () => {
     expect(parseTuiCommand("/dense")).toEqual({ type: "dense-usage" });
     expect(parseTuiCommand("/ctx")).toEqual({ type: "context" });
     expect(parseTuiCommand("/v")).toEqual({ type: "version" });
+    expect(parseTuiCommand("/model")).toEqual({ type: "model" });
+    expect(parseTuiCommand("/model gpt-4.1")).toEqual({
+      type: "model-set",
+      args: ["gpt-4.1"],
+    });
+    expect(parseTuiCommand("/model openai gpt-4.1")).toEqual({
+      type: "model-set",
+      args: ["openai", "gpt-4.1"],
+    });
+    expect(parseTuiCommand("/effort")).toEqual({ type: "effort" });
+    expect(parseTuiCommand("/effort high")).toEqual({ type: "effort-set", value: "high" });
+  });
+
+  it("resolves /model args against saved provider names", () => {
+    const named = {
+      acme: { kind: "openai", model: "gpt", baseUrl: "https://example.test/v1", apiKeyEnv: "ACME_API_KEY" },
+    };
+    expect(resolveModelArgs([], named)).toEqual({ type: "show" });
+    expect(resolveModelArgs(["gpt-4.1"], named)).toEqual({ type: "model", model: "gpt-4.1" });
+    expect(resolveModelArgs(["openai", "o3"], named)).toEqual({
+      type: "provider",
+      kind: "openai",
+      model: "o3",
+    });
+    expect(resolveModelArgs(["acme"], named, { ACME_API_KEY: "sk-test" })).toEqual({
+      type: "provider",
+      kind: "openai",
+      model: "gpt",
+      baseURL: "https://example.test/v1",
+      apiKey: "sk-test",
+    });
+    expect(resolveModelArgs(["a", "b", "c"], named)).toEqual({
+      type: "error",
+      message: "usage: /model <model> | /model <provider> <model>",
+    });
+  });
+
+  it("formats the model status line", () => {
+    expect(
+      formatModelStatus({
+        kind: "deepseek",
+        model: "deepseek-flash",
+        models: ["deepseek-flash"],
+        saved: [],
+      }),
+    ).toBe("provider deepseek\nmodel deepseek-flash\neffort (default)\nmodels: deepseek-flash");
   });
 
   it("formats queue and compact results", () => {

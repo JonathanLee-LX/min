@@ -64,6 +64,7 @@ describe("anthropicProvider", () => {
     expect(create).toHaveBeenCalledOnce();
     const [params] = create.mock.calls[0]!;
     expect(params.model).toBe("claude-test");
+    expect(params.thinking).toBeUndefined();
     expect(params.system).toBe("Be helpful");
     expect(params.tools[0].name).toBe("echo");
     expect(params.messages.some((m: { role: string }) => m.role === "user")).toBe(
@@ -80,5 +81,25 @@ describe("anthropicProvider", () => {
         arguments: { message: "hi" },
       },
     ]);
+  });
+
+  it("maps thinking effort onto an extended-thinking budget", async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "ok" }],
+      stop_reason: "end",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const provider = anthropicProvider({
+      model: "claude-test",
+      maxTokens: 4096,
+      reasoningEffort: "high",
+      client: { messages: { create } } as never,
+    });
+    await provider.complete({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+    const [params] = create.mock.calls[0]!;
+    expect(params.thinking).toEqual({ type: "enabled", budget_tokens: 8192 });
+    expect(params.max_tokens).toBe(9216);
   });
 });

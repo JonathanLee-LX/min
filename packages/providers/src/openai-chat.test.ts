@@ -80,4 +80,42 @@ describe("openaiChatProvider", () => {
       arguments: { message: "hi" },
     });
   });
+
+  it("forwards reasoning_effort on complete and stream, including none and max", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce({
+        choices: [{ finish_reason: "stop", message: { content: "ok" } }],
+      })
+      .mockResolvedValueOnce(
+        (async function* () {
+          yield { choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] };
+        })(),
+      );
+    const provider = openaiChatProvider({
+      model: "deepseek-chat",
+      reasoningEffort: "none",
+      client: { chat: { completions: { create } } } as never,
+    });
+    await provider.complete({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+    expect(create.mock.calls[0]![0].reasoning_effort).toBe("none");
+    expect(create.mock.calls[0]![0].stream).toBeUndefined();
+
+    const streaming = openaiChatProvider({
+      model: "deepseek-chat",
+      reasoningEffort: "max",
+      client: { chat: { completions: { create } } } as never,
+    });
+    const kinds = [];
+    for await (const chunk of streaming.stream!({
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    })) {
+      kinds.push(chunk.type);
+    }
+    expect(create.mock.calls[1]![0].reasoning_effort).toBe("max");
+    expect(create.mock.calls[1]![0].stream).toBe(true);
+    expect(kinds).toContain("done");
+  });
 });
