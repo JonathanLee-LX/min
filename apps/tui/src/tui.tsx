@@ -6,8 +6,12 @@ import { loadEnvFiles } from "./load-env.js";
 
 loadEnvFiles();
 
-const MOUSE_ENABLE = "\x1b[?1000h\x1b[?1002h\x1b[?1006h";
-const MOUSE_DISABLE = "\x1b[?1006l\x1b[?1002l\x1b[?1000l";
+/**
+ * Button and drag reporting would swallow the pointer, so a drag could not
+ * select text. Release those modes and leave selection to the terminal.
+ * The transcript still scrolls from the keyboard.
+ */
+const MOUSE_RELEASE = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l";
 
 async function main(): Promise<void> {
   let args;
@@ -25,11 +29,11 @@ async function main(): Promise<void> {
   }
 
   if (process.stdout.isTTY) {
-    process.stdout.write(MOUSE_ENABLE);
+    process.stdout.write(MOUSE_RELEASE);
   }
   const cleanup = () => {
     if (process.stdout.isTTY) {
-      process.stdout.write(MOUSE_DISABLE);
+      process.stdout.write(MOUSE_RELEASE);
     }
   };
   process.on("exit", cleanup);

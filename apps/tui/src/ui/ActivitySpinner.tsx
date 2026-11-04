@@ -1,64 +1,54 @@
-import { Spinner, ThemeProvider } from "@inkjs/ui";
 import { Text } from "ink";
-import { useEffect, useMemo, useState } from "react";
-import { activityLabel, type Activity, type ActivityPhase } from "../paint.js";
+import { useEffect, useState } from "react";
+import { shineText, type Activity } from "../paint.js";
 import type { TuiTheme } from "../theme.js";
-import { inkThemeFromTui } from "./ink-theme.js";
 
-/** cli-spinners names accepted by `@inkjs/ui` Spinner. */
-const SPINNER_TYPE: Record<ActivityPhase, "dots" | "line" | "dots12" | "arrow" | "moon"> = {
-  thinking: "dots",
-  writing: "line",
-  tool: "dots12",
-  continuing: "arrow",
-  approval: "moon",
-};
+const SHINE_MS = 90;
 
 /**
- * Activity chrome built on `@inkjs/ui` Spinner, with min's rotating labels.
+ * One status word with a highlight sliding across it.
  *
- * Freeze to a static glyph when unfocused, or when `animate` is false
- * (e.g. while assistant text is streaming). Ink redraws the whole frame on
- * every spinner tick; animating during stream paints causes visible flicker.
+ * A timer runs only while `animate` is set. During a token stream the parent
+ * passes a rising `pulse` instead, so the shine moves on paints that already
+ * happen and does not add a second redraw.
  */
 export function ActivitySpinner({
   activity,
   focused,
-  theme,
   animate = true,
+  pulse = 0,
 }: {
   activity: Activity;
   focused: boolean;
-  theme: TuiTheme;
-  /** When false, show a static glyph instead of the Ink Spinner. */
+  theme?: TuiTheme;
+  /** When false, follow `pulse` instead of a timer. */
   animate?: boolean;
+  /** Advances the highlight while the timer is paused. */
+  pulse?: number;
 }) {
   const live = focused && animate;
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!live) return;
-    const ms = Math.max(120, activity.intervalMs * activity.labelHold);
-    const timer = setInterval(() => setTick((n) => n + 1), ms);
+    const timer = setInterval(() => setTick((n) => n + 1), SHINE_MS);
     return () => clearInterval(timer);
-  }, [live, activity.intervalMs, activity.labelHold, activity.phase]);
+  }, [live, activity.phase]);
 
-  const label = activityLabel(activity, tick * activity.labelHold);
-  const inkTheme = useMemo(
-    () => inkThemeFromTui(theme, activity.color),
-    [theme, activity.color],
-  );
-
-  if (!live) {
-    return (
-      <Text color={activity.color}>
-        · {label}
-      </Text>
-    );
-  }
+  const frame = focused ? (live ? tick : pulse) : -1;
+  const cells = shineText(activity.label, frame);
 
   return (
-    <ThemeProvider theme={inkTheme}>
-      <Spinner label={label} type={SPINNER_TYPE[activity.phase]} />
-    </ThemeProvider>
+    <Text>
+      {cells.map((cell, index) => (
+        <Text
+          key={`${index}:${cell.text}:${cell.hot}`}
+          color={cell.hot ? "white" : activity.color}
+          bold={cell.hot}
+          dimColor={!cell.hot}
+        >
+          {cell.text}
+        </Text>
+      ))}
+    </Text>
   );
 }

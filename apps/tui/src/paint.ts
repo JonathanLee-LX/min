@@ -581,62 +581,20 @@ function isTurn(kind: LogKind): boolean {
   return kind === "user" || kind === "assistant";
 }
 
-export type ActivityPhase = "thinking" | "writing" | "tool" | "continuing" | "approval";
+export type ActivityPhase = "thinking" | "tool" | "working";
 
 export interface Activity {
   phase: ActivityPhase;
-  /** Rotating copy; {@link activityLabel} picks one from the spinner frame. */
-  labels: readonly string[];
-  /** Spinner frames to hold each label before advancing. */
-  labelHold: number;
-  frames: readonly string[];
-  intervalMs: number;
+  /** Fixed status word. A highlight sweeps across it. */
+  label: string;
   color: string;
 }
 
-const FRAMES: Record<ActivityPhase, readonly string[]> = {
-  thinking: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
-  writing: ["▁", "▃", "▅", "▇", "▅", "▃"],
-  tool: ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"],
-  continuing: ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
-  approval: ["◐", "◓", "◑", "◒"],
+const ACTIVITY_LABEL: Record<ActivityPhase, string> = {
+  thinking: "thinking",
+  tool: "tool calling",
+  working: "working",
 };
-
-const THINKING_LABELS = [
-  "thinking",
-  "pondering",
-  "reasoning",
-  "working it out",
-  "considering",
-  "figuring it out",
-  "weighing options",
-  "connecting dots",
-] as const;
-
-const WRITING_LABELS = [
-  "writing",
-  "composing",
-  "drafting",
-  "replying",
-  "shaping the answer",
-] as const;
-
-const CONTINUING_LABELS = [
-  "following up",
-  "picking up the queue",
-  "continuing",
-  "next note",
-] as const;
-
-const APPROVAL_LABELS = [
-  "waiting for approval",
-  "needs your OK",
-  "permission pending",
-] as const;
-
-export function activityFrames(phase: ActivityPhase): readonly string[] {
-  return FRAMES[phase];
-}
 
 export function activityFor(
   input: {
@@ -647,60 +605,33 @@ export function activityFor(
   },
   theme: TuiTheme = defaultTheme,
 ): Activity | null {
-  if (input.status === "asking") {
-    return spec("approval", APPROVAL_LABELS, theme.activity.approval, 220, 5);
-  }
   if (input.status !== "running") return null;
-  if (input.toolName) {
-    const name = clipLabel(input.toolName);
-    return spec(
-      "tool",
-      [`running ${name}`, `using ${name}`, `${name} in progress`],
-      theme.activity.tool,
-      200,
-      5,
-    );
-  }
-  if (input.streaming) {
-    return spec("writing", WRITING_LABELS, theme.activity.writing, 200, 6);
-  }
-  if (input.continuing) {
-    return spec("continuing", CONTINUING_LABELS, theme.activity.continuing, 220, 5);
-  }
-  return spec("thinking", THINKING_LABELS, theme.activity.thinking, 250, 4);
+  if (input.toolName) return spec("tool", theme.activity.tool);
+  if (input.streaming || input.continuing) return spec("working", theme.activity.writing);
+  return spec("thinking", theme.activity.thinking);
 }
 
-export function frameChar(activity: Activity, frame: number): string {
-  const frames = activity.frames;
-  return frames[frame % frames.length] ?? frames[0] ?? "·";
+export interface ShineCell {
+  text: string;
+  hot: boolean;
 }
 
-/** Pick the rotating status line for the current spinner frame. */
-export function activityLabel(activity: Activity, frame: number): string {
-  const hold = Math.max(1, activity.labelHold);
-  const labels = activity.labels;
-  if (labels.length === 0) return "";
-  return labels[Math.floor(frame / hold) % labels.length] ?? labels[0] ?? "";
+/**
+ * A short bright window moving left to right across `text`.
+ * Negative `tick` leaves every cell dim. The window walks off the end, then starts again.
+ */
+export function shineText(text: string, tick: number, width = 2): ShineCell[] {
+  const chars = [...text];
+  if (chars.length === 0) return [];
+  if (tick < 0) return chars.map((ch) => ({ text: ch, hot: false }));
+  const shine = Math.max(1, Math.min(width, chars.length));
+  const head = tick % (chars.length + shine);
+  return chars.map((ch, index) => ({
+    text: ch,
+    hot: index <= head && head - index < shine,
+  }));
 }
 
-function clipLabel(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= 28) return flat;
-  return `${flat.slice(0, 25)}...`;
-}
-
-function spec(
-  phase: ActivityPhase,
-  labels: readonly string[],
-  color: string,
-  intervalMs: number,
-  labelHold: number,
-): Activity {
-  const frames = FRAMES[phase];
-  for (const frame of frames) {
-    if (displayWidth(frame) !== 1) {
-      throw new Error(`spinner frame ${frame} for ${phase} is not one cell wide`);
-    }
-  }
-  return { phase, labels, labelHold, frames, intervalMs, color };
+function spec(phase: ActivityPhase, color: string): Activity {
+  return { phase, label: ACTIVITY_LABEL[phase], color };
 }

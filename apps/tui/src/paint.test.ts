@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activityFor,
-  activityFrames,
-  activityLabel,
+  shineText,
   createPaintCache,
   paintTranscript,
 } from "./paint.js";
@@ -204,59 +203,52 @@ describe("createPaintCache", () => {
 });
 
 describe("activityFor", () => {
-  it("picks a different spinner for each running phase", () => {
-    const thinking = activityFor({
-      status: "running",
-      streaming: false,
-      toolName: null,
-      continuing: false,
-    });
-    expect(thinking?.phase).toBe("thinking");
-    expect(thinking?.labels.length).toBeGreaterThan(1);
-    expect(thinking?.labels[0]).toBe("thinking");
-
+  it("uses thinking, tool calling, or working", () => {
     expect(
-      activityFor({ status: "running", streaming: true, toolName: null, continuing: false })?.phase,
-    ).toBe("writing");
-
-    const tool = activityFor({
-      status: "running",
-      streaming: true,
-      toolName: "bash",
-      continuing: false,
-    });
-    expect(tool?.phase).toBe("tool");
-    expect(tool?.labels).toEqual(["running bash", "using bash", "bash in progress"]);
-
+      activityFor({ status: "running", streaming: false, toolName: null, continuing: false }),
+    ).toMatchObject({ phase: "thinking", label: "thinking" });
     expect(
-      activityFor({ status: "running", streaming: false, toolName: null, continuing: true })?.phase,
-    ).toBe("continuing");
+      activityFor({ status: "running", streaming: true, toolName: null, continuing: false }),
+    ).toMatchObject({ phase: "working", label: "working" });
     expect(
-      activityFor({ status: "asking", streaming: false, toolName: "bash", continuing: false })?.phase,
-    ).toBe("approval");
+      activityFor({ status: "running", streaming: false, toolName: null, continuing: true }),
+    ).toMatchObject({ phase: "working", label: "working" });
+    expect(
+      activityFor({ status: "running", streaming: true, toolName: "bash", continuing: false }),
+    ).toMatchObject({ phase: "tool", label: "tool calling" });
+    expect(
+      activityFor({ status: "asking", streaming: false, toolName: "bash", continuing: false }),
+    ).toBeNull();
     expect(
       activityFor({ status: "idle", streaming: false, toolName: null, continuing: false }),
     ).toBeNull();
   });
 
-  it("rotates status copy across spinner frames", () => {
-    const thinking = activityFor({
-      status: "running",
-      streaming: false,
-      toolName: null,
-      continuing: false,
-    });
-    expect(thinking).not.toBeNull();
-    if (!thinking) return;
-    const hold = thinking.labelHold;
-    expect(activityLabel(thinking, 0)).toBe(thinking.labels[0]);
-    expect(activityLabel(thinking, hold)).toBe(thinking.labels[1]);
-    expect(activityLabel(thinking, hold * thinking.labels.length)).toBe(thinking.labels[0]);
-  });
-
-  it("uses one-cell frames so the label does not jump", () => {
-    for (const phase of ["thinking", "writing", "tool", "continuing", "approval"] as const) {
-      for (const frame of activityFrames(phase)) expect(displayWidth(frame)).toBe(1);
-    }
+  it("slides a short highlight across the status word", () => {
+    expect(shineText("thinking", -1).every((cell) => !cell.hot)).toBe(true);
+    expect(shineText("thinking", 0).map((cell) => cell.hot)).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(shineText("thinking", 1).map((cell) => cell.hot)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    const swept = shineText("thinking", 3).flatMap((cell) => (cell.hot ? cell.text : ""));
+    expect(swept.join("")).toBe("in");
+    expect(shineText("thinking", "thinking".length + 1).some((cell) => cell.hot)).toBe(false);
+    expect(shineText("thinking", "thinking".length + 2)[0]?.hot).toBe(true);
   });
 });

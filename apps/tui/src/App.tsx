@@ -1061,10 +1061,7 @@ export function App({ args }: { args: TuiArgs }) {
           <ActivitySpinner
             activity={{
               phase: "thinking",
-              labels: ["starting min"],
-              labelHold: 8,
-              frames: ["·"],
-              intervalMs: 250,
+              label: "thinking",
               color: theme.activity.thinking,
             }}
             focused={focused}
@@ -1171,6 +1168,7 @@ export function App({ args }: { args: TuiArgs }) {
           theme={theme}
           // Spinner ticks rewrite the whole Ink frame; freeze while tokens flow.
           animate={!stream && !thinking}
+          pulse={stream.length + thinking.length}
         />
       ) : null}
 
