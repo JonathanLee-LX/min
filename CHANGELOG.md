@@ -6,6 +6,7 @@
 - `~/.config/min/config.json` and `<cwd>/.min/config.json` are read only for compatibility. They do not change settings. The notice is recorded on the process notice log and shown through `client.notices` in the CLI, TUI, and Web UI.
 - TUI notices use peach copy on a raised slate band that hugs the text, so the warning stands out from tool lines without filling the row.
 - `/model` switches the model, or a saved `providers.json` entry, for the rest of the process. `/effort` sets thinking intensity (`none`, `low`, `medium`, `high`, `max`). `reasoningEffort` in config and `MIN_REASONING_EFFORT` set the starting value. DeepSeek responses still defaults to `high` when it is omitted.
+- `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen.
 
 ## 0.1.0-alpha.4
 

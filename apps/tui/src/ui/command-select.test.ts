@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { commandSelectRows } from "./CommandSelect.js";
 import { permissionPromptRows } from "./PermissionPrompt.js";
-import { sessionSelectRows } from "./SessionSelect.js";
+import { sessionSelectRows, sessionSelectWindow } from "./SessionSelect.js";
 
 describe("commandSelectRows", () => {
   it("caps visible rows at 8", () => {
@@ -16,6 +16,15 @@ describe("sessionSelectRows", () => {
     expect(sessionSelectRows(0)).toBe(1);
     expect(sessionSelectRows(3)).toBe(4);
     expect(sessionSelectRows(12)).toBe(9);
+  });
+
+  it("keeps the selected session inside the visible window", () => {
+    expect(sessionSelectWindow(0, 0)).toEqual({ start: 0, end: 0 });
+    expect(sessionSelectWindow(3, 2)).toEqual({ start: 0, end: 3 });
+    expect(sessionSelectWindow(12, 0)).toEqual({ start: 0, end: 8 });
+    expect(sessionSelectWindow(12, 7)).toEqual({ start: 0, end: 8 });
+    expect(sessionSelectWindow(12, 8)).toEqual({ start: 1, end: 9 });
+    expect(sessionSelectWindow(12, 11)).toEqual({ start: 4, end: 12 });
   });
 });
 

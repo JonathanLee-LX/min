@@ -74,7 +74,8 @@ Commands:
   /version           show min version
   /session           current session id, title, messages, queue
   /sessions          list saved sessions
-  /resume            pick a saved session (↑↓ Enter); or /resume <id>
+  /resume            pick a saved session (↑↓ Enter); /resume <id> switches
+                     a unique id prefix is enough
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear conversation history

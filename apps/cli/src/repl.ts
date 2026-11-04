@@ -34,7 +34,7 @@ export function handleReplCommand(
   /version           show min version
   /session           show current session id / title / message count
   /sessions          list saved sessions (via Client)
-  /resume            list sessions; /resume <id> switch
+  /resume            list sessions; /resume <id> switch (unique prefix ok)
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear in-memory conversation history

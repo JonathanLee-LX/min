@@ -81,7 +81,7 @@ export async function runCli(args: CliArgs): Promise<void> {
       if (cmd?.type === "resume-list") {
         try {
           await listSessionsViaClient(cli);
-          console.log("usage: /resume <session-id>");
+          console.log("usage: /resume <session-id>  (a unique prefix matches)");
         } catch (err) {
           console.error(err instanceof Error ? err.message : err);
         }

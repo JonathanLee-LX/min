@@ -203,8 +203,9 @@ export interface MinClient {
   getSession(): ClientSessionInfo;
   listSessions(): Promise<SessionMeta[]>;
   /**
-   * Switch to another stored session id.
-   * Disposes the current session handle and rebuilds via Runtime options.
+   * Switch to a stored session. An exact id or a unique prefix matches.
+   * Unknown and ambiguous ids throw and leave the current session in place.
+   * The current id is a no-op. Otherwise disposes the session handle and rebuilds.
    * Emits `session` with `reason: "open"` and full `messages`.
    */
   openSession(id: string): Promise<void>;

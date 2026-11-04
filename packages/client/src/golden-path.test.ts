@@ -273,6 +273,27 @@ describe("Client session surface", () => {
       expect(client.getSession().id).toBe(idA);
       expect(client.getSession().messageCount).toBeGreaterThan(0);
 
+      const prefix = shortestUniquePrefix(idA, [idA, idB]);
+      expect(prefix.length).toBeLessThan(idA.length);
+      const beforeSame = events.filter((event) => event.type === "session").length;
+      await client.openSession(prefix);
+      expect(client.getSession().id).toBe(idA);
+      expect(events.filter((event) => event.type === "session").length).toBe(beforeSame);
+
+      await expect(client.openSession("missing-session")).rejects.toThrow(
+        /no session matches missing-session/,
+      );
+      expect(client.getSession().id).toBe(idA);
+      expect((await client.listSessions()).map((meta) => meta.id).sort()).toEqual(
+        [idA, idB].sort(),
+      );
+
+      await expect(client.openSession("ses")).rejects.toThrow(/session id is ambiguous/);
+      expect(client.getSession().id).toBe(idA);
+
+      await client.openSession(shortestUniquePrefix(idB, [idA, idB]));
+      expect(client.getSession().id).toBe(idB);
+
       client.reset();
       const resetEv = events.filter((e) => e.type === "session").at(-1);
       expect(resetEv).toMatchObject({
@@ -287,6 +308,14 @@ describe("Client session surface", () => {
     }
   });
 });
+
+function shortestUniquePrefix(id: string, ids: readonly string[]): string {
+  for (let length = 1; length <= id.length; length += 1) {
+    const prefix = id.slice(0, length);
+    if (ids.filter((candidate) => candidate.startsWith(prefix)).length === 1) return prefix;
+  }
+  return id;
+}
 
 async function waitFor(pred: () => boolean, ms = 3000): Promise<void> {
   const start = Date.now();

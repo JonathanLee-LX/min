@@ -371,7 +371,9 @@ export async function createClient(
       assertOwnedRuntime("openSession");
       const trimmed = id.trim();
       if (!trimmed) throw new Error("session id required");
-      await rebuildRuntime(trimmed);
+      const resolved = await resolveSessionId(runtime, trimmed);
+      if (resolved === runtime.session.id) return;
+      await rebuildRuntime(resolved);
       emitSession("open", { includeMessages: true });
     },
 
@@ -406,6 +408,26 @@ export async function createClient(
   };
 
   return client;
+}
+
+/**
+ * Exact id, or a unique prefix of the current session or a stored one.
+ * Does not create a session.
+ */
+async function resolveSessionId(runtime: Runtime, query: string): Promise<string> {
+  const current = runtime.session.id;
+  const stored = runtime.store ? await runtime.store.list() : [];
+  const ids = [...new Set([current, ...stored.map((meta) => meta.id)])];
+  if (ids.includes(query)) return query;
+  const matches = ids.filter((id) => id.startsWith(query)).sort();
+  if (matches.length === 1) return matches[0]!;
+  if (matches.length > 1) {
+    const shown = matches.slice(0, 5);
+    const more =
+      matches.length > shown.length ? ` (+${matches.length - shown.length} more)` : "";
+    throw new Error(`session id is ambiguous: ${shown.join(", ")}${more}`);
+  }
+  throw new Error(`no session matches ${query}`);
 }
 
 function resolveFactory(options: ClientOptions): FactoryOpts {
