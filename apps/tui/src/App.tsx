@@ -18,6 +18,7 @@ import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 import { minBannerLines } from "./banner.js";
+import { composerFrameRows } from "./chrome-layout.js";
 import {
   TUI_HELP,
   applyCommandCompletion,
@@ -890,7 +891,6 @@ export function App({ args }: { args: TuiArgs }) {
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
   /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
   const inputRows = composerBodyRowCount(editor.text, innerWidth);
-  const composerBorderRows = 2;
   const slashOpenRows = sessionPicker ? 0 : commandSelectRows(suggestions.length);
   const sessionPickRows = sessionPicker
     ? sessionSelectRows(sessionPicker.sessions.length)
@@ -902,17 +902,14 @@ export function App({ args }: { args: TuiArgs }) {
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
   const bottomStatusRows = contextMeterRows(cwdPath, modelId);
   const permBlockRows = pendingPerm ? permissionPromptRows(pendingPerm) : 0;
-  const reserved =
-    activityRows +
-    permBlockRows +
-    composerBorderRows +
-    inputRows +
-    suggestRows +
-    bottomStatusRows;
-  const logHeight = Math.max(1, paintRows - reserved);
-  const rowsAboveComposer =
-    logHeight + activityRows + permBlockRows + 1; /* top rule */
-  const rowsBelowComposer = 1 /* bottom rule */ + suggestRows + bottomStatusRows;
+  const { logHeight, rowsAboveComposer, rowsBelowComposer } = composerFrameRows({
+    paintRows,
+    activityRows,
+    permBlockRows,
+    inputRows,
+    suggestRows,
+    bottomStatusRows,
+  });
   const userTone = toneFor("user", theme);
   const imeAnchor =
     client && !error
@@ -1167,13 +1164,6 @@ export function App({ args }: { args: TuiArgs }) {
         />
       ) : null}
 
-      <Composer
-        text={editor.text}
-        cursor={editor.cursor}
-        columns={innerWidth}
-        color={userTone.body}
-        borderColor={theme.chrome.brand}
-      />
       {sessionPicker ? (
         <SessionSelect
           sessions={sessionPicker.sessions}
@@ -1196,6 +1186,13 @@ export function App({ args }: { args: TuiArgs }) {
           ))}
         </Box>
       ) : null}
+      <Composer
+        text={editor.text}
+        cursor={editor.cursor}
+        columns={innerWidth}
+        color={userTone.body}
+        borderColor={theme.chrome.brand}
+      />
       <ContextMeter
         cwd={cwdPath}
         model={modelId}
