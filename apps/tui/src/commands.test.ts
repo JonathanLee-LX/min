@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { displayWidth } from "./text.js";
 import {
   applyCommandCompletion,
+  commandColumnWidth,
   commandGhost,
   commandPlaceholder,
   NAME_PLACEHOLDER,
@@ -202,5 +204,18 @@ describe("command completion", () => {
     expect(cycleCommandIndex(0, 3, "down")).toBe(1);
     expect(cycleCommandIndex(0, 3, "up")).toBe(2);
     expect(cycleCommandIndex(2, 3, "down")).toBe(0);
+  });
+
+  it("pads command names so the hints share a column", () => {
+    const commands = [
+      { name: "help", hint: "show this help" },
+      { name: "thinking", hint: "expand / collapse thinking content" },
+    ];
+    const width = commandColumnWidth(commands);
+    expect(width).toBe(displayWidth("/thinking"));
+    for (const command of commands) {
+      const label = `/${command.name}`;
+      expect(displayWidth(label) + (width - displayWidth(label))).toBe(width);
+    }
   });
 });

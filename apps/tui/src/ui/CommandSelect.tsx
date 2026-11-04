@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
-import type { CommandSpec } from "../commands.js";
+import { commandColumnWidth, type CommandSpec } from "../commands.js";
+import { displayWidth } from "../text.js";
 
 const VISIBLE = 8;
 
@@ -24,11 +25,13 @@ export function CommandSelect({
   const selected =
     ((selectedIndex % visible.length) + visible.length) % visible.length;
   const needle = (highlightText ?? "").toLowerCase();
+  const labelWidth = commandColumnWidth(visible);
 
   return (
     <Box flexDirection="column" flexShrink={0}>
       {visible.map((command, index) => {
         const label = `/${command.name}`;
+        const labelPad = " ".repeat(Math.max(0, labelWidth - displayWidth(label)));
         const hint = command.hint ? `  ${command.hint}` : "";
         const focused = index === selected;
         const prefixLen =
@@ -47,6 +50,7 @@ export function CommandSelect({
               ) : (
                 label
               )}
+              {labelPad}
               {hint ? (
                 <Text dimColor={!focused} color={focused ? "cyan" : undefined}>
                   {hint}

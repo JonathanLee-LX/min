@@ -1,0 +1,12 @@
+---
+description: Align columns whenever a list or table shows repeated records
+alwaysApply: true
+---
+
+When a list or table shows repeated records — session rows, command menus, and any row with more than one field — put each field in its own column so the values line up.
+
+- Measure width in terminal cells. CJK and other wide characters count as 2, not as `string.length`.
+- Size each column from the whole list, not from a single row, so scrolling does not move the columns.
+- Pad shorter cells with spaces. Clip an overflowing text cell with an ellipsis.
+- Keep the identifying column readable, and clip secondary text first.
+- Do not append a variable-length field and then a separator. The next field would start at a different column on each row.

@@ -1,4 +1,5 @@
 import { formatResumeLine, layoutResumeRows } from "./session-brief.js";
+import { displayWidth } from "./text.js";
 
 export interface SessionListItem {
   id: string;
@@ -46,6 +47,11 @@ export interface CommandSpec {
   hint: string;
   /** Commands that take an argument get a trailing space when completed. */
   arg?: boolean;
+}
+
+/** Display width of the widest `/name`, so menu hints share one column. */
+export function commandColumnWidth(commands: readonly Pick<CommandSpec, "name">[]): number {
+  return commands.reduce((max, command) => Math.max(max, displayWidth(`/${command.name}`)), 0);
 }
 
 export const TUI_COMMANDS: readonly CommandSpec[] = [
