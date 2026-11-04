@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   applyCommandCompletion,
   commandGhost,
+  commandPlaceholder,
+  NAME_PLACEHOLDER,
   commandSuggestions,
   cycleCommandIndex,
   formatCompact,
@@ -112,6 +114,11 @@ describe("routeSubmit", () => {
       type: "name-set",
       title: "Notice colors",
     });
+    expect(commandPlaceholder("/name ")).toBe(NAME_PLACEHOLDER);
+    expect(commandPlaceholder("/NAME  ")).toBe(NAME_PLACEHOLDER);
+    expect(commandPlaceholder("/name")).toBeUndefined();
+    expect(commandPlaceholder("/name Notice colors")).toBeUndefined();
+    expect(commandPlaceholder("/model ")).toBeUndefined();
   });
 
   it("resolves /model args against saved provider names", () => {

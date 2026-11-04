@@ -108,6 +108,19 @@ Keys:
   Ctrl+B / Ctrl+F    move cursor left / right
   Ctrl+W / Ctrl+U    delete previous word / to line start`;
 
+/** Composer hint after Enter selects `/name` and the argument is still empty. */
+export const NAME_PLACEHOLDER = "设置会话名称或者AI总结";
+
+/**
+ * Placeholder for a selected slash command whose argument is still empty.
+ * `/name` alone keeps the command list open; the trailing space means Enter
+ * (or Tab) already chose it.
+ */
+export function commandPlaceholder(text: string): string | undefined {
+  if (!/^\/name\s+$/i.test(text)) return undefined;
+  return NAME_PLACEHOLDER;
+}
+
 /** Slash command names matching a draft that has no arguments yet. */
 export function commandSuggestions(text: string): CommandSpec[] {
   // Empty / non-slash drafts must yield nothing so the panel unmounts.

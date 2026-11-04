@@ -12,7 +12,9 @@ import {
   composerPadTop,
   composerPaddingRows,
   composerLinesWithCursor,
+  visiblePlaceholder,
 } from "./Composer.js";
+import { NAME_PLACEHOLDER } from "../commands.js";
 
 describe("composerContentRows", () => {
   it("keeps content at one row; 0.5 padding floors to 0 blank rows", () => {
@@ -60,6 +62,43 @@ describe("composerContentRows", () => {
       { before: "hello", after: "" },
       { before: "w", caret: "o", after: "rld" },
     ]);
+  });
+
+  it("keeps the /name placeholder on the caret row and clips it to the remaining cells", () => {
+    expect(visiblePlaceholder(7, 80, NAME_PLACEHOLDER)).toBe(NAME_PLACEHOLDER);
+    expect(visiblePlaceholder(7, 10, NAME_PLACEHOLDER)).toBe("设");
+    expect(visiblePlaceholder(10, 10, NAME_PLACEHOLDER)).toBe("");
+  });
+
+  it("renders the placeholder after the caret without treating it as draft text", async () => {
+    const stream = new PassThrough();
+    (stream as any).isTTY = true;
+    (stream as any).columns = 80;
+    (stream as any).rows = 24;
+    let output = "";
+    stream.on("data", (chunk) => {
+      output += chunk.toString("utf8");
+    });
+
+    const instance = render(
+      React.createElement(Composer, {
+        text: "/name ",
+        cursor: 6,
+        columns: 78,
+        color: "#4e9a57",
+        borderColor: "#4e9a57",
+        placeholder: NAME_PLACEHOLDER,
+      }),
+      { stdout: stream as unknown as NodeJS.WriteStream, debug: true },
+    );
+
+    const deadline = Date.now() + 1000;
+    while (!output.includes(NAME_PLACEHOLDER) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(output).toContain("/name");
+    expect(output).toContain(NAME_PLACEHOLDER);
+    instance.unmount();
   });
 
   it("renders Chinese text in Composer on initial empty-to-text transition", async () => {

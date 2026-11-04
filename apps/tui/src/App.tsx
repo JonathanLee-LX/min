@@ -22,6 +22,7 @@ import { composerFrameRows } from "./chrome-layout.js";
 import {
   TUI_HELP,
   applyCommandCompletion,
+  commandPlaceholder,
   commandSuggestions,
   cycleCommandIndex,
   formatCompact,
@@ -1210,6 +1211,9 @@ export function App({ args }: { args: TuiArgs }) {
         columns={innerWidth}
         color={userTone.body}
         borderColor={theme.chrome.brand}
+        placeholder={
+          editor.cursor === editor.text.length ? commandPlaceholder(editor.text) : undefined
+        }
       />
       <ContextMeter
         cwd={cwdPath}

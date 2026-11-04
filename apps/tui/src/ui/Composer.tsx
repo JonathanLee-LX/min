@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { nextBound, wrapText } from "../text.js";
+import { displayWidth, nextBound, wrapText } from "../text.js";
 import type { TuiTheme } from "../theme.js";
 
 /** Input content is one terminal row by default (grows with wrap / newlines). */
@@ -107,6 +107,22 @@ export function composerLinesWithCursor(
   return result;
 }
 
+/** Clip a composer placeholder so it stays on the caret row. */
+export function visiblePlaceholder(usedWidth: number, columns: number, placeholder: string): string {
+  const room = Math.max(0, columns - usedWidth);
+  if (room <= 0 || !placeholder) return "";
+  if (displayWidth(placeholder) <= room) return placeholder;
+  let out = "";
+  let used = 0;
+  for (const ch of placeholder) {
+    const cell = displayWidth(ch);
+    if (used + cell > room) break;
+    out += ch;
+    used += cell;
+  }
+  return out;
+}
+
 /**
  * Framed composer: brand rules + one-row content by default.
  * Soft wraps and hard newlines grow the body; paddingY is floored to cells.
@@ -117,6 +133,7 @@ export function Composer({
   columns,
   color,
   borderColor,
+  placeholder,
 }: {
   text: string;
   cursor?: number;
@@ -124,6 +141,8 @@ export function Composer({
   color?: string;
   borderColor: string;
   theme?: TuiTheme;
+  /** Dim hint drawn after the caret. Not part of the draft. */
+  placeholder?: string;
 }) {
   const width = Math.max(1, columns);
   const lines: Array<{ before: string; caret?: string; after: string }> =
@@ -141,28 +160,39 @@ export function Composer({
    * mark the parent Yoga node dirty, which previously left maxWidth at 1 (the initial
    * caret space width) and clipped Chinese characters into empty output.
    */
-  const body = lines.map((line, index) => (
-    <Box
-      key={`composer:${index}:${line.before}:${line.caret ?? ""}:${line.after}`}
-      height={1}
-      width={width}
-      flexShrink={0}
-    >
-      {line.caret !== undefined ? (
-        <Text key={`composer-text:${line.before}:${line.caret}:${line.after}`}>
-          {line.before ? <Text color={color}>{line.before}</Text> : null}
-          <Text color={color} inverse>
-            {line.caret}
+  const body = lines.map((line, index) => {
+    const ghost =
+      placeholder && line.caret !== undefined
+        ? visiblePlaceholder(
+            displayWidth(`${line.before}${line.caret}${line.after}`),
+            width,
+            placeholder,
+          )
+        : "";
+    return (
+      <Box
+        key={`composer:${index}:${line.before}:${line.caret ?? ""}:${line.after}:${ghost}`}
+        height={1}
+        width={width}
+        flexShrink={0}
+      >
+        {line.caret !== undefined ? (
+          <Text key={`composer-text:${line.before}:${line.caret}:${line.after}:${ghost}`}>
+            {line.before ? <Text color={color}>{line.before}</Text> : null}
+            <Text color={color} inverse>
+              {line.caret}
+            </Text>
+            {line.after ? <Text color={color}>{line.after}</Text> : null}
+            {ghost ? <Text dimColor>{ghost}</Text> : null}
           </Text>
-          {line.after ? <Text color={color}>{line.after}</Text> : null}
-        </Text>
-      ) : (
-        <Text key={`composer-text:${line.before}`} color={color}>
-          {line.before.length > 0 ? line.before : " "}
-        </Text>
-      )}
-    </Box>
-  ));
+        ) : (
+          <Text key={`composer-text:${line.before}`} color={color}>
+            {line.before.length > 0 ? line.before : " "}
+          </Text>
+        )}
+      </Box>
+    );
+  });
 
   return (
     <Box flexDirection="column" width={width} flexShrink={0}>
