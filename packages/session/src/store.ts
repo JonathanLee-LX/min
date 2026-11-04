@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { Message } from "@min-agent/core";
+import { summarizeSession, type SessionSummary } from "./summary.js";
 
 export interface SessionMeta {
   id: string;
@@ -17,7 +18,7 @@ export interface SessionSnapshot {
 export interface SessionStore {
   save(snapshot: SessionSnapshot): Promise<void>;
   load(id: string): Promise<SessionSnapshot | null>;
-  list(): Promise<SessionMeta[]>;
+  list(): Promise<SessionSummary[]>;
   delete(id: string): Promise<void>;
 }
 
@@ -33,7 +34,7 @@ export function createMemoryStore(): SessionStore {
     },
     async list() {
       return [...map.values()]
-        .map((s) => s.meta)
+        .map((snapshot) => summarizeSession(snapshot))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
     async delete(id) {
@@ -70,12 +71,12 @@ export function createFsStore(dir: string): SessionStore {
       try {
         await mkdir(root, { recursive: true });
         const names = await readdir(root);
-        const metas: SessionMeta[] = [];
+        const metas: SessionSummary[] = [];
         for (const name of names) {
           if (!name.endsWith(".json")) continue;
           const raw = await readFile(path.join(root, name), "utf8");
           const snap = JSON.parse(raw) as SessionSnapshot;
-          metas.push(snap.meta);
+          metas.push(summarizeSession(snap));
         }
         return metas.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
       } catch {

@@ -1,6 +1,6 @@
 import type { Message, Notice, ToolCallPart } from "@min-agent/core";
 import type { Runtime, RuntimeOptions } from "@min-agent/runtime";
-import type { InputQueueMode, SessionMeta } from "@min-agent/session";
+import type { InputQueueMode, SessionSummary } from "@min-agent/session";
 
 /** Client lifecycle / interaction status exposed to UIs. */
 export type ClientStatus = "idle" | "running" | "asking";
@@ -201,7 +201,7 @@ export interface MinClient {
 
   reset(): void;
   getSession(): ClientSessionInfo;
-  listSessions(): Promise<SessionMeta[]>;
+  listSessions(): Promise<SessionSummary[]>;
   /**
    * Switch to a stored session. An exact id or a unique prefix matches.
    * Unknown and ambiguous ids throw and leave the current session in place.

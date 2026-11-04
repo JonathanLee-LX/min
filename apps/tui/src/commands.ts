@@ -1,7 +1,13 @@
+import { formatResumeRow } from "./session-brief.js";
+
 export interface SessionListItem {
   id: string;
   title?: string;
   updatedAt: string;
+  messageCount?: number;
+  turns?: number;
+  preview?: string;
+  latest?: string;
 }
 
 export type TuiCommand =
@@ -319,14 +325,11 @@ export function formatQueue(items: readonly string[]): string {
 export function formatSessionList(
   metas: readonly SessionListItem[],
   currentId: string,
+  columns = 96,
 ): string {
   if (metas.length === 0) return "(no saved sessions)";
   return metas
-    .map((meta) => {
-      const mark = meta.id === currentId ? "*" : " ";
-      const title = meta.title ? `  ${meta.title}` : "";
-      return `${mark} ${meta.id}  ${meta.updatedAt}${title}`;
-    })
+    .map((meta) => formatResumeRow(meta, columns, meta.id === currentId))
     .join("\n");
 }
 

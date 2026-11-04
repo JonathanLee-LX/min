@@ -104,6 +104,7 @@ export {
   type SessionSnapshot,
   type SessionStore,
 } from "./store.js";
+export { summarizeSession, type SessionSummary } from "./summary.js";
 export {
   defaultTokenEstimator,
   estimateMessageTokens,

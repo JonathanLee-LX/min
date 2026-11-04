@@ -1,5 +1,6 @@
 import { Box, Text } from "ink";
 import type { SessionListItem } from "../commands.js";
+import { resumeRowParts } from "../session-brief.js";
 
 const VISIBLE = 8;
 
@@ -11,10 +12,13 @@ export function SessionSelect({
   sessions,
   currentId,
   selectedIndex = 0,
+  columns = 80,
 }: {
   sessions: readonly SessionListItem[];
   currentId: string;
   selectedIndex?: number;
+  /** Width available for one row, including the focus marker. */
+  columns?: number;
 }) {
   if (sessions.length === 0) {
     return (
@@ -34,14 +38,16 @@ export function SessionSelect({
       </Box>
       {visible.map((session, index) => {
         const focused = start + index === at;
-        const mark = session.id === currentId ? "*" : " ";
-        const title = session.title?.trim() ? `  ${session.title.trim()}` : "";
-        const label = `${mark} ${session.id}  ${sessionStamp(session.updatedAt)}${title}`;
+        const row = resumeRowParts(session, Math.max(20, columns - 2), session.id === currentId);
         return (
           <Box key={session.id} height={1} flexShrink={0}>
-            <Text color={focused ? "cyan" : undefined} bold={focused} wrap="truncate">
+            <Text wrap="truncate" color={focused ? "cyan" : undefined} bold={focused}>
               {focused ? "› " : "  "}
-              {label}
+              {row.mark}
+              {row.topic}
+              <Text dimColor={!focused} color={focused ? "cyan" : undefined}>
+                {row.meta}
+              </Text>
             </Text>
           </Box>
         );
@@ -66,9 +72,4 @@ export function sessionSelectWindow(
   const size = Math.min(visible, count);
   const start = at < size ? 0 : at - size + 1;
   return { start, end: start + size };
-}
-
-function sessionStamp(iso: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(iso);
-  return match ? `${match[1]} ${match[2]}` : iso;
 }

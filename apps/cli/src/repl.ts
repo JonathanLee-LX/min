@@ -1,5 +1,6 @@
 import { formatContextUsageReport } from "@min-agent/session";
 import type { CliClient } from "./run.js";
+import { formatCliSessionLine } from "./session-line.js";
 import { formatVersionLine } from "./version.js";
 
 export type ReplAction =
@@ -130,9 +131,7 @@ export async function listSessionsViaClient(cli: CliClient): Promise<void> {
     return;
   }
   const current = cli.client.getSession().id;
-  for (const m of metas) {
-    const mark = m.id === current ? "*" : " ";
-    const title = m.title ? `  ${m.title}` : "";
-    console.log(`${mark} ${m.id}  ${m.updatedAt}${title}`);
+  for (const meta of metas) {
+    console.log(formatCliSessionLine(meta, meta.id === current));
   }
 }

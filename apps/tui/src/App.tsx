@@ -573,6 +573,10 @@ export function App({ args }: { args: TuiArgs }) {
               id: meta.id,
               title: meta.title,
               updatedAt: meta.updatedAt,
+              messageCount: meta.messageCount,
+              turns: meta.turns,
+              preview: meta.preview,
+              latest: meta.latest,
             })),
             selected: selected >= 0 ? selected : 0,
             currentId,
@@ -1175,6 +1179,7 @@ export function App({ args }: { args: TuiArgs }) {
           sessions={sessionPicker.sessions}
           currentId={sessionPicker.currentId}
           selectedIndex={sessionPicker.selected}
+          columns={innerWidth}
         />
       ) : slashOpenRows > 0 ? (
         <CommandSelect

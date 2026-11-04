@@ -15,6 +15,7 @@ import { parseStrategy, type CliArgs } from "./args.js";
 import { createEventPrinter } from "./events.js";
 import { isAbortError, withSigintAbort } from "./interrupt.js";
 import { contextBudgetLog } from "./session-extensions.js";
+import { formatCliSessionLine } from "./session-line.js";
 
 export type CliClient = {
   client: MinClient;
@@ -86,9 +87,8 @@ export async function listSessions(args: CliArgs): Promise<void> {
       console.log(`(no sessions in ${dir})`);
       return;
     }
-    for (const m of metas) {
-      const title = m.title ? `  ${m.title}` : "";
-      console.log(`${m.id}  ${m.updatedAt}${title}`);
+    for (const meta of metas) {
+      console.log(formatCliSessionLine(meta));
     }
   } finally {
     await cli.client.dispose();
