@@ -1,4 +1,5 @@
 import {
+  messageText,
   userMessage,
   type Agent,
   type Message,
@@ -37,6 +38,12 @@ import {
   type SessionSnapshot,
   type SessionStore,
 } from "./store.js";
+import {
+  SESSION_TITLE_SYSTEM,
+  cleanSessionTitle,
+  normalizeSessionTitle,
+  sessionTitleExcerpt,
+} from "./title.js";
 
 export { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
 import { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
@@ -121,6 +128,13 @@ export interface Session {
     keepRecentTurns?: number;
     signal?: AbortSignal;
   }): Promise<CompactHistoryResult>;
+  /** Store a name. Later turns do not replace it. */
+  rename(title: string): Promise<void>;
+  /**
+   * Ask the model for a short name from the current transcript.
+   * The request is not added to session history.
+   */
+  generateTitle(opts?: { signal?: AbortSignal }): Promise<string>;
   reset(messages?: Message[]): void;
   export(): SessionSnapshot;
   dispose(): Promise<void>;
@@ -296,7 +310,8 @@ export async function createSession(
     messages = result.messages;
     const nextMessages = messages;
     if (!meta.title) {
-      meta = { ...meta, title: userText.slice(0, 80) };
+      const title = cleanSessionTitle(userText);
+      if (title) meta = { ...meta, title };
     }
 
     for (const h of hooks) {
@@ -355,6 +370,30 @@ export async function createSession(
 
       await persist();
       return result;
+    },
+
+    async rename(title: string) {
+      const name = cleanSessionTitle(title);
+      if (!name) throw new Error("title is empty");
+      meta = { ...meta, title: name };
+      await persist();
+    },
+
+    async generateTitle(genOpts = {}) {
+      if (genOpts.signal?.aborted) throw new DOMException("aborted", "AbortError");
+      const excerpt = sessionTitleExcerpt(messages);
+      if (!excerpt) throw new Error("nothing to name yet");
+      const result = await opts.agent.provider.complete({
+        system: SESSION_TITLE_SYSTEM,
+        messages: [{ role: "user", content: [{ type: "text", text: excerpt }] }],
+        signal: genOpts.signal,
+      });
+      if (genOpts.signal?.aborted) throw new DOMException("aborted", "AbortError");
+      const title = normalizeSessionTitle(messageText(result.message));
+      if (!title) throw new Error("model returned an empty title");
+      meta = { ...meta, title };
+      await persist();
+      return meta.title ?? title;
     },
 
     async compact(compactOpts = {}) {

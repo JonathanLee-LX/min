@@ -533,6 +533,29 @@ export function App({ args }: { args: TuiArgs }) {
         pushLine("sys", formatVersionLine());
         return;
       }
+      if (command.type === "title") {
+        const title = live.getSession().title;
+        pushLine("sys", title ? `title ${title}` : "title (untitled)");
+        return;
+      }
+      if (command.type === "title-set") {
+        try {
+          await live.renameSession(command.title);
+          pushLine("sys", `title ${live.getSession().title ?? command.title}`);
+        } catch (err) {
+          pushLine("error", messageOf(err));
+        }
+        return;
+      }
+      if (command.type === "title-auto") {
+        try {
+          const title = await live.generateSessionTitle();
+          pushLine("sys", `title ${title}`);
+        } catch (err) {
+          pushLine("error", messageOf(err));
+        }
+        return;
+      }
       if (command.type === "session") {
         const session = live.getSession();
         const status = live.getStatus();

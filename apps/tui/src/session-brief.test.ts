@@ -18,6 +18,9 @@ describe("resume rows", () => {
     const parts = resumeRowParts(session, 72, true, now);
     expect(parts.mark).toBe("* ");
     expect(parts.topic.startsWith("修复通知")).toBe(true);
+    const named = resumeRowParts({ ...session, title: "通知颜色" }, 72, true, now);
+    expect(named.topic.startsWith("通知颜色")).toBe(true);
+    expect(named.topic.startsWith("修复通知")).toBe(false);
     expect(parts.topic).toContain("→");
     expect(parts.meta).toContain("4 turns");
     expect(parts.meta).toContain("…ab3c4d");

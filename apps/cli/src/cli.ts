@@ -99,6 +99,24 @@ export async function runCli(args: CliArgs): Promise<void> {
         }
         continue;
       }
+      if (cmd?.type === "title-set") {
+        try {
+          await cli.client.renameSession(cmd.title);
+          console.log(`title ${cli.client.getSession().title ?? cmd.title}`);
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
+      if (cmd?.type === "title-auto") {
+        try {
+          const title = await cli.client.generateSessionTitle();
+          console.log(`title ${title}`);
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
       if (cmd?.type === "new") {
         try {
           await cli.client.newSession();

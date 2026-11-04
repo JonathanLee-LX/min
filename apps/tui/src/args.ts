@@ -81,6 +81,9 @@ Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
+  /title             show the session name
+  /title <name>      set the name (also /rename)
+  /title auto        ask the model for a short name
   /dense <text>      queue text as a dense-latest supplement
   /exit /quit        quit
 

@@ -38,10 +38,10 @@ export function formatResumeRow(
 }
 
 function resumeTopic(session: SessionListItem): string {
-  const first = collapse(session.preview || session.title || "(untitled)");
+  const name = collapse(session.title || session.preview || "(untitled)");
   const latest = collapse(session.latest || "");
-  if (!latest || latest === first) return first;
-  return `${first} → ${latest}`;
+  if (!latest || latest === name) return name;
+  return `${name} → ${latest}`;
 }
 
 function resumeMeta(session: SessionListItem, now: Date): string {

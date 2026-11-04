@@ -364,6 +364,30 @@ export async function createClient(
       return store.list();
     },
 
+    async renameSession(title: string) {
+      if (runLock) throw new Error("cannot rename session while busy");
+      await runtime.session.rename(title);
+      emitSession("rename");
+    },
+
+    async generateSessionTitle() {
+      if (runLock) throw new Error("cannot rename session while busy");
+      runLock = true;
+      abortController = new AbortController();
+      setStatus("running");
+      try {
+        const title = await runtime.session.generateTitle({
+          signal: abortController.signal,
+        });
+        emitSession("rename");
+        return title;
+      } finally {
+        abortController = undefined;
+        runLock = false;
+        setStatus("idle");
+      }
+    },
+
     async openSession(id: string) {
       if (runLock) {
         throw new Error("cannot switch session while busy");

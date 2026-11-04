@@ -24,7 +24,8 @@ export type SessionEventReason =
   | "open"
   | "reset"
   | "new"
-  | "compact";
+  | "compact"
+  | "rename";
 
 export interface ClientStatusSnapshot {
   status: ClientStatus;
@@ -214,6 +215,17 @@ export interface MinClient {
    * Emits `session` with `reason: "new"`.
    */
   newSession(): Promise<void>;
+
+  /**
+   * Set the session name. The first user message is the default until this runs.
+   * Emits `session` with `reason: "rename"`.
+   */
+  renameSession(title: string): Promise<void>;
+  /**
+   * Ask the current model for a short name. The request is not stored as a turn.
+   * Emits `session` with `reason: "rename"`.
+   */
+  generateSessionTitle(): Promise<string>;
 
   /**
    * Explicit on-demand history compact (LLM summary + rewrite store).

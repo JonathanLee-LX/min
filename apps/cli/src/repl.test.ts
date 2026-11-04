@@ -62,6 +62,11 @@ describe("handleReplCommand", () => {
       id: "ses_abc",
     });
     expect(handleReplCommand(cli, "/resume")).toEqual({ type: "resume-list" });
+    expect(handleReplCommand(cli, "/title Notice colors")).toEqual({
+      type: "title-set",
+      title: "Notice colors",
+    });
+    expect(handleReplCommand(cli, "/title auto")).toEqual({ type: "title-auto" });
   });
 
   it("routes /compact", () => {
