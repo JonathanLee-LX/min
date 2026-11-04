@@ -60,7 +60,7 @@ describe("paintTranscript", () => {
     expect(collapsed).toHaveLength(1);
     expect(collapsed[0]?.body).toContain("thinking: first understand requirements");
     expect(collapsed[0]?.body).toContain("3 lines");
-    expect(collapsed[0]?.body).toContain("Ctrl+O");
+    expect(collapsed[0]?.body).toContain("Ctrl+T");
 
     const expanded = paintTranscript(
       [{ key: "th", kind: "thinking", text }],

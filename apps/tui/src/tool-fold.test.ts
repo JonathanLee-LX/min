@@ -45,7 +45,7 @@ describe("foldThinking", () => {
     const folded = foldThinking(text, false);
     expect(folded).toContain("thinking: analyze the problem");
     expect(folded).toContain("3 lines");
-    expect(folded).toContain("Ctrl+O");
+    expect(folded).toContain("Ctrl+T");
     expect(folded).not.toContain("\n");
     expect(thinkingFoldable(text)).toBe(true);
   });
@@ -60,6 +60,6 @@ describe("foldThinking", () => {
     const folded = foldThinking(long, false);
     expect(folded.length).toBeLessThan(long.length);
     expect(folded).toContain("thinking:");
-    expect(folded).toContain("Ctrl+O");
+    expect(folded).toContain("Ctrl+T");
   });
 });

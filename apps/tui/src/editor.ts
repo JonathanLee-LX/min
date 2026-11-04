@@ -54,6 +54,7 @@ export type InputAction =
   | { type: "complete" }
   | { type: "scroll"; direction: "up" | "down"; delta?: number }
   | { type: "toggle-tool-output" }
+  | { type: "toggle-thinking" }
   | { type: "interrupt" }
   | { type: "ignore" };
 

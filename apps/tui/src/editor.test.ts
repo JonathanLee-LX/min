@@ -152,6 +152,7 @@ describe("inputAction", () => {
     expect(inputAction("c", key({ ctrl: true }))).toEqual({ type: "interrupt" });
     expect(inputAction("", key({ escape: true }))).toEqual({ type: "interrupt" });
     expect(inputAction("o", key({ ctrl: true }))).toEqual({ type: "toggle-tool-output" });
+    expect(inputAction("t", key({ ctrl: true }))).toEqual({ type: "toggle-thinking" });
     expect(inputAction("w", key({ ctrl: true }))).toEqual({
       type: "edit",
       op: { op: "backspaceWord" },

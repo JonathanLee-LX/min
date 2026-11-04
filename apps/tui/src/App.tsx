@@ -143,7 +143,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [scroll, setScroll] = useState(0);
   /** Tool results start collapsed; Ctrl+O toggles. */
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
-  /** Thinking content starts collapsed; Ctrl+O toggles. */
+  /** Thinking content starts collapsed; Ctrl+T toggles. */
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [focused, setFocused] = useState(true);
@@ -788,6 +788,9 @@ export function App({ args }: { args: TuiArgs }) {
     }
     if (action.type === "toggle-tool-output") {
       setToolOutputExpanded((current) => !current);
+      return;
+    }
+    if (action.type === "toggle-thinking") {
       setThinkingExpanded((current) => !current);
       return;
     }

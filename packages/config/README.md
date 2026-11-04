@@ -177,9 +177,9 @@ Chords are case-insensitive. `Shift+Enter`, `shift+enter`, and `return` with Shi
 
 The TUI merges this map onto its built-in table. Unknown command names are ignored. A chord set to an empty string clears that default. Commands the TUI accepts:
 
-`submit`, `newline`, `interrupt`, `toggle-tool-output`, `scroll-up`, `scroll-down`, `complete`, `home`, `end`, `backspace-word`, `kill-line-start`, `left`, `right`, `up`, `down`, `backspace`, `delete`.
+`submit`, `newline`, `interrupt`, `toggle-tool-output`, `toggle-thinking`, `scroll-up`, `scroll-down`, `complete`, `home`, `end`, `backspace-word`, `kill-line-start`, `left`, `right`, `up`, `down`, `backspace`, `delete`.
 
-Built-in chords include Enter = `submit`, Shift+Enter / Alt+Enter / Ctrl+J = `newline`, Escape / Ctrl+C = `interrupt`, Ctrl+O = `toggle-tool-output`, PageUp / PageDown = scroll, and Tab = `complete`.
+Built-in chords include Enter = `submit`, Shift+Enter / Alt+Enter / Ctrl+J = `newline`, Escape / Ctrl+C = `interrupt`, Ctrl+O = `toggle-tool-output`, Ctrl+T = `toggle-thinking`, PageUp / PageDown = scroll, and Tab = `complete`.
 
 ## `mcp.json` and `.mcp.json`
 

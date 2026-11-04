@@ -108,7 +108,8 @@ Keys:
   Drag               select text
   PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
-  Ctrl+O             expand / collapse tool output & thinking
+  Ctrl+O             expand / collapse tool output
+  Ctrl+T             expand / collapse thinking
   Esc                abort the run while it is busy
   Ctrl+C             abort the run, or quit when idle
   Ctrl+A / Ctrl+E    start / end of line

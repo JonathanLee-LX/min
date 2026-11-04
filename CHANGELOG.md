@@ -8,6 +8,7 @@
 - `/model` switches the model, or a saved `providers.json` entry, for the rest of the process. `/effort` sets thinking intensity (`none`, `low`, `medium`, `high`, `max`). `reasoningEffort` in config and `MIN_REASONING_EFFORT` set the starting value. DeepSeek responses still defaults to `high` when it is omitted.
 - The slash-command list and the `/resume` list render above the composer. Opening or closing them no longer moves the input.
 - A session name defaults to the first user message. `/name` asks the model for a short name, and `/name <text>` sets one. After Enter selects `/name`, the composer shows `设置会话名称或者AI总结` until a name is typed. The model request is not stored as a turn. `/resume` shows that name.
+- Ctrl+T expands or collapses thinking. Ctrl+O still does that for tool output.
 - Drag selects transcript text in the terminal. The running line says `thinking`, `tool calling`, or `working`, and a highlight slides across the word.
 - `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen. Each row lines up the name, the latest prompt, the turn count, the local time, and a short id. The CLI session list uses the same columns. Slash-command hints share one column. Lists of records keep each field aligned.
 

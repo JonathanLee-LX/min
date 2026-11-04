@@ -9,6 +9,7 @@ export type KeyCommand =
   | "newline"
   | "interrupt"
   | "toggle-tool-output"
+  | "toggle-thinking"
   | "scroll-up"
   | "scroll-down"
   | "complete"
@@ -42,6 +43,7 @@ export const DEFAULT_KEYBINDINGS: KeybindingTable = {
   escape: "interrupt",
   "ctrl+c": "interrupt",
   "ctrl+o": "toggle-tool-output",
+  "ctrl+t": "toggle-thinking",
   pageup: "scroll-up",
   pagedown: "scroll-down",
   "ctrl+up": "scroll-up",
@@ -152,6 +154,8 @@ export function actionFromCommand(command: KeyCommand): InputAction {
       return { type: "interrupt" };
     case "toggle-tool-output":
       return { type: "toggle-tool-output" };
+    case "toggle-thinking":
+      return { type: "toggle-thinking" };
     case "scroll-up":
       return { type: "scroll", direction: "up" };
     case "scroll-down":

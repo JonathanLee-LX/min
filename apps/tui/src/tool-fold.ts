@@ -40,8 +40,8 @@ export function foldThinking(text: string, expanded: boolean): string {
   const first = lines.find((line) => line.trim().length > 0)?.trim() ?? "";
   const preview =
     first.length > PREVIEW_MAX ? `${first.slice(0, PREVIEW_MAX - 1)}…` : first;
-  if (lineCount <= 1) return `thinking: ${preview}  · Ctrl+O`;
-  return `thinking: ${preview}  · ${lineCount} lines · Ctrl+O`;
+  if (lineCount <= 1) return `thinking: ${preview}  · Ctrl+T`;
+  return `thinking: ${preview}  · ${lineCount} lines · Ctrl+T`;
 }
 
 /** True when folding would change the displayed thinking body. */
