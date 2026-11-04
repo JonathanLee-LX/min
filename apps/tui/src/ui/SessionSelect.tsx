@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import type { SessionListItem } from "../commands.js";
-import { resumeRowParts } from "../session-brief.js";
+import { layoutResumeRows } from "../session-brief.js";
 
 const VISIBLE = 8;
 
@@ -30,6 +30,7 @@ export function SessionSelect({
   const at = ((selectedIndex % sessions.length) + sessions.length) % sessions.length;
   const { start, end } = sessionSelectWindow(sessions.length, at);
   const visible = sessions.slice(start, end);
+  const rows = layoutResumeRows(sessions, Math.max(20, columns - 2), currentId);
 
   return (
     <Box flexDirection="column" flexShrink={0}>
@@ -38,16 +39,19 @@ export function SessionSelect({
       </Box>
       {visible.map((session, index) => {
         const focused = start + index === at;
-        const row = resumeRowParts(session, Math.max(20, columns - 2), session.id === currentId);
+        const row = rows[start + index]!;
         return (
           <Box key={session.id} height={1} flexShrink={0}>
             <Text wrap="truncate" color={focused ? "cyan" : undefined} bold={focused}>
               {focused ? "› " : "  "}
               {row.mark}
-              {row.topic}
-              <Text dimColor={!focused} color={focused ? "cyan" : undefined}>
-                {row.meta}
-              </Text>
+              {row.name}
+              {row.detail}
+              {row.meta ? (
+                <Text dimColor={!focused} color={focused ? "cyan" : undefined}>
+                  {row.meta}
+                </Text>
+              ) : null}
             </Text>
           </Box>
         );

@@ -1,39 +1,76 @@
 import { describe, expect, it } from "vitest";
-import { formatResumeRow, resumeRowParts, sessionWhen } from "./session-brief.js";
+import { formatResumeLine, layoutResumeRows, sessionWhen } from "./session-brief.js";
 import { displayWidth } from "./text.js";
-
-const session = {
-  id: "ses_m5abc_k2ab3c4d",
-  updatedAt: "2026-11-04T10:16:00.000Z",
-  preview: "修复通知的背景颜色",
-  latest: "列表里看不出是哪一次对话",
-  turns: 4,
-  messageCount: 9,
-};
 
 const now = new Date("2026-11-04T12:00:00.000Z");
 
+const short = {
+  id: "ses_short",
+  updatedAt: "2026-11-04T10:16:00.000Z",
+  title: "短",
+  turns: 1,
+  messageCount: 2,
+};
+
+const long = {
+  id: "ses_m5abc_k2ab3c4d",
+  updatedAt: "2025-01-02T08:00:00.000Z",
+  preview: "修复通知的背景颜色",
+  latest: "列表里看不出是哪一次对话",
+  turns: 12,
+  messageCount: 20,
+};
+
+function columnStart(row: { mark: string; name: string; detail: string }, field: "detail" | "meta"): number {
+  const nameEnd = displayWidth(row.mark) + displayWidth(row.name);
+  if (field === "detail") return nameEnd;
+  return nameEnd + displayWidth(row.detail);
+}
+
 describe("resume rows", () => {
-  it("leads with the topic and keeps turns, time, and a short id", () => {
-    const parts = resumeRowParts(session, 72, true, now);
-    expect(parts.mark).toBe("* ");
-    expect(parts.topic.startsWith("修复通知")).toBe(true);
-    const named = resumeRowParts({ ...session, title: "通知颜色" }, 72, true, now);
-    expect(named.topic.startsWith("通知颜色")).toBe(true);
-    expect(named.topic.startsWith("修复通知")).toBe(false);
-    expect(parts.topic).toContain("→");
-    expect(parts.meta).toContain("4 turns");
-    expect(parts.meta).toContain("…ab3c4d");
-    expect(parts.meta).not.toContain("ses_m5abc");
-    expect(displayWidth(`${parts.mark}${parts.topic}${parts.meta}`)).toBeLessThanOrEqual(72);
+  it("aligns the name, latest prompt, turns, time, and id across rows", () => {
+    const rows = layoutResumeRows([short, long], 96, short.id, now);
+    expect(rows[0]!.mark).toBe("* ");
+    expect(rows[1]!.mark).toBe("  ");
+    expect(rows[0]!.name.trimEnd()).toBe("短");
+    expect(rows[1]!.name.trimEnd()).toBe("修复通知的背景颜色");
+    expect(rows[0]!.detail).not.toContain("→");
+    expect(rows[1]!.detail).toContain("→");
+    expect(rows[1]!.detail).toContain("列表里看不出");
+    expect(rows[0]!.meta).toContain("1 turn");
+    expect(rows[1]!.meta).toContain("12 turns");
+    expect(rows[1]!.meta).toContain("…ab3c4d");
+    expect(rows[1]!.meta).not.toContain("ses_m5abc");
+
+    expect(rows[0]!.meta.indexOf("1 turn")).toBe(rows[1]!.meta.indexOf("12 turns"));
+    expect(displayWidth(rows[0]!.name)).toBe(displayWidth(rows[1]!.name));
+    expect(displayWidth(rows[0]!.detail)).toBe(displayWidth(rows[1]!.detail));
+    expect(displayWidth(rows[0]!.meta)).toBe(displayWidth(rows[1]!.meta));
+    expect(columnStart(rows[0]!, "meta")).toBe(columnStart(rows[1]!, "meta"));
+    expect(displayWidth(formatResumeLine(rows[0]!))).toBeLessThanOrEqual(96);
+    expect(displayWidth(formatResumeLine(rows[1]!))).toBeLessThanOrEqual(96);
   });
 
-  it("clips a long topic before the meta on a narrow row", () => {
-    const narrow = { ...session, preview: "x".repeat(80), latest: undefined };
-    const parts = resumeRowParts(narrow, 48, false, now);
-    const line = formatResumeRow(narrow, 48, false, now);
-    expect(parts.topic.endsWith("…")).toBe(true);
-    expect(parts.meta).toContain("4 turns");
+  it("lets a custom title replace the first-message preview", () => {
+    const named = layoutResumeRows([{ ...long, title: "通知颜色" }], 72, long.id, now);
+    expect(named[0]!.name.trimEnd()).toBe("通知颜色");
+    expect(named[0]!.name.trimEnd().startsWith("修复通知")).toBe(false);
+    expect(named[0]!.detail).toContain("列表里看不出");
+  });
+
+  it("clips a long name before the meta columns on a narrow row", () => {
+    const narrow = {
+      ...long,
+      preview: "修复".repeat(40),
+      latest: undefined,
+      title: undefined,
+    };
+    const rows = layoutResumeRows([narrow], 48, "", now);
+    const line = formatResumeLine(rows[0]!);
+    expect(rows[0]!.name.endsWith("…")).toBe(true);
+    expect(rows[0]!.detail).toBe("");
+    expect(rows[0]!.meta).toContain("12 turns");
+    expect(rows[0]!.meta).toContain("…ab3c4d");
     expect(displayWidth(line)).toBeLessThanOrEqual(48);
   });
 

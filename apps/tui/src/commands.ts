@@ -1,4 +1,4 @@
-import { formatResumeRow } from "./session-brief.js";
+import { formatResumeLine, layoutResumeRows } from "./session-brief.js";
 
 export interface SessionListItem {
   id: string;
@@ -353,9 +353,7 @@ export function formatSessionList(
   columns = 96,
 ): string {
   if (metas.length === 0) return "(no saved sessions)";
-  return metas
-    .map((meta) => formatResumeRow(meta, columns, meta.id === currentId))
-    .join("\n");
+  return layoutResumeRows(metas, columns, currentId).map(formatResumeLine).join("\n");
 }
 
 export function formatCompact(result: {
