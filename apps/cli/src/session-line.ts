@@ -18,7 +18,10 @@ export function formatCliSessionLines(
   const whenW = colWidth(raws.map((row) => row.when));
   return raws.map((row) => {
     const name = padWidth(clipWidth(row.name, nameW), nameW);
-    const latest = latestW > 0 ? `  ${row.latest ? "→" : " "} ${padWidth(clipWidth(row.latest, latestW), latestW)}` : "";
+    const latest =
+      latestW > 0
+        ? `  ${row.latest ? "→" : " "} ${padWidth(clipWidth(row.latest, latestW), latestW)}`
+        : "";
     const turns = padWidth(row.turns, turnsW);
     const when = padWidth(row.when, whenW);
     return `${row.mark}${name}${latest}  ${turns}  ${when}  ${row.id}`;
