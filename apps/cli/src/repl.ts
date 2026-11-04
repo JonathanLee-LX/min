@@ -12,8 +12,8 @@ export type ReplAction =
   | { type: "resume-list" }
   | { type: "new" }
   | { type: "compact" }
-  | { type: "title-set"; title: string }
-  | { type: "title-auto" };
+  | { type: "name" }
+  | { type: "name-set"; title: string };
 
 /** Handle slash commands. Returns null if `line` is not a command. */
 export function handleReplCommand(
@@ -38,7 +38,7 @@ export function handleReplCommand(
   /session           show current session id / title / message count
   /sessions          list saved sessions (via Client)
   /resume            list sessions; /resume <id> switch (unique prefix ok)
-  /title             show the name; /title <name> sets it; /title auto asks the model
+  /name              ask the model for a short name; /name <text> sets it
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear in-memory conversation history
@@ -113,15 +113,9 @@ to dense-latest. Anything else is sent as a user message.`);
     return { type: "new" };
   }
 
-  if (name === "title" || name === "rename") {
+  if (name === "name") {
     const value = rest.join(" ").trim();
-    if (!value) {
-      const title = client.getSession().title;
-      console.log(title ? `title ${title}` : "title (untitled)");
-      return { type: "handled" };
-    }
-    if (value.toLowerCase() === "auto") return { type: "title-auto" };
-    return { type: "title-set", title: value };
+    return value ? { type: "name-set", title: value } : { type: "name" };
   }
 
   if (name === "reset") {

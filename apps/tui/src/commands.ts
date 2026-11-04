@@ -31,9 +31,8 @@ export type TuiCommand =
   | { type: "model-set"; args: string[] }
   | { type: "effort" }
   | { type: "effort-set"; value: string }
-  | { type: "title" }
-  | { type: "title-set"; title: string }
-  | { type: "title-auto" };
+  | { type: "name" }
+  | { type: "name-set"; title: string };
 
 export type SubmitRoute =
   | { type: "empty" }
@@ -63,7 +62,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "thinking", hint: "expand / collapse thinking content" },
   { name: "model", hint: "show or switch the model", arg: true },
   { name: "effort", hint: "show or set thinking intensity", arg: true },
-  { name: "title", hint: "show, set, or generate the session name", arg: true },
+  { name: "name", hint: "generate a session name, or set one", arg: true },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
   { name: "exit", hint: "quit" },
   { name: "quit", hint: "quit" },
@@ -89,9 +88,8 @@ export const TUI_HELP = `Commands:
   /model <name>      a providers.json name selects that saved entry
   /effort            show thinking intensity
   /effort <level>    none, low, medium, high, max, or default
-  /title             show the session name
-  /title <name>      set the name (also /rename)
-  /title auto        ask the model for a short name
+  /name              ask the model for a short name
+  /name <text>       set the session name
   /dense <text>      queue text as a dense-latest supplement
   /exit /quit        quit
 
@@ -168,8 +166,8 @@ const BUSY_BLOCKED = new Set([
   "compact",
   "model-set",
   "effort-set",
-  "title-set",
-  "title-auto",
+  "name",
+  "name-set",
 ]);
 
 export function parseTuiCommand(line: string): TuiCommand {
@@ -201,11 +199,9 @@ export function parseTuiCommand(line: string): TuiCommand {
     const value = rest.join(" ").trim();
     return value ? { type: "effort-set", value } : { type: "effort" };
   }
-  if (name === "title" || name === "rename") {
+  if (name === "name") {
     const value = rest.join(" ").trim();
-    if (!value) return { type: "title" };
-    if (value.toLowerCase() === "auto") return { type: "title-auto" };
-    return { type: "title-set", title: value };
+    return value ? { type: "name-set", title: value } : { type: "name" };
   }
   if (name === "dense") {
     const text = rest.join(" ").trim();
@@ -231,7 +227,7 @@ function blockedCommandName(type: TuiCommand["type"]): string {
   if (type === "resume-pick") return "resume";
   if (type === "model-set") return "model";
   if (type === "effort-set") return "effort";
-  if (type === "title-set" || type === "title-auto") return "title";
+  if (type === "name" || type === "name-set") return "name";
   return type;
 }
 

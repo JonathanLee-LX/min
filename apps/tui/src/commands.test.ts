@@ -54,8 +54,8 @@ describe("routeSubmit", () => {
       "/compact",
       "/model gpt-4.1",
       "/effort high",
-      "/title Notice colors",
-      "/title auto",
+      "/name",
+      "/name Notice colors",
     ]) {
       expect(routeSubmit(line, true).type).toBe("busy-blocked");
     }
@@ -67,10 +67,13 @@ describe("routeSubmit", () => {
       type: "busy-blocked",
       name: "effort",
     });
-    expect(routeSubmit("/title", true)).toEqual({ type: "command", command: { type: "title" } });
-    expect(routeSubmit("/title auto", true)).toEqual({
+    expect(routeSubmit("/name", true)).toEqual({
       type: "busy-blocked",
-      name: "title",
+      name: "name",
+    });
+    expect(routeSubmit("/name Notice colors", true)).toEqual({
+      type: "busy-blocked",
+      name: "name",
     });
     expect(routeSubmit("/compact", false)).toEqual({
       type: "command",
@@ -104,12 +107,11 @@ describe("routeSubmit", () => {
     });
     expect(parseTuiCommand("/effort")).toEqual({ type: "effort" });
     expect(parseTuiCommand("/effort high")).toEqual({ type: "effort-set", value: "high" });
-    expect(parseTuiCommand("/title")).toEqual({ type: "title" });
-    expect(parseTuiCommand("/title Notice colors")).toEqual({
-      type: "title-set",
+    expect(parseTuiCommand("/name")).toEqual({ type: "name" });
+    expect(parseTuiCommand("/name Notice colors")).toEqual({
+      type: "name-set",
       title: "Notice colors",
     });
-    expect(parseTuiCommand("/rename auto")).toEqual({ type: "title-auto" });
   });
 
   it("resolves /model args against saved provider names", () => {

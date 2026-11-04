@@ -7,7 +7,7 @@
 - TUI notices use peach copy on a raised slate band that hugs the text, so the warning stands out from tool lines without filling the row.
 - `/model` switches the model, or a saved `providers.json` entry, for the rest of the process. `/effort` sets thinking intensity (`none`, `low`, `medium`, `high`, `max`). `reasoningEffort` in config and `MIN_REASONING_EFFORT` set the starting value. DeepSeek responses still defaults to `high` when it is omitted.
 - The slash-command list and the `/resume` list render above the composer. Opening or closing them no longer moves the input.
-- A session name defaults to the first user message. `/title <name>` sets it, and `/title auto` asks the model for a short name. The request is not stored as a turn. `/resume` shows that name.
+- A session name defaults to the first user message. `/name` asks the model for a short name, and `/name <text>` sets one. The model request is not stored as a turn. `/resume` shows that name.
 - `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen. Each row leads with the first prompt and, when the conversation moved on, the latest prompt, plus turn count, local time, and a short id.
 
 ## 0.1.0-alpha.4
