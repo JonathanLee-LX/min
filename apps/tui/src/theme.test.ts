@@ -13,12 +13,12 @@ import {
 describe("theme", () => {
   it("resolves accent foregrounds without default block fills", () => {
     expect(toneFor("user").background).toBeUndefined();
-    expect(toneFor("user").body).toBe("#4e9a57");
-    expect(toneFor("user").label).toBe("#4e9a57");
+    expect(toneFor("user").body).toBeUndefined();
+    expect(toneFor("user").label).toBeUndefined();
     expect(defaultTheme.chrome.brand).toBe("#4e9a57");
     expect(toneFor("assistant").background).toBeUndefined();
-    expect(toneFor("assistant").label).toBe("#89b4fa");
-    expect(toneFor("assistant").body).toBe("#cdd6f4");
+    expect(toneFor("assistant").label).toBe("#4e9a57");
+    expect(toneFor("assistant").body).toBe("#4e9a57");
     const custom = createTheme({
       id: "ink",
       name: "Ink",
@@ -76,15 +76,17 @@ describe("theme", () => {
   it("keeps default user/assistant roles free of background fills", () => {
     expect(defaultTheme.roles.user.background).toBeUndefined();
     expect(defaultTheme.roles.assistant.background).toBeUndefined();
-    expect(defaultTheme.roles.user.body).toMatch(/^#/);
+    expect(defaultTheme.roles.user.body).toBeUndefined();
     expect(defaultTheme.roles.assistant.body).toMatch(/^#/);
   });
 
-  it("styles thinking as muted italic copy", () => {
+  it("styles thinking and tools as darker mint italic/plain copy", () => {
     const tone = toneFor("thinking");
     expect(tone.italicBody).toBe(true);
-    expect(tone.dimBody).toBe(true);
-    expect(tone.body).toBe("#7f849c");
+    expect(tone.dimBody).toBe(false);
+    expect(tone.body).toBe("#3a7340");
+    expect(toneFor("tool").body).toBe("#3a7340");
+    expect(toneFor("tool-result").body).toBe("#3a7340");
     expect(toneFor("assistant").italicBody).toBe(false);
   });
 

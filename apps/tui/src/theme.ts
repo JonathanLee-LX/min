@@ -100,10 +100,15 @@ const mocha = {
   surface1: "#45475a",
   green: "#a6e3a1",
   /**
-   * Brand mint for the MIN banner / composer rules.
+   * Brand mint for the MIN banner / composer rules / assistant body.
    * Darker than Catppuccin Mocha green so it stays readable on light terminals.
    */
   lightGreen: "#4e9a57",
+  /**
+   * One step down from lightGreen for thinking, tool calls, and other
+   * secondary model copy.
+   */
+  darkGreen: "#3a7340",
   blue: "#89b4fa",
   yellow: "#f9e2af",
   peach: "#fab387",
@@ -118,34 +123,33 @@ export const defaultTheme: TuiTheme = {
   id: "default",
   name: "Default",
   roles: {
+    // User copy inherits the terminal foreground. Do not pin a role color.
     user: {
+      dimLabel: false,
+      dimBody: false,
+    },
+    assistant: {
       label: mocha.lightGreen,
       body: mocha.lightGreen,
       dimLabel: false,
       dimBody: false,
     },
-    assistant: {
-      label: mocha.blue,
-      body: mocha.text,
+    thinking: {
+      label: mocha.darkGreen,
+      body: mocha.darkGreen,
       dimLabel: false,
       dimBody: false,
-    },
-    thinking: {
-      label: mocha.overlay,
-      body: mocha.overlay,
-      dimLabel: true,
-      dimBody: true,
       italicBody: true,
     },
     tool: {
-      label: mocha.yellow,
-      body: mocha.yellow,
+      label: mocha.darkGreen,
+      body: mocha.darkGreen,
       dimLabel: false,
       dimBody: false,
     },
     "tool-result": {
-      body: mocha.subtext,
-      dimLabel: true,
+      body: mocha.darkGreen,
+      dimLabel: false,
       dimBody: false,
     },
     "tool-error": {
@@ -208,8 +212,8 @@ export const defaultTheme: TuiTheme = {
     statusDim: true,
   },
   markdown: {
-    strong: mocha.text,
-    em: mocha.subtext,
+    strong: mocha.lightGreen,
+    em: mocha.darkGreen,
     code: mocha.teal,
     codeBackground: mocha.surface,
     link: mocha.sky,
