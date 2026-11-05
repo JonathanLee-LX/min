@@ -7,10 +7,12 @@ import { loadEnvFiles } from "./load-env.js";
 loadEnvFiles();
 
 /**
- * Button and drag reporting would swallow the pointer, so a drag could not
- * select text. Release those modes and leave selection to the terminal.
- * The transcript still scrolls from the keyboard.
+ * Wheel scrolling needs mouse reporting, but drag tracking (1002/1003) would
+ * swallow the pointer and break text selection. Enable button press/release
+ * with SGR coordinates only: the wheel arrives as a button event while drags
+ * stay with the terminal. Hold Shift to select text where the terminal needs it.
  */
+const MOUSE_ENABLE = "\x1b[?1000h\x1b[?1006h";
 const MOUSE_RELEASE = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l";
 
 async function main(): Promise<void> {
@@ -29,7 +31,7 @@ async function main(): Promise<void> {
   }
 
   if (process.stdout.isTTY) {
-    process.stdout.write(MOUSE_RELEASE);
+    process.stdout.write(MOUSE_ENABLE);
   }
   const cleanup = () => {
     if (process.stdout.isTTY) {
