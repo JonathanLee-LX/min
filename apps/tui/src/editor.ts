@@ -46,8 +46,8 @@ export interface InputKey {
   meta: boolean;
   mouseWheelUp: boolean;
   mouseWheelDown: boolean;
-  /** App-owned transcript selection. Coordinates are 0-based. */
-  mouse?: { kind: "down" | "drag" | "up"; x: number; y: number };
+  /** App-owned transcript selection and hover. Coordinates are 0-based. */
+  mouse?: { kind: "down" | "drag" | "move" | "up"; x: number; y: number };
 }
 
 export type InputAction =

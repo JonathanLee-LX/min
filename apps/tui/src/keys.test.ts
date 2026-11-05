@@ -35,6 +35,7 @@ describe("actionFromChunk", () => {
     expect(actionFromChunk("\x1b[<0;12;8M")).toEqual({ type: "ignore" });
     expect(decodeInput("\x1b[<0;12;8M").key.mouse).toEqual({ kind: "down", x: 11, y: 7 });
     expect(decodeInput("\x1b[<32;12;8M").key.mouse).toEqual({ kind: "drag", x: 11, y: 7 });
+    expect(decodeInput("\x1b[<35;12;8M").key.mouse).toEqual({ kind: "move", x: 11, y: 7 });
     expect(decodeInput("\x1b[<0;12;8m").key.mouse).toEqual({ kind: "up", x: 11, y: 7 });
     expect(actionFromChunk("\x03")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x1b")).toEqual({ type: "interrupt" });

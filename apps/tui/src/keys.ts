@@ -93,7 +93,10 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
       return flagged({ mouseWheelUp: (button & 1) === 0, mouseWheelDown: (button & 1) !== 0 });
     }
     if (release) return flagged({ mouse: { kind: "up", x, y } });
-    if ((button & 0x20) !== 0) return flagged({ mouse: { kind: "drag", x, y } });
+    if ((button & 0x20) !== 0) {
+      const held = (button & 3) === 0;
+      return flagged({ mouse: { kind: held ? "drag" : "move", x, y } });
+    }
     if ((button & 3) === 0) return flagged({ mouse: { kind: "down", x, y } });
     return plain("");
   }

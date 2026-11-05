@@ -47,6 +47,8 @@ import {
 } from "./editor.js";
 import { copyToClipboard } from "./clipboard.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
+import { setPointerShape } from "./pointer.js";
+import { createScrollPump } from "./scroll-pump.js";
 import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { createKeyBuffer } from "./key-buffer.js";
 import { resolveKeybindings } from "./keybindings.js";
@@ -200,6 +202,15 @@ export function App({ args }: { args: TuiArgs }) {
       setThinking(text);
     });
   }
+  const scrollPumpRef = useRef<ReturnType<typeof createScrollPump> | null>(null);
+  if (scrollPumpRef.current === null) {
+    scrollPumpRef.current = createScrollPump((delta) => {
+      setScroll((current) => {
+        const max = Math.max(0, viewRef.current.total - viewRef.current.height);
+        return Math.min(max, Math.max(0, current + delta));
+      });
+    });
+  }
   const paintCache = useRef(createPaintCache(theme));
   const paintThemeId = useRef(theme.id);
   if (paintThemeId.current !== theme.id) {
@@ -255,6 +266,7 @@ export function App({ args }: { args: TuiArgs }) {
   }, [stdout]);
 
   useEffect(() => enableFocusReporting(stdout), [stdout]);
+  useEffect(() => () => scrollPumpRef.current?.dispose(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -744,6 +756,9 @@ export function App({ args }: { args: TuiArgs }) {
   handleInput.current = (input, key) => {
     if (key.mouse) {
       const geom = selectRef.current;
+      const overText = key.mouse.y < geom.logHeight;
+      setPointerShape(overText ? "text" : "default", stdout);
+      if (key.mouse.kind === "move") return;
       if (key.mouse.kind === "down") {
         const cell = cellFromMouse(key.mouse.x, key.mouse.y, geom);
         setSelection(cell ? { anchor: cell, focus: cell, dragging: true } : null);
@@ -767,12 +782,8 @@ export function App({ args }: { args: TuiArgs }) {
     }
     const action = inputAction(input, key, keybindings);
     if (action.type === "scroll") {
-      setScroll((current) => {
-        const step = action.delta ?? Math.max(1, viewRef.current.height);
-        const max = Math.max(0, viewRef.current.total - viewRef.current.height);
-        if (action.direction === "up") return Math.min(max, current + step);
-        return Math.max(0, current - step);
-      });
+      const step = action.delta ?? Math.max(1, viewRef.current.height);
+      scrollPumpRef.current?.add(action.direction === "up" ? step : -step);
       return;
     }
     if (sessionPicker) {
