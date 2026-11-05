@@ -17,6 +17,8 @@ import {
   resolveModelArgs,
   routeSubmit,
   selectCommandCompletion,
+  slashMenuEnter,
+  TUI_COMMANDS,
 } from "./commands.js";
 
 describe("routeSubmit", () => {
@@ -244,9 +246,23 @@ describe("command completion", () => {
     expect(commandSuggestions("/resume x")).toEqual([]);
     expect(applyCommandCompletion("/he", 0)).toBe("/help");
     expect(applyCommandCompletion("/resu", 0)).toBe("/resume ");
+    expect(applyCommandCompletion("/model", 0)).toBe("/model ");
     expect(applyCommandCompletion("/s", 1)).toBe("/sessions");
     expect(commandGhost("/s", 0)).toBe("ession");
     expect(commandGhost("/s", 1)).toBe("essions");
+  });
+
+  it("runs picker commands on Enter and still Tab-completes an argument slot", () => {
+    const model = TUI_COMMANDS.find((command) => command.name === "model");
+    const resume = TUI_COMMANDS.find((command) => command.name === "resume");
+    const dense = TUI_COMMANDS.find((command) => command.name === "dense");
+    const help = TUI_COMMANDS.find((command) => command.name === "help");
+    expect(model?.pick).toBe(true);
+    expect(resume?.pick).toBe(true);
+    expect(slashMenuEnter(model!)).toEqual({ type: "run", line: "/model" });
+    expect(slashMenuEnter(resume!)).toEqual({ type: "run", line: "/resume" });
+    expect(slashMenuEnter(dense!)).toEqual({ type: "fill", text: "/dense " });
+    expect(slashMenuEnter(help!)).toEqual({ type: "run", line: "/help" });
   });
 
   it("fills the selected command when browsing without a trailing space", () => {

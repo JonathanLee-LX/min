@@ -13,10 +13,10 @@ describe("commandSelectRows", () => {
 });
 
 describe("sessionSelectRows", () => {
-  it("reserves a hint row plus up to 8 sessions", () => {
-    expect(sessionSelectRows(0)).toBe(1);
-    expect(sessionSelectRows(3)).toBe(4);
-    expect(sessionSelectRows(12)).toBe(9);
+  it("reserves hint, filter, and up to 8 sessions", () => {
+    expect(sessionSelectRows(0)).toBe(3);
+    expect(sessionSelectRows(3)).toBe(5);
+    expect(sessionSelectRows(12)).toBe(10);
   });
 
   it("keeps the selected session inside the visible window", () => {
@@ -30,10 +30,10 @@ describe("sessionSelectRows", () => {
 });
 
 describe("modelSelectRows", () => {
-  it("reserves a hint row plus up to 8 models", () => {
-    expect(modelSelectRows(0)).toBe(1);
-    expect(modelSelectRows(3)).toBe(4);
-    expect(modelSelectRows(12)).toBe(9);
+  it("reserves hint, filter, and up to 8 models", () => {
+    expect(modelSelectRows(0)).toBe(3);
+    expect(modelSelectRows(3)).toBe(5);
+    expect(modelSelectRows(12)).toBe(10);
   });
 
   it("keeps the selected model inside the visible window", () => {

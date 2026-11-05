@@ -35,6 +35,7 @@ import {
   formatSessionList,
   resolveModelArgs,
   routeSubmit,
+  slashMenuEnter,
   type EffortPickItem,
   type EffortPickValue,
   type ModelPickItem,
@@ -71,6 +72,14 @@ import {
 } from "./paint.js";
 import { createStreamPump, type StreamPump } from "./stream-pump.js";
 import { permissionAnswer } from "./permission-view.js";
+import {
+  applyPickerFilter,
+  modelFilterHaystack,
+  sessionFilterHaystack,
+  visibleEfforts,
+  visibleModels,
+  visibleSessions,
+} from "./picker-filter.js";
 import { readGitBranch } from "./status-bar.js";
 import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
 import { themeFromConfig } from "./theme.js";
@@ -104,6 +113,7 @@ interface SessionPickerState {
   sessions: SessionListItem[];
   selected: number;
   currentId: string;
+  filter: EditorState;
 }
 
 interface ModelPickerState {
@@ -113,6 +123,9 @@ interface ModelPickerState {
   pending?: ModelPickItem;
   efforts: EffortPickItem[];
   effortSelected: number;
+  filter: EditorState;
+  /** Model-list filter restored when backing out of the effort submenu. */
+  modelFilter?: EditorState;
 }
 
 const LOG_CAP = 2000;
@@ -534,6 +547,7 @@ export function App({ args }: { args: TuiArgs }) {
           stage: "model",
           efforts: [],
           effortSelected: 0,
+          filter: createEditor(),
         });
         setEditor(createEditor());
         return;
@@ -670,6 +684,7 @@ export function App({ args }: { args: TuiArgs }) {
             })),
             selected: selected >= 0 ? selected : 0,
             currentId,
+            filter: createEditor(),
           });
           setEditor(createEditor());
         } catch (err) {
@@ -818,9 +833,10 @@ export function App({ args }: { args: TuiArgs }) {
         return;
       }
       if (key.upArrow || key.downArrow) {
-        const count = sessionPicker.sessions.length;
         setSessionPicker((current) => {
-          if (!current || count <= 0) return current;
+          if (!current) return current;
+          const count = visibleSessions(current.sessions, current.filter.text).length;
+          if (count <= 0) return current;
           return {
             ...current,
             selected: cycleCommandIndex(
@@ -833,11 +849,9 @@ export function App({ args }: { args: TuiArgs }) {
         return;
       }
       if (action.type === "submit" || key.return) {
-        const pick = sessionPicker.sessions[sessionPicker.selected];
-        if (!pick) {
-          setSessionPicker(null);
-          return;
-        }
+        const matches = visibleSessions(sessionPicker.sessions, sessionPicker.filter.text);
+        const pick = matches[sessionPicker.selected];
+        if (!pick) return;
         setSessionPicker(null);
         void (async () => {
           const live = clientRef.current;
@@ -851,14 +865,36 @@ export function App({ args }: { args: TuiArgs }) {
         })();
         return;
       }
-      // Ignore composer edits while the picker owns the keyboard.
+      if (action.type === "edit") {
+        setSessionPicker((current) => {
+          if (!current) return current;
+          const next = applyPickerFilter(
+            current.sessions,
+            current.selected,
+            current.filter,
+            action.op,
+            (session) => session.id,
+            sessionFilterHaystack,
+          );
+          return { ...current, filter: next.filter, selected: next.selected };
+        });
+        return;
+      }
       return;
     }
     if (modelPicker) {
       if (key.escape || (action.type === "interrupt" && key.escape)) {
         if (modelPicker.stage === "effort") {
           setModelPicker((current) =>
-            current ? { ...current, stage: "model", pending: undefined } : current,
+            current
+              ? {
+                  ...current,
+                  stage: "model",
+                  pending: undefined,
+                  filter: current.modelFilter ?? createEditor(),
+                  modelFilter: undefined,
+                }
+              : current,
           );
           return;
         }
@@ -874,18 +910,18 @@ export function App({ args }: { args: TuiArgs }) {
         setModelPicker((current) => {
           if (!current) return current;
           if (current.stage === "effort") {
+            const count = visibleEfforts(current.efforts, current.filter.text).length;
+            if (count <= 0) return current;
             return {
               ...current,
-              effortSelected: cycleCommandIndex(
-                current.effortSelected,
-                current.efforts.length,
-                direction,
-              ),
+              effortSelected: cycleCommandIndex(current.effortSelected, count, direction),
             };
           }
+          const count = visibleModels(current.items, current.filter.text).length;
+          if (count <= 0) return current;
           return {
             ...current,
-            selected: cycleCommandIndex(current.selected, current.items.length, direction),
+            selected: cycleCommandIndex(current.selected, count, direction),
           };
         });
         return;
@@ -899,11 +935,9 @@ export function App({ args }: { args: TuiArgs }) {
         }
         if (modelPicker.stage === "effort") {
           const pending = modelPicker.pending;
-          const effort = modelPicker.efforts[modelPicker.effortSelected];
-          if (!pending || !effort) {
-            setModelPicker(null);
-            return;
-          }
+          const matches = visibleEfforts(modelPicker.efforts, modelPicker.filter.text);
+          const effort = matches[modelPicker.effortSelected];
+          if (!pending || !effort) return;
           setModelPicker(null);
           try {
             applyModelChange(controls, pending.change, effort.value);
@@ -913,11 +947,9 @@ export function App({ args }: { args: TuiArgs }) {
           }
           return;
         }
-        const pick = modelPicker.items[modelPicker.selected];
-        if (!pick) {
-          setModelPicker(null);
-          return;
-        }
+        const matches = visibleModels(modelPicker.items, modelPicker.filter.text);
+        const pick = matches[modelPicker.selected];
+        if (!pick) return;
         if (pick.supportsEffort) {
           const efforts = buildEffortPickerItems(controls.selection().effort);
           const effortSelected = Math.max(
@@ -930,6 +962,8 @@ export function App({ args }: { args: TuiArgs }) {
             pending: pick,
             efforts,
             effortSelected,
+            modelFilter: modelPicker.filter,
+            filter: createEditor(),
           });
           return;
         }
@@ -940,6 +974,36 @@ export function App({ args }: { args: TuiArgs }) {
         } catch (err) {
           pushLine("error", messageOf(err));
         }
+        return;
+      }
+      if (action.type === "edit") {
+        setModelPicker((current) => {
+          if (!current) return current;
+          if (current.stage === "effort") {
+            const next = applyPickerFilter(
+              current.efforts,
+              current.effortSelected,
+              current.filter,
+              action.op,
+              (item) => item.value,
+              modelFilterHaystack,
+            );
+            return {
+              ...current,
+              filter: next.filter,
+              effortSelected: next.selected,
+            };
+          }
+          const next = applyPickerFilter(
+            current.items,
+            current.selected,
+            current.filter,
+            action.op,
+            (item) => item.key,
+            modelFilterHaystack,
+          );
+          return { ...current, filter: next.filter, selected: next.selected };
+        });
         return;
       }
       return;
@@ -990,14 +1054,21 @@ export function App({ args }: { args: TuiArgs }) {
       const pick = slashMatches[
         ((completeIndex % slashMatches.length) + slashMatches.length) % slashMatches.length
       ]!;
-      if (pick.arg) {
-        const next = `/${pick.name} `;
-        setEditor((current) => ({ ...current, text: next, cursor: next.length }));
+      const decision = slashMenuEnter(pick);
+      if (decision.type === "fill") {
+        setEditor((current) => ({
+          ...current,
+          text: decision.text,
+          cursor: decision.text.length,
+        }));
         setCompleteIndex(0);
         return;
       }
-      const line = `/${pick.name}`;
-      const committed = commitEditor({ ...editor, text: line, cursor: line.length });
+      const committed = commitEditor({
+        ...editor,
+        text: decision.line,
+        cursor: decision.line.length,
+      });
       setEditor(committed.state);
       setCompleteIndex(0);
       setScroll(0);
@@ -1386,6 +1457,8 @@ export function App({ args }: { args: TuiArgs }) {
           currentId={sessionPicker.currentId}
           selectedIndex={sessionPicker.selected}
           columns={innerWidth}
+          filter={sessionPicker.filter}
+          minRows={sessionPickRows}
         />
       ) : modelPicker ? (
         <ModelSelect
@@ -1404,6 +1477,7 @@ export function App({ args }: { args: TuiArgs }) {
               : "model · ↑↓ select · Enter switch · Esc cancel"
           }
           minRows={modelPickRows}
+          filter={modelPicker.filter}
         />
       ) : slashOpenRows > 0 ? (
         <CommandSelect

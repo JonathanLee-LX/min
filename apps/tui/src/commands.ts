@@ -45,8 +45,13 @@ export type SubmitRoute =
 export interface CommandSpec {
   name: string;
   hint: string;
-  /** Commands that take an argument get a trailing space when completed. */
+  /** Commands that take an argument get a trailing space when Tab-completed. */
   arg?: boolean;
+  /**
+   * Enter in the slash menu runs the command immediately (opens a picker)
+   * instead of filling `/${name} ` for a typed argument.
+   */
+  pick?: boolean;
 }
 
 /** Display width of the widest `/name`, so menu hints share one column. */
@@ -60,13 +65,13 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "version", hint: "show min version" },
   { name: "session", hint: "current session id, title, messages, queue" },
   { name: "sessions", hint: "list saved sessions" },
-  { name: "resume", hint: "resume a saved session (list or id)", arg: true },
+  { name: "resume", hint: "resume a saved session (list or id)", arg: true, pick: true },
   { name: "new", hint: "start a fresh session" },
   { name: "compact", hint: "summarize older turns and rewrite stored history" },
   { name: "reset", hint: "clear conversation history" },
   { name: "queue", hint: "show the follow-up queue" },
   { name: "thinking", hint: "expand / collapse thinking content" },
-  { name: "model", hint: "pick a model (list or id)", arg: true },
+  { name: "model", hint: "pick a model (list or id)", arg: true, pick: true },
   { name: "effort", hint: "show or set thinking intensity", arg: true },
   { name: "name", hint: "generate a session name, or set one", arg: true },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
@@ -80,14 +85,15 @@ export const TUI_HELP = `Commands:
   /version           show min version
   /session           current session id, title, messages, queue
   /sessions          list saved sessions
-  /resume            pick a saved session (↑↓ Enter); /resume <id> switches
-                     a unique id prefix is enough
+  /resume            pick a saved session (type to filter, ↑↓ Enter)
+                     /resume <id> switches; a unique id prefix is enough
   /new               start a fresh session
   /compact           summarize older turns and rewrite stored history
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
-  /model             pick a model (↑↓ Enter); thinking submenu when supported
+  /model             pick a model (type to filter, ↑↓ Enter); thinking submenu
+                     when supported
   /model <model>     switch model on the current provider
   /model <provider> <model>
                      switch provider and model
@@ -100,9 +106,10 @@ export const TUI_HELP = `Commands:
   /exit /quit        quit
 
 Keys:
-  Enter              send, or queue while the agent is running
+  Enter              send, run the highlighted /command, or queue while busy
   Shift+Enter        insert a newline
-  Tab                complete a /command
+  Tab                complete a /command (trailing space when it takes an argument)
+  type to filter     while a /resume or /model list is open
   Alt+Enter / Ctrl+J also insert a newline
   Up/Down            previous line, or input history at the ends
   Drag               select transcript text (copies on release)
@@ -155,6 +162,19 @@ export function applyCommandCompletion(text: string, selected: number): string |
   if (matches.length === 0) return null;
   const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
   return `/${pick.name}${pick.arg ? " " : ""}`;
+}
+
+export type SlashMenuEnter =
+  | { type: "run"; line: string }
+  | { type: "fill"; text: string };
+
+/**
+ * Enter on a slash-menu row. Picker commands and argument-less commands run
+ * immediately; other argument commands fill `/${name} ` so the user can type.
+ */
+export function slashMenuEnter(command: CommandSpec): SlashMenuEnter {
+  if (command.pick || !command.arg) return { type: "run", line: `/${command.name}` };
+  return { type: "fill", text: `/${command.name} ` };
 }
 
 /**

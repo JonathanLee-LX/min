@@ -1,5 +1,8 @@
 import { Box, Text } from "ink";
+import type { EditorState } from "../editor.js";
 import { layoutModelRows, type ModelListItem } from "../model-brief.js";
+import { filterPickerItems, modelFilterHaystack } from "../picker-filter.js";
+import { PickerFilter } from "./PickerFilter.js";
 
 const VISIBLE = 8;
 
@@ -13,6 +16,8 @@ export function ModelSelect({
   columns = 80,
   hint = "model · ↑↓ select · Enter switch · Esc cancel",
   minRows = 0,
+  filter,
+  emptyLabel = "(no models)",
 }: {
   items: readonly ModelListItem[];
   selectedIndex?: number;
@@ -21,33 +26,45 @@ export function ModelSelect({
   hint?: string;
   /** Pad with blank rows so a shorter submenu does not move the composer. */
   minRows?: number;
+  filter: EditorState;
+  emptyLabel?: string;
 }) {
-  if (items.length === 0) {
+  const width = Math.max(1, columns);
+  const matches = filterPickerItems(items, filter.text, modelFilterHaystack);
+  const vacant = items.length === 0 ? emptyLabel : "(no matches)";
+  if (matches.length === 0) {
+    const contentRows = 3; // hint + filter + empty
     return (
       <Box flexDirection="column" flexShrink={0}>
         <Box height={1} flexShrink={0}>
-          <Text dimColor>(no models)</Text>
+          <Text dimColor>{hint}</Text>
         </Box>
-        {padRows(Math.max(0, minRows - 1))}
+        <PickerFilter filter={filter} columns={width} />
+        <Box height={1} flexShrink={0}>
+          <Text dimColor>{vacant}</Text>
+        </Box>
+        {padRows(Math.max(0, minRows - contentRows))}
       </Box>
     );
   }
-  const at = ((selectedIndex % items.length) + items.length) % items.length;
-  const { start, end } = modelSelectWindow(items.length, at);
-  const visible = items.slice(start, end);
+  const at = ((selectedIndex % matches.length) + matches.length) % matches.length;
+  const { start, end } = modelSelectWindow(matches.length, at);
+  const visible = matches.slice(start, end);
   const rows = layoutModelRows(items, Math.max(20, columns - 2));
-  const contentRows = 1 + visible.length;
+  const contentRows = 2 + visible.length; // hint + filter + rows
 
   return (
     <Box flexDirection="column" flexShrink={0}>
       <Box height={1} flexShrink={0}>
         <Text dimColor>{hint}</Text>
       </Box>
+      <PickerFilter filter={filter} columns={width} />
       {visible.map((item, index) => {
         const focused = start + index === at;
-        const row = rows[start + index]!;
+        const sourceIndex = items.indexOf(item);
+        const row = rows[sourceIndex]!;
         return (
-          <Box key={`${item.name}:${start + index}`} height={1} flexShrink={0}>
+          <Box key={`${item.name}:${sourceIndex}`} height={1} flexShrink={0}>
             <Text wrap="truncate" color={focused ? "cyan" : undefined} bold={focused}>
               {focused ? "› " : "  "}
               {row.mark}
@@ -76,8 +93,8 @@ function padRows(count: number) {
 }
 
 export function modelSelectRows(count: number): number {
-  if (count <= 0) return 1; // empty-state line
-  return 1 + Math.min(VISIBLE, count); // hint + rows
+  const listRows = count <= 0 ? 1 : Math.min(VISIBLE, count);
+  return 2 + listRows; // hint + filter + rows/empty
 }
 
 /** Slice of the full list that keeps `selectedIndex` on screen. */
