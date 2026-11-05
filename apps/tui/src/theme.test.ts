@@ -80,13 +80,14 @@ describe("theme", () => {
     expect(defaultTheme.roles.assistant.body).toBeUndefined();
   });
 
-  it("styles thinking as italic terminal copy and leaves tools uncolored", () => {
+  it("styles thinking and tools in different accents", () => {
     const tone = toneFor("thinking");
     expect(tone.italicBody).toBe(true);
     expect(tone.dimBody).toBe(false);
-    expect(tone.body).toBeUndefined();
-    expect(toneFor("tool").body).toBeUndefined();
-    expect(toneFor("tool-result").body).toBeUndefined();
+    expect(tone.body).toBe("#7f849c");
+    expect(toneFor("tool").body).toBe("#89dceb");
+    expect(toneFor("tool-result").body).toBe("#a6adc8");
+    expect(toneFor("assistant").body).toBeUndefined();
     expect(toneFor("assistant").italicBody).toBe(false);
   });
 

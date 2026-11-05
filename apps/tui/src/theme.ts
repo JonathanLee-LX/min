@@ -132,21 +132,28 @@ export const defaultTheme: TuiTheme = {
       dimLabel: false,
       dimBody: false,
     },
-    // Model copy inherits the terminal foreground. Do not pin a role color.
+    // Assistant body inherits the terminal foreground. Thinking and tools
+    // use quieter accents so those side blocks stay distinct from each other.
     assistant: {
       dimLabel: false,
       dimBody: false,
     },
     thinking: {
+      label: mocha.overlay,
+      body: mocha.overlay,
       dimLabel: false,
       dimBody: false,
       italicBody: true,
     },
     tool: {
+      label: mocha.sky,
+      body: mocha.sky,
       dimLabel: false,
       dimBody: false,
     },
     "tool-result": {
+      label: mocha.subtext,
+      body: mocha.subtext,
       dimLabel: false,
       dimBody: false,
     },
