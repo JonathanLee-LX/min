@@ -28,7 +28,7 @@ export type TuiCommand =
   | { type: "dense"; text: string }
   | { type: "dense-usage" }
   | { type: "thinking" }
-  | { type: "model" }
+  | { type: "model-pick" }
   | { type: "model-set"; args: string[] }
   | { type: "effort" }
   | { type: "effort-set"; value: string }
@@ -66,7 +66,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "reset", hint: "clear conversation history" },
   { name: "queue", hint: "show the follow-up queue" },
   { name: "thinking", hint: "expand / collapse thinking content" },
-  { name: "model", hint: "show or switch the model", arg: true },
+  { name: "model", hint: "pick a model (list or id)", arg: true },
   { name: "effort", hint: "show or set thinking intensity", arg: true },
   { name: "name", hint: "generate a session name, or set one", arg: true },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
@@ -87,7 +87,7 @@ export const TUI_HELP = `Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
-  /model             show provider, model, and thinking effort
+  /model             pick a model (↑↓ Enter); thinking submenu when supported
   /model <model>     switch model on the current provider
   /model <provider> <model>
                      switch provider and model
@@ -185,6 +185,7 @@ const BUSY_BLOCKED = new Set([
   "new",
   "reset",
   "compact",
+  "model-pick",
   "model-set",
   "effort-set",
   "name",
@@ -214,7 +215,7 @@ export function parseTuiCommand(line: string): TuiCommand {
   if (name === "thinking" || name === "think") return { type: "thinking" };
   if (name === "model") {
     const args = rest.filter(Boolean);
-    return args.length > 0 ? { type: "model-set", args } : { type: "model" };
+    return args.length > 0 ? { type: "model-set", args } : { type: "model-pick" };
   }
   if (name === "effort") {
     const value = rest.join(" ").trim();
@@ -246,7 +247,7 @@ export function routeSubmit(line: string, busy: boolean): SubmitRoute {
 
 function blockedCommandName(type: TuiCommand["type"]): string {
   if (type === "resume-pick") return "resume";
-  if (type === "model-set") return "model";
+  if (type === "model-pick" || type === "model-set") return "model";
   if (type === "effort-set") return "effort";
   if (type === "name" || type === "name-set") return "name";
   return type;
@@ -272,7 +273,7 @@ export type ModelChange =
   | { type: "error"; message: string };
 
 /**
- * `/model` with no args shows the current selection.
+ * `/model` with no args opens the interactive picker.
  * One arg is a model id, unless it is a providers.json name.
  * Two args are provider kind and model id.
  */
@@ -310,6 +311,97 @@ export function resolveModelArgs(
     };
   }
   return { type: "model", model: name };
+}
+
+export interface ModelPickItem {
+  key: string;
+  name: string;
+  detail: string;
+  current: boolean;
+  supportsEffort: boolean;
+  change: Extract<ModelChange, { type: "model" } | { type: "provider" }>;
+}
+
+export type EffortPickValue = "none" | "low" | "medium" | "high" | "max" | "default";
+
+export interface EffortPickItem {
+  value: EffortPickValue;
+  name: string;
+  detail: string;
+  current: boolean;
+}
+
+const EFFORT_MENU: readonly { value: EffortPickValue; hint: string }[] = [
+  { value: "none", hint: "off" },
+  { value: "low", hint: "" },
+  { value: "medium", hint: "" },
+  { value: "high", hint: "" },
+  { value: "max", hint: "" },
+  { value: "default", hint: "adapter default" },
+];
+
+/**
+ * Catalog models for the current provider, then saved providers.json names.
+ * `detail` is "thinking" when a selected row opens the effort submenu.
+ */
+export function buildModelPickerItems(
+  selection: { kind: string; model: string },
+  models: readonly string[],
+  named: Readonly<Record<string, NamedProviderSpec>>,
+  supportsEffort: (kind: string, model?: string) => boolean,
+  env: NodeJS.ProcessEnv = process.env,
+): ModelPickItem[] {
+  const items: ModelPickItem[] = [];
+  const seen = new Set<string>();
+  for (const model of models) {
+    const id = model.trim();
+    if (!id || seen.has(`model:${id}`)) continue;
+    seen.add(`model:${id}`);
+    const thinking = supportsEffort(selection.kind, id);
+    items.push({
+      key: `model:${id}`,
+      name: id,
+      detail: thinking ? "thinking" : "",
+      current: id === selection.model,
+      supportsEffort: thinking,
+      change: { type: "model", model: id },
+    });
+  }
+  for (const [name, spec] of Object.entries(named)) {
+    const id = name.trim();
+    if (!id || seen.has(`saved:${id}`)) continue;
+    seen.add(`saved:${id}`);
+    const model = spec.model?.trim();
+    const thinking = supportsEffort(spec.kind, model);
+    const detailParts = [spec.kind, model].filter(Boolean);
+    if (thinking) detailParts.push("thinking");
+    const apiKey = spec.apiKeyEnv ? env[spec.apiKeyEnv] : undefined;
+    items.push({
+      key: `saved:${id}`,
+      name: id,
+      detail: detailParts.join(" "),
+      current: spec.kind === selection.kind && Boolean(model) && model === selection.model,
+      supportsEffort: thinking,
+      change: {
+        type: "provider",
+        kind: spec.kind,
+        ...(model ? { model } : {}),
+        ...(spec.baseUrl ? { baseURL: spec.baseUrl } : {}),
+        ...(apiKey ? { apiKey } : {}),
+      },
+    });
+  }
+  return items;
+}
+
+export function buildEffortPickerItems(current?: string): EffortPickItem[] {
+  const active = current?.trim().toLowerCase() || "default";
+  return EFFORT_MENU.map((item) => ({
+    value: item.value,
+    name: item.value,
+    detail: item.hint,
+    current: item.value === active,
+  }));
 }
 
 export function formatModelStatus(info: {

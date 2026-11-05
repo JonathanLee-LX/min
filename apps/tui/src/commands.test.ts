@@ -8,6 +8,8 @@ import {
   NAME_PLACEHOLDER,
   commandSuggestions,
   cycleCommandIndex,
+  buildEffortPickerItems,
+  buildModelPickerItems,
   formatCompact,
   formatModelStatus,
   formatQueue,
@@ -35,6 +37,10 @@ describe("routeSubmit", () => {
       command: { type: "version" },
     });
     expect(routeSubmit("/queue", true)).toEqual({ type: "command", command: { type: "queue" } });
+    expect(routeSubmit("/model", false)).toEqual({
+      type: "command",
+      command: { type: "model-pick" },
+    });
     expect(routeSubmit("/thinking", true)).toEqual({ type: "command", command: { type: "thinking" } });
     expect(routeSubmit("/think", false)).toEqual({ type: "command", command: { type: "thinking" } });
     expect(routeSubmit("/session", true).type).toBe("command");
@@ -43,7 +49,10 @@ describe("routeSubmit", () => {
       type: "command",
       command: { type: "dense", text: "keep this" },
     });
-    expect(routeSubmit("/model", true)).toEqual({ type: "command", command: { type: "model" } });
+    expect(routeSubmit("/model", true)).toEqual({
+      type: "busy-blocked",
+      name: "model",
+    });
     expect(routeSubmit("/effort", true)).toEqual({ type: "command", command: { type: "effort" } });
     expect(routeSubmit("/exit", true)).toEqual({ type: "command", command: { type: "exit" } });
     expect(routeSubmit("/quit", false)).toEqual({ type: "command", command: { type: "exit" } });
@@ -100,7 +109,7 @@ describe("routeSubmit", () => {
     expect(parseTuiCommand("/dense")).toEqual({ type: "dense-usage" });
     expect(parseTuiCommand("/ctx")).toEqual({ type: "context" });
     expect(parseTuiCommand("/v")).toEqual({ type: "version" });
-    expect(parseTuiCommand("/model")).toEqual({ type: "model" });
+    expect(parseTuiCommand("/model")).toEqual({ type: "model-pick" });
     expect(parseTuiCommand("/model gpt-4.1")).toEqual({
       type: "model-set",
       args: ["gpt-4.1"],
@@ -145,6 +154,49 @@ describe("routeSubmit", () => {
       type: "error",
       message: "usage: /model <model> | /model <provider> <model>",
     });
+  });
+
+  it("builds a model picker with thinking markers and saved names", () => {
+    const items = buildModelPickerItems(
+      { kind: "openai", model: "gpt-4.1" },
+      ["gpt-4.1", "o3"],
+      { acme: { kind: "deepseek", model: "deepseek-flash" } },
+      (kind, model) => kind === "deepseek" || model === "o3",
+    );
+    expect(items.map((item) => item.name)).toEqual(["gpt-4.1", "o3", "acme"]);
+    expect(items[0]).toMatchObject({
+      current: true,
+      supportsEffort: false,
+      detail: "",
+      change: { type: "model", model: "gpt-4.1" },
+    });
+    expect(items[1]).toMatchObject({
+      current: false,
+      supportsEffort: true,
+      detail: "thinking",
+    });
+    expect(items[2]).toMatchObject({
+      name: "acme",
+      supportsEffort: true,
+      detail: "deepseek deepseek-flash thinking",
+      change: { type: "provider", kind: "deepseek", model: "deepseek-flash" },
+    });
+  });
+
+  it("builds an effort submenu with the current level marked", () => {
+    const items = buildEffortPickerItems("high");
+    expect(items.map((item) => item.value)).toEqual([
+      "none",
+      "low",
+      "medium",
+      "high",
+      "max",
+      "default",
+    ]);
+    expect(items.find((item) => item.current)?.value).toBe("high");
+    expect(buildEffortPickerItems(undefined).find((item) => item.current)?.value).toBe(
+      "default",
+    );
   });
 
   it("formats the model status line", () => {

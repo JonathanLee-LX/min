@@ -17,6 +17,9 @@ import type {
   ContentPart,
   ToolDefinition,
 } from "@min-agent/core";
+import { modelLikelyReasons } from "./catalog.js";
+
+export { modelLikelyReasons };
 
 export interface OpenAIProviderOptions {
   apiKey?: string;
@@ -308,18 +311,6 @@ function fromResponsesOutput(response: Response): CompletionResult {
       outputTokens: response.usage?.output_tokens,
     },
   };
-}
-
-/** Models that usually expose a reasoning summary over Responses. */
-export function modelLikelyReasons(model: string): boolean {
-  const m = model.trim().toLowerCase();
-  if (!m) return false;
-  return (
-    /^o[1-9]/.test(m) ||
-    m.startsWith("gpt-5") ||
-    m.includes("reason") ||
-    m.startsWith("deepseek")
-  );
 }
 
 function resolveReasoning(

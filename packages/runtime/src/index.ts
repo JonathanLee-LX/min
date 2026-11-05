@@ -2,6 +2,7 @@ export { loadProviderExtensions, resolveProvider } from "./provider.js";
 export { parseReasoningEffort, type ReasoningEffort } from "@min-agent/core";
 export {
   modelControls,
+  modelSupportsEffort,
   type ModelControls,
   type ModelProviderChange,
   type ModelSelection,

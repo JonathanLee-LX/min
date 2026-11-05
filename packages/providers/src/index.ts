@@ -25,4 +25,4 @@ export {
   type ModelSelection,
   type TunableProvider,
 } from "./tunable.js";
-export { modelsFor } from "./catalog.js";
+export { modelLikelyReasons, modelSupportsEffort, modelsFor } from "./catalog.js";

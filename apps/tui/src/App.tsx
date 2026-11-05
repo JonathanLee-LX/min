@@ -10,6 +10,7 @@ import {
 import {
   loadProviderExtensions,
   modelControls,
+  modelSupportsEffort,
   parseReasoningEffort,
   resolveProvider,
   type ModelControls,
@@ -22,6 +23,8 @@ import { composerFrameRows } from "./chrome-layout.js";
 import {
   TUI_HELP,
   applyCommandCompletion,
+  buildEffortPickerItems,
+  buildModelPickerItems,
   commandPlaceholder,
   commandSuggestions,
   cycleCommandIndex,
@@ -32,6 +35,9 @@ import {
   formatSessionList,
   resolveModelArgs,
   routeSubmit,
+  type EffortPickItem,
+  type EffortPickValue,
+  type ModelPickItem,
   type SessionListItem,
   type TuiCommand,
 } from "./commands.js";
@@ -86,6 +92,8 @@ import {
   ContextMeter,
   contextMeterRows,
   inkThemeFromTui,
+  ModelSelect,
+  modelSelectRows,
   PermissionPrompt,
   permissionPromptRows,
   SessionSelect,
@@ -96,6 +104,15 @@ interface SessionPickerState {
   sessions: SessionListItem[];
   selected: number;
   currentId: string;
+}
+
+interface ModelPickerState {
+  items: ModelPickItem[];
+  selected: number;
+  stage: "model" | "effort";
+  pending?: ModelPickItem;
+  efforts: EffortPickItem[];
+  effortSelected: number;
 }
 
 const LOG_CAP = 2000;
@@ -145,6 +162,7 @@ export function App({ args }: { args: TuiArgs }) {
   const [thinking, setThinking] = useState("");
   const [pendingPerm, setPendingPerm] = useState<PendingPermission | null>(null);
   const [sessionPicker, setSessionPicker] = useState<SessionPickerState | null>(null);
+  const [modelPicker, setModelPicker] = useState<ModelPickerState | null>(null);
   const [toolName, setToolName] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
   const [scroll, setScroll] = useState(0);
@@ -479,31 +497,20 @@ export function App({ args }: { args: TuiArgs }) {
 
   const runCommand = useCallback(
     async (live: MinClient, command: TuiCommand) => {
-      if (command.type === "model" || command.type === "model-set") {
+      if (command.type === "model-pick") {
         const controls = modelRef.current;
         if (!controls) {
           pushLine("error", "model controls are unavailable");
           return;
         }
-        const change = resolveModelArgs(
-          command.type === "model-set" ? command.args : [],
+        const selected = controls.selection();
+        const items = buildModelPickerItems(
+          selected,
+          controls.models(),
           config.providers,
+          modelSupportsEffort,
         );
-        if (change.type === "error") {
-          pushLine("error", change.message);
-          return;
-        }
-        try {
-          if (change.type === "model") controls.setModel(change.model);
-          if (change.type === "provider") {
-            controls.setProvider({
-              kind: change.kind,
-              model: change.model,
-              baseURL: change.baseURL,
-              apiKey: change.apiKey,
-            });
-          }
-          const selected = controls.selection();
+        if (items.length === 0) {
           pushLine(
             "sys",
             formatModelStatus({
@@ -514,6 +521,37 @@ export function App({ args }: { args: TuiArgs }) {
               saved: Object.keys(config.providers),
             }),
           );
+          return;
+        }
+        const at = Math.max(
+          0,
+          items.findIndex((item) => item.current),
+        );
+        setSessionPicker(null);
+        setModelPicker({
+          items,
+          selected: at,
+          stage: "model",
+          efforts: [],
+          effortSelected: 0,
+        });
+        setEditor(createEditor());
+        return;
+      }
+      if (command.type === "model-set") {
+        const controls = modelRef.current;
+        if (!controls) {
+          pushLine("error", "model controls are unavailable");
+          return;
+        }
+        const change = resolveModelArgs(command.args, config.providers);
+        if (change.type === "error") {
+          pushLine("error", change.message);
+          return;
+        }
+        try {
+          if (change.type !== "show") applyModelChange(controls, change);
+          reportModelStatus(controls, config.providers, pushLine);
         } catch (err) {
           pushLine("error", messageOf(err));
         }
@@ -619,6 +657,7 @@ export function App({ args }: { args: TuiArgs }) {
             0,
             metas.findIndex((meta) => meta.id === currentId),
           );
+          setModelPicker(null);
           setSessionPicker({
             sessions: metas.map((meta) => ({
               id: meta.id,
@@ -815,6 +854,96 @@ export function App({ args }: { args: TuiArgs }) {
       // Ignore composer edits while the picker owns the keyboard.
       return;
     }
+    if (modelPicker) {
+      if (key.escape || (action.type === "interrupt" && key.escape)) {
+        if (modelPicker.stage === "effort") {
+          setModelPicker((current) =>
+            current ? { ...current, stage: "model", pending: undefined } : current,
+          );
+          return;
+        }
+        setModelPicker(null);
+        return;
+      }
+      if (action.type === "interrupt") {
+        exit();
+        return;
+      }
+      if (key.upArrow || key.downArrow) {
+        const direction = key.downArrow ? "down" : "up";
+        setModelPicker((current) => {
+          if (!current) return current;
+          if (current.stage === "effort") {
+            return {
+              ...current,
+              effortSelected: cycleCommandIndex(
+                current.effortSelected,
+                current.efforts.length,
+                direction,
+              ),
+            };
+          }
+          return {
+            ...current,
+            selected: cycleCommandIndex(current.selected, current.items.length, direction),
+          };
+        });
+        return;
+      }
+      if (action.type === "submit" || key.return) {
+        const controls = modelRef.current;
+        if (!controls) {
+          setModelPicker(null);
+          pushLine("error", "model controls are unavailable");
+          return;
+        }
+        if (modelPicker.stage === "effort") {
+          const pending = modelPicker.pending;
+          const effort = modelPicker.efforts[modelPicker.effortSelected];
+          if (!pending || !effort) {
+            setModelPicker(null);
+            return;
+          }
+          setModelPicker(null);
+          try {
+            applyModelChange(controls, pending.change, effort.value);
+            reportModelStatus(controls, config.providers, pushLine);
+          } catch (err) {
+            pushLine("error", messageOf(err));
+          }
+          return;
+        }
+        const pick = modelPicker.items[modelPicker.selected];
+        if (!pick) {
+          setModelPicker(null);
+          return;
+        }
+        if (pick.supportsEffort) {
+          const efforts = buildEffortPickerItems(controls.selection().effort);
+          const effortSelected = Math.max(
+            0,
+            efforts.findIndex((item) => item.current),
+          );
+          setModelPicker({
+            ...modelPicker,
+            stage: "effort",
+            pending: pick,
+            efforts,
+            effortSelected,
+          });
+          return;
+        }
+        setModelPicker(null);
+        try {
+          applyModelChange(controls, pick.change);
+          reportModelStatus(controls, config.providers, pushLine);
+        } catch (err) {
+          pushLine("error", messageOf(err));
+        }
+        return;
+      }
+      return;
+    }
     if (action.type === "interrupt") {
       const live = clientRef.current;
       if (live?.getStatus().busy) {
@@ -953,12 +1082,20 @@ export function App({ args }: { args: TuiArgs }) {
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
   /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
   const inputRows = composerBodyRowCount(editor.text, innerWidth);
-  const slashOpenRows = sessionPicker ? 0 : commandSelectRows(suggestions.length);
+  const pickerOpen = Boolean(sessionPicker || modelPicker);
+  const slashOpenRows = pickerOpen ? 0 : commandSelectRows(suggestions.length);
   const sessionPickRows = sessionPicker
     ? sessionSelectRows(sessionPicker.sessions.length)
     : 0;
+  const modelPickRows = modelPicker ? modelSelectRows(modelPicker.items.length) : 0;
   const suggestRows =
-    sessionPickRows > 0 ? sessionPickRows : slashOpenRows > 0 ? slashOpenRows : slashFillRows;
+    sessionPickRows > 0
+      ? sessionPickRows
+      : modelPickRows > 0
+        ? modelPickRows
+        : slashOpenRows > 0
+          ? slashOpenRows
+          : slashFillRows;
   const activityRows = activitySpinnerRows(Boolean(activity));
   const modelId = client?.getStatus().provider ?? "";
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
@@ -1250,6 +1387,24 @@ export function App({ args }: { args: TuiArgs }) {
           selectedIndex={sessionPicker.selected}
           columns={innerWidth}
         />
+      ) : modelPicker ? (
+        <ModelSelect
+          items={
+            modelPicker.stage === "effort" ? modelPicker.efforts : modelPicker.items
+          }
+          selectedIndex={
+            modelPicker.stage === "effort"
+              ? modelPicker.effortSelected
+              : modelPicker.selected
+          }
+          columns={innerWidth}
+          hint={
+            modelPicker.stage === "effort"
+              ? "effort · ↑↓ select · Enter set · Esc back"
+              : "model · ↑↓ select · Enter switch · Esc cancel"
+          }
+          minRows={modelPickRows}
+        />
       ) : slashOpenRows > 0 ? (
         <CommandSelect
           suggestions={suggestions}
@@ -1364,4 +1519,46 @@ function clip(text: string, max: number): string {
 
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function applyModelChange(
+  controls: ModelControls,
+  change: ModelPickItem["change"],
+  effort?: EffortPickValue,
+): void {
+  if (change.type === "model") controls.setModel(change.model);
+  if (change.type === "provider") {
+    controls.setProvider({
+      kind: change.kind,
+      model: change.model,
+      baseURL: change.baseURL,
+      apiKey: change.apiKey,
+    });
+  }
+  if (effort === "default") {
+    controls.setEffort(undefined);
+    return;
+  }
+  if (effort) {
+    const parsed = parseReasoningEffort(effort);
+    if (parsed) controls.setEffort(parsed);
+  }
+}
+
+function reportModelStatus(
+  controls: ModelControls,
+  named: Readonly<Record<string, unknown>>,
+  pushLine: (kind: LogKind, text: string) => void,
+): void {
+  const selected = controls.selection();
+  pushLine(
+    "sys",
+    formatModelStatus({
+      kind: selected.kind,
+      model: selected.model,
+      effort: selected.effort,
+      models: controls.models(),
+      saved: Object.keys(named),
+    }),
+  );
 }

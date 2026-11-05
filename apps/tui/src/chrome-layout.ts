@@ -1,6 +1,6 @@
 /**
  * Vertical budget for the pinned composer.
- * The command list and session picker are `suggestRows` above the composer.
+ * The command list, session picker, and model picker are `suggestRows` above the composer.
  * They take space from the transcript, so the composer stays on the same row
  * as long as the transcript still has a row to give up.
  */

@@ -69,7 +69,7 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 
 | Resolved field | CLI | TUI | Web server |
 |---|---|---|---|
-| `provider`, `model` | yes, flags win | yes, flags win; `/model` switches them for this process | yes, `PROVIDER` / `MODEL` win |
+| `provider`, `model` | yes, flags win | yes, flags win; `/model` opens a list (or takes an id) and switches them for this process | yes, `PROVIDER` / `MODEL` win |
 | `reasoningEffort` | yes, the next model call | yes; `/effort` changes it for this process | yes, the next model call |
 | `runtime.maxTurns`, `maxContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
@@ -78,10 +78,10 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 | `settings.permissions.write` set to `ask` | confirms writes | confirms writes | confirms writes |
 | `auth` | copied into the environment when the variable is unset | same | same |
 | `settings.permissions.read`, `settings.hooks`, `settings.mcp` | loaded only | loaded only | loaded only |
-| `providers` | loaded only | `/model <name>` selects an entry | loaded only |
+| `providers` | loaded only | `/model` list or `/model <name>` selects an entry | loaded only |
 | `mcpServers`, `cronJobs` | loaded only | loaded only | loaded only |
 
-`createRuntime` does not connect MCP. A host that wants those servers calls `mcp().connect()` itself. The TUI selects a `providers.json` entry with `/model <name>`. Nothing in the apps runs `cron/jobs.json` yet.
+`createRuntime` does not connect MCP. A host that wants those servers calls `mcp().connect()` itself. The TUI selects a `providers.json` entry from the `/model` list or with `/model <name>`. Nothing in the apps runs `cron/jobs.json` yet.
 
 Permission *policy* (`allow` / `ask` / `deny`) lives in settings. The remembered grant ledger stays in `<cwd>/.min/permissions.json`, and sessions stay in `<cwd>/.min/sessions/`. Those two paths are not read by this package.
 
@@ -155,7 +155,7 @@ Only string values under `keys` are kept. `applyAuthToEnv` copies a key into the
 }
 ```
 
-`kind` is required. `model`, `baseUrl`, and `apiKeyEnv` are optional and trimmed. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, `/model <name>` selects one of these entries for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
+`kind` is required. `model`, `baseUrl`, and `apiKeyEnv` are optional and trimmed. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, the `/model` list includes these names, and `/model <name>` selects one of them for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
 
 ## `keybindings.json`
 

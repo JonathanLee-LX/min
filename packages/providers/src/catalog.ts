@@ -6,9 +6,37 @@ const SUGGESTED: Readonly<Record<string, readonly string[]>> = {
   anthropic: ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"],
 };
 
+/** Providers whose adapters always accept a thinking-intensity setting. */
+const EFFORT_KINDS = new Set(["deepseek", "anthropic"]);
+
 /** Current model first when it is not already in the built-in list. */
 export function modelsFor(kind: string, current?: string): string[] {
   const suggested = SUGGESTED[kind] ?? [];
   if (!current || suggested.includes(current)) return [...suggested];
   return [current, ...suggested];
+}
+
+/** Models that usually expose a reasoning summary over Responses. */
+export function modelLikelyReasons(model: string): boolean {
+  const m = model.trim().toLowerCase();
+  if (!m) return false;
+  return (
+    /^o[1-9]/.test(m) ||
+    m.startsWith("gpt-5") ||
+    m.includes("reason") ||
+    m.startsWith("deepseek")
+  );
+}
+
+/**
+ * Whether `/model` can open a thinking-intensity submenu for this provider/model.
+ * DeepSeek and Anthropic always expose effort. OpenAI-family only for reasoning models.
+ */
+export function modelSupportsEffort(kind: string, model?: string): boolean {
+  const name = kind.trim().toLowerCase();
+  if (EFFORT_KINDS.has(name)) return true;
+  if (name === "openai" || name === "openai-chat") {
+    return modelLikelyReasons(model ?? "");
+  }
+  return false;
 }
