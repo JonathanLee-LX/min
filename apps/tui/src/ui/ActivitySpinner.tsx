@@ -13,6 +13,11 @@ export function activitySpinnerRows(visible: boolean): number {
   return visible ? SPINNER_PAD_Y * 2 + 1 : 0;
 }
 
+/** Shine step from wall time so stream paints do not jump the highlight. */
+export function shineFrame(nowMs: number, intervalMs = SHINE_MS): number {
+  return Math.floor(Math.max(0, nowMs) / intervalMs);
+}
+
 function shineProps(
   heat: number,
   color: string,
@@ -26,33 +31,30 @@ function shineProps(
 /**
  * One status word with a highlight sliding across it.
  *
- * A timer runs only while `animate` is set. During a token stream the parent
- * passes a rising `pulse` instead, so the shine moves on paints that already
- * happen and does not add a second redraw.
+ * Position comes from wall time, not token count. A timer runs only while
+ * `animate` is set. During a token stream the parent already paints, so the
+ * same clock is sampled then and the highlight does not jump.
  */
 export function ActivitySpinner({
   activity,
   focused,
   animate = true,
-  pulse = 0,
 }: {
   activity: Activity;
   focused: boolean;
   theme?: TuiTheme;
-  /** When false, follow `pulse` instead of a timer. */
+  /** When false, do not schedule extra paints; sample time on the parent paint. */
   animate?: boolean;
-  /** Advances the highlight while the timer is paused. */
-  pulse?: number;
 }) {
   const live = focused && animate;
-  const [tick, setTick] = useState(0);
+  const [, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!live) return;
-    const timer = setInterval(() => setTick((n) => n + 1), SHINE_MS);
+    const timer = setInterval(() => setNow(Date.now()), SHINE_MS);
     return () => clearInterval(timer);
-  }, [live, activity.phase]);
+  }, [live]);
 
-  const frame = focused ? (live ? tick : Math.floor(pulse / 4)) : -1;
+  const frame = focused ? shineFrame(Date.now()) : -1;
   const cells = shineText(activity.label, frame);
   const pads = Array.from({ length: SPINNER_PAD_Y }, (_, index) => (
     <Text key={`pad:${index}`}> </Text>

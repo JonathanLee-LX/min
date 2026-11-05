@@ -1235,9 +1235,8 @@ export function App({ args }: { args: TuiArgs }) {
           activity={activity}
           focused={focused}
           theme={theme}
-          // Spinner ticks rewrite the whole Ink frame; freeze while tokens flow.
+          // Extra timer paints hitch the stream; sample wall time on these paints.
           animate={!stream && !thinking}
-          pulse={stream.length + thinking.length}
         />
       ) : null}
 
