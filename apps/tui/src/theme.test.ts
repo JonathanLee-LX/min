@@ -13,12 +13,12 @@ import {
 describe("theme", () => {
   it("resolves accent foregrounds without default block fills", () => {
     expect(toneFor("user").background).toBeUndefined();
-    expect(toneFor("user").body).toBeUndefined();
-    expect(toneFor("user").label).toBeUndefined();
+    expect(toneFor("user").body).toBe("#4e9a57");
+    expect(toneFor("user").label).toBe("#4e9a57");
     expect(defaultTheme.chrome.brand).toBe("#4e9a57");
     expect(toneFor("assistant").background).toBeUndefined();
-    expect(toneFor("assistant").label).toBe("#4e9a57");
-    expect(toneFor("assistant").body).toBe("#4e9a57");
+    expect(toneFor("assistant").label).toBeUndefined();
+    expect(toneFor("assistant").body).toBeUndefined();
     const custom = createTheme({
       id: "ink",
       name: "Ink",
@@ -76,17 +76,17 @@ describe("theme", () => {
   it("keeps default user/assistant roles free of background fills", () => {
     expect(defaultTheme.roles.user.background).toBeUndefined();
     expect(defaultTheme.roles.assistant.background).toBeUndefined();
-    expect(defaultTheme.roles.user.body).toBeUndefined();
-    expect(defaultTheme.roles.assistant.body).toMatch(/^#/);
+    expect(defaultTheme.roles.user.body).toMatch(/^#/);
+    expect(defaultTheme.roles.assistant.body).toBeUndefined();
   });
 
-  it("styles thinking and tools as darker mint italic/plain copy", () => {
+  it("styles thinking as italic terminal copy and leaves tools uncolored", () => {
     const tone = toneFor("thinking");
     expect(tone.italicBody).toBe(true);
     expect(tone.dimBody).toBe(false);
-    expect(tone.body).toBe("#2d5a32");
-    expect(toneFor("tool").body).toBe("#2d5a32");
-    expect(toneFor("tool-result").body).toBe("#2d5a32");
+    expect(tone.body).toBeUndefined();
+    expect(toneFor("tool").body).toBeUndefined();
+    expect(toneFor("tool-result").body).toBeUndefined();
     expect(toneFor("assistant").italicBody).toBe(false);
   });
 
