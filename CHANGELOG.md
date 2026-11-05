@@ -3,7 +3,14 @@
 ## Unreleased
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
-- TUI enters the alternate screen and overwrites only changed rows. Fullscreen paints no longer emit `clearTerminal` (ED2), so stream and spinner ticks do not flash in web terminals that ignore DEC 2026.
+
+## 0.1.0-alpha.8
+
+TUI no longer flashes in web terminals.
+
+- Stream and spinner paints enter the alternate screen and overwrite only changed rows. Fullscreen updates no longer emit `clearTerminal` (ED2), so the screen does not flash in web terminals that ignore DEC 2026.
+
+Install: `npm install -g @min-agent/min@alpha`
 
 ## 0.1.0-alpha.7
 
