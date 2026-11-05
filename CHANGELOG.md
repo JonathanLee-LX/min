@@ -3,9 +3,16 @@
 ## Unreleased
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
+
+## 0.1.0-alpha.6
+
+TUI model picker, thinking/tool colors, and `--version`.
+
 - `/model` opens an ↑↓ list of catalog models and saved `providers.json` names. When the selected model accepts thinking intensity, Enter opens a second menu for `none` / `low` / `medium` / `high` / `max` / `default`. `/model <id>` still switches immediately.
 - Thinking copy uses muted overlay; tool calls use sky and tool output uses subtext, so those side blocks no longer share the assistant foreground.
 - `min --version` (`-v` / `-V`) prints `min <version> (node …)` and exits.
+
+Install: `npm install -g @min-agent/min@alpha`
 
 ## 0.1.0-alpha.5
 
