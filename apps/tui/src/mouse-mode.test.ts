@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { disableMouse, enableMouseWheel } from "./mouse-mode.js";
 
-function tty(): NodeJS.WriteStream & { writes: string[] } {
+function tty(isTTY = true): NodeJS.WriteStream & { writes: string[] } {
   const writes: string[] = [];
   return {
-    isTTY: true,
+    isTTY,
     writes,
     write(chunk: string) {
       writes.push(chunk);
@@ -21,12 +21,16 @@ describe("mouse mode", () => {
   it("turns on wheel, button-motion, and hover reporting", () => {
     const stream = tty();
     enableMouseWheel(stream);
-    expect(stream.writes.join("")).toContain("\x1b[?1000h");
-    expect(stream.writes.join("")).toContain("\x1b[?1002h");
-    expect(stream.writes.join("")).toContain("\x1b[?1003h");
-    expect(stream.writes.join("")).toContain("\x1b[?1006h");
-    expect(stream.writes.join("")).toContain("\x1b]22;text\x07");
+    expect(stream.writes.join("")).toBe(
+      "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h\x1b]22;text\x07",
+    );
     stream.writes.length = 0;
+    enableMouseWheel(stream);
+    expect(stream.writes).toEqual([]);
+  });
+
+  it("does not write when stdout is not a TTY", () => {
+    const stream = tty(false);
     enableMouseWheel(stream);
     expect(stream.writes).toEqual([]);
   });

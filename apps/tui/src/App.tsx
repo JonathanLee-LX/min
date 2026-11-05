@@ -47,20 +47,14 @@ import {
 } from "./editor.js";
 import { copyToClipboard } from "./clipboard.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
+import { applyMouse, scrollDelta } from "./mouse-session.js";
 import { setPointerShape } from "./pointer.js";
-import { createScrollPump } from "./scroll-pump.js";
+import { clampScroll, createScrollPump } from "./scroll-pump.js";
 import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { createKeyBuffer } from "./key-buffer.js";
 import { resolveKeybindings } from "./keybindings.js";
 import { decodeInput } from "./keys.js";
-import {
-  cellFromMouse,
-  clampCell,
-  rowSelectionCols,
-  selectedText,
-  selectionRange,
-  type SelCell,
-} from "./selection.js";
+import { rowSelectionCols, selectionRange, type SelCell } from "./selection.js";
 import { sliceByColumns } from "./text.js";
 import {
   activityFor,
@@ -207,7 +201,7 @@ export function App({ args }: { args: TuiArgs }) {
     scrollPumpRef.current = createScrollPump((delta) => {
       setScroll((current) => {
         const max = Math.max(0, viewRef.current.total - viewRef.current.height);
-        return Math.min(max, Math.max(0, current + delta));
+        return clampScroll(current, delta, max);
       });
     });
   }
@@ -755,35 +749,22 @@ export function App({ args }: { args: TuiArgs }) {
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
     if (key.mouse) {
-      const geom = selectRef.current;
-      const overText = key.mouse.y < geom.logHeight;
-      setPointerShape(overText ? "text" : "default", stdout);
+      const next = applyMouse(key.mouse, selectRef.current, selectionStateRef.current);
+      setPointerShape(next.pointer, stdout);
       if (key.mouse.kind === "move") return;
-      if (key.mouse.kind === "down") {
-        const cell = cellFromMouse(key.mouse.x, key.mouse.y, geom);
-        setSelection(cell ? { anchor: cell, focus: cell, dragging: true } : null);
+      if (key.mouse.kind === "down" || key.mouse.kind === "drag") {
+        setSelection(next.selection);
         return;
       }
-      if (key.mouse.kind === "drag") {
-        setSelection((current) => {
-          if (!current?.dragging) return current;
-          const cell = clampCell(key.mouse!.x, key.mouse!.y, geom);
-          return cell ? { ...current, focus: cell } : current;
-        });
-        return;
-      }
-      const current = selectionStateRef.current;
-      if (!current?.dragging) return;
-      const cell = clampCell(key.mouse.x, key.mouse.y, geom) ?? current.focus;
-      const text = selectedText(geom.lines, current.anchor, cell);
-      if (text) copyToClipboard(text, stdout);
-      setSelection(text ? { anchor: current.anchor, focus: cell, dragging: false } : null);
+      if (next.copy) copyToClipboard(next.copy, stdout);
+      if (selectionStateRef.current?.dragging) setSelection(next.selection);
       return;
     }
     const action = inputAction(input, key, keybindings);
     if (action.type === "scroll") {
-      const step = action.delta ?? Math.max(1, viewRef.current.height);
-      scrollPumpRef.current?.add(action.direction === "up" ? step : -step);
+      scrollPumpRef.current?.add(
+        scrollDelta(action.direction, action.delta, viewRef.current.height),
+      );
       return;
     }
     if (sessionPicker) {

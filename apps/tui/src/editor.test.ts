@@ -139,6 +139,12 @@ describe("inputAction", () => {
       direction: "down",
       delta: 3,
     });
+    expect(inputAction("", key({ mouse: { kind: "move", x: 1, y: 1 } }))).toEqual({
+      type: "ignore",
+    });
+    expect(inputAction("", key({ mouse: { kind: "down", x: 1, y: 1 } }))).toEqual({
+      type: "ignore",
+    });
     expect(inputAction("", key({ ctrl: true, upArrow: true }))).toEqual({
       type: "scroll",
       direction: "up",

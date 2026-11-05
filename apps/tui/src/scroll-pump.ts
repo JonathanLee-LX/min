@@ -5,6 +5,10 @@
  */
 export const SCROLL_FLUSH_MS = 32;
 
+export function clampScroll(current: number, delta: number, max: number): number {
+  return Math.min(max, Math.max(0, current + delta));
+}
+
 export function createScrollPump(
   apply: (delta: number) => void,
   flushMs = SCROLL_FLUSH_MS,

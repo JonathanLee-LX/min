@@ -15,4 +15,17 @@ describe("copyToClipboard", () => {
     expect(writes[0]).toContain("\x1b]52;c;");
     expect(writes[0]).toContain(Buffer.from("hi", "utf8").toString("base64"));
   });
+
+  it("writes nothing for empty text", () => {
+    const writes: string[] = [];
+    const stream = {
+      isTTY: true,
+      write(chunk: string) {
+        writes.push(chunk);
+        return true;
+      },
+    } as unknown as NodeJS.WriteStream;
+    copyToClipboard("", stream);
+    expect(writes).toEqual([]);
+  });
 });
