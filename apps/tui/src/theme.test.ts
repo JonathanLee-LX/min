@@ -84,7 +84,7 @@ describe("theme", () => {
     const tone = toneFor("thinking");
     expect(tone.italicBody).toBe(true);
     expect(tone.dimBody).toBe(false);
-    expect(tone.body).toBe("#3a7340");
+    expect(tone.body).toBe("#2d5a32");
     expect(toneFor("tool").body).toBe("#2d5a32");
     expect(toneFor("tool-result").body).toBe("#2d5a32");
     expect(toneFor("assistant").italicBody).toBe(false);

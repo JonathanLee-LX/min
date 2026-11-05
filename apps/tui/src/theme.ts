@@ -105,11 +105,11 @@ const mocha = {
    */
   lightGreen: "#4e9a57",
   /**
-   * One step down from lightGreen for thinking and other secondary model copy.
+   * One step down from lightGreen for secondary Markdown emphasis.
    */
   darkGreen: "#3a7340",
   /**
-   * Two steps down from lightGreen for tool calls and tool output.
+   * Two steps down from lightGreen for thinking, tool calls, and tool output.
    */
   forestGreen: "#2d5a32",
   blue: "#89b4fa",
@@ -138,8 +138,8 @@ export const defaultTheme: TuiTheme = {
       dimBody: false,
     },
     thinking: {
-      label: mocha.darkGreen,
-      body: mocha.darkGreen,
+      label: mocha.forestGreen,
+      body: mocha.forestGreen,
       dimLabel: false,
       dimBody: false,
       italicBody: true,
