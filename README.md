@@ -56,7 +56,7 @@ The workflow rejects the release when the root version differs from the tag, or 
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
-Wait to push a version tag until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. `pnpm publish:alpha` is only a local fallback for the current alpha version. Provenance publish requires `repository.url` on the packed `@min-agent/min` manifest to match this GitHub repo.
+Wait to push a version tag until `NPM_TOKEN` exists. A missing or rejected token fails at `npm whoami`, before anything is packed or uploaded. A manual dry run uses the same check and then packs without uploading. Do not publish from a laptop or agent: only GitHub Actions uploads `@min-agent/min`. Push `main` and the matching `v*` tag to `JonathanLee-LX/min` so the workflow can run; a tag that exists only on Origin does not. Provenance publish requires `repository.url` on the packed `@min-agent/min` manifest to match this GitHub repo.
 
 ## Configuration
 
