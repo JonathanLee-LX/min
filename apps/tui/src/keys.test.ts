@@ -32,6 +32,8 @@ describe("actionFromChunk", () => {
       direction: "down",
       delta: 3,
     });
+    expect(actionFromChunk("\x1b[<0;12;8M")).toEqual({ type: "mouse-select" });
+    expect(actionFromChunk("\x1b[<0;12;8m")).toEqual({ type: "ignore" });
     expect(actionFromChunk("\x03")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x1b")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x0f")).toEqual({ type: "toggle-tool-output" });

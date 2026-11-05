@@ -26,6 +26,7 @@ function key(partial: Partial<InputKey> = {}): InputKey {
     meta: false,
     mouseWheelUp: false,
     mouseWheelDown: false,
+    mouseSelect: false,
     ...partial,
   };
 }

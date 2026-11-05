@@ -83,11 +83,18 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
   if (chunk === "\x1b[200~" || chunk === "\x1b[201~") return plain("");
 
   const mouse = /^\x1b\[<(\d+);\d+;\d+([Mm])$/.exec(chunk);
-  if (mouse && mouse[2] === "M") {
+  if (mouse) {
     const button = Number(mouse[1]);
-    if ((button & 0x40) !== 0) {
+    const press = mouse[2] === "M";
+    if (press && (button & 0x40) !== 0) {
       return flagged({ mouseWheelUp: (button & 1) === 0, mouseWheelDown: (button & 1) !== 0 });
     }
+    // Left press, not wheel and not a motion event. Release reporting so
+    // the terminal can start a native selection on this drag.
+    if (press && (button & 0x63) === 0) {
+      return flagged({ mouseSelect: true });
+    }
+    return plain("");
   }
 
   if (chunk === "\x7f" || chunk === "\b") return flagged({ backspace: true });
@@ -252,6 +259,7 @@ function flagged(partial: Partial<InputKey>): { input: string; key: InputKey } {
       meta: false,
       mouseWheelUp: false,
       mouseWheelDown: false,
+      mouseSelect: false,
       ...partial,
     },
   };

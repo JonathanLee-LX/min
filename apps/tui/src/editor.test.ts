@@ -27,6 +27,7 @@ function key(partial: Partial<InputKey> = {}): InputKey {
     meta: false,
     mouseWheelUp: false,
     mouseWheelDown: false,
+    mouseSelect: false,
     ...partial,
   };
 }
@@ -133,6 +134,9 @@ describe("inputAction", () => {
       type: "scroll",
       direction: "up",
       delta: 3,
+    });
+    expect(inputAction("", key({ mouseSelect: true }))).toEqual({
+      type: "mouse-select",
     });
     expect(inputAction("", key({ mouseWheelDown: true }))).toEqual({
       type: "scroll",

@@ -91,8 +91,8 @@ Keys:
   Shift+Enter        insert a newline
   Alt+Enter / Ctrl+J also insert a newline
   Up/Down            previous line, or input history at the ends
-  Drag               select text (Shift+drag while the wheel is captured)
-  Wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
+  Drag               select text
+  Mouse wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
   Ctrl+O             expand / collapse tool output
   Ctrl+T             expand / collapse thinking

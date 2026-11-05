@@ -3,17 +3,9 @@ import React from "react";
 import { helpText, parseArgs } from "./args.js";
 import { App } from "./App.js";
 import { loadEnvFiles } from "./load-env.js";
+import { disableMouse, enableMouseWheel } from "./mouse-mode.js";
 
 loadEnvFiles();
-
-/**
- * Wheel scrolling needs mouse reporting, but drag tracking (1002/1003) would
- * swallow the pointer and break text selection. Enable button press/release
- * with SGR coordinates only: the wheel arrives as a button event while drags
- * stay with the terminal. Hold Shift to select text where the terminal needs it.
- */
-const MOUSE_ENABLE = "\x1b[?1000h\x1b[?1006h";
-const MOUSE_RELEASE = "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l";
 
 async function main(): Promise<void> {
   let args;
@@ -30,13 +22,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (process.stdout.isTTY) {
-    process.stdout.write(MOUSE_ENABLE);
-  }
+  enableMouseWheel();
   const cleanup = () => {
-    if (process.stdout.isTTY) {
-      process.stdout.write(MOUSE_RELEASE);
-    }
+    disableMouse();
   };
   process.on("exit", cleanup);
   process.on("SIGINT", () => {

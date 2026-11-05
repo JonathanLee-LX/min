@@ -46,6 +46,8 @@ export interface InputKey {
   meta: boolean;
   mouseWheelUp: boolean;
   mouseWheelDown: boolean;
+  /** Left-button press. The host releases mouse reporting so a drag can select. */
+  mouseSelect: boolean;
 }
 
 export type InputAction =
@@ -55,6 +57,7 @@ export type InputAction =
   | { type: "scroll"; direction: "up" | "down"; delta?: number }
   | { type: "toggle-tool-output" }
   | { type: "toggle-thinking" }
+  | { type: "mouse-select" }
   | { type: "interrupt" }
   | { type: "ignore" };
 
@@ -142,6 +145,7 @@ export function inputAction(
 ): InputAction {
   if (key.mouseWheelUp) return { type: "scroll", direction: "up", delta: 3 };
   if (key.mouseWheelDown) return { type: "scroll", direction: "down", delta: 3 };
+  if (key.mouseSelect) return { type: "mouse-select" };
   const bound = lookupKeybinding(input, key, bindings);
   if (bound) return bound;
   if (key.ctrl || key.meta) return { type: "ignore" };
