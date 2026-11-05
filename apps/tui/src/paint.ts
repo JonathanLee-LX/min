@@ -604,9 +604,9 @@ export interface Activity {
 }
 
 const ACTIVITY_LABEL: Record<ActivityPhase, string> = {
-  thinking: "Thinking",
-  tool: "Tool calling",
-  working: "Working",
+  thinking: "Thinking...",
+  tool: "Tool calling...",
+  working: "Working...",
 };
 
 export function activityFor(
@@ -626,23 +626,32 @@ export function activityFor(
 
 export interface ShineCell {
   text: string;
-  hot: boolean;
+  /** 0 is dim; higher values are closer to the highlight peak. */
+  heat: number;
 }
 
+/** Soft highlight width. Overlap between steps makes the slide look continuous. */
+export const SHINE_WIDTH = 5;
+
 /**
- * A short bright window moving left to right across `text`.
- * Negative `tick` leaves every cell dim. The window walks off the end, then starts again.
+ * A soft highlight that ping-pongs across `text`.
+ * Negative `tick` leaves every cell dim. Each cell has a falloff so the
+ * peak moves one step without a hard edge.
  */
-export function shineText(text: string, tick: number, width = 2): ShineCell[] {
+export function shineText(text: string, tick: number, width = SHINE_WIDTH): ShineCell[] {
   const chars = [...text];
   if (chars.length === 0) return [];
-  if (tick < 0) return chars.map((ch) => ({ text: ch, hot: false }));
-  const shine = Math.max(1, Math.min(width, chars.length));
-  const head = tick % (chars.length + shine);
-  return chars.map((ch, index) => ({
-    text: ch,
-    hot: index <= head && head - index < shine,
-  }));
+  if (tick < 0) return chars.map((ch) => ({ text: ch, heat: 0 }));
+  const last = Math.max(0, chars.length - 1);
+  const span = Math.max(1, last);
+  const cycle = span * 2;
+  const phase = tick % cycle;
+  const head = phase <= span ? phase : cycle - phase;
+  const shine = Math.max(2, Math.min(width, chars.length));
+  return chars.map((ch, index) => {
+    const dist = Math.abs(index - head);
+    return { text: ch, heat: dist < shine ? shine - dist : 0 };
+  });
 }
 
 function spec(phase: ActivityPhase, color: string): Activity {

@@ -233,16 +233,16 @@ describe("activityFor", () => {
   it("uses thinking, tool calling, or working", () => {
     expect(
       activityFor({ status: "running", streaming: false, toolName: null, continuing: false }),
-    ).toMatchObject({ phase: "thinking", label: "Thinking" });
+    ).toMatchObject({ phase: "thinking", label: "Thinking..." });
     expect(
       activityFor({ status: "running", streaming: true, toolName: null, continuing: false }),
-    ).toMatchObject({ phase: "working", label: "Working" });
+    ).toMatchObject({ phase: "working", label: "Working..." });
     expect(
       activityFor({ status: "running", streaming: false, toolName: null, continuing: true }),
-    ).toMatchObject({ phase: "working", label: "Working" });
+    ).toMatchObject({ phase: "working", label: "Working..." });
     expect(
       activityFor({ status: "running", streaming: true, toolName: "bash", continuing: false }),
-    ).toMatchObject({ phase: "tool", label: "Tool calling" });
+    ).toMatchObject({ phase: "tool", label: "Tool calling..." });
     expect(
       activityFor({ status: "asking", streaming: false, toolName: "bash", continuing: false }),
     ).toBeNull();
@@ -251,31 +251,16 @@ describe("activityFor", () => {
     ).toBeNull();
   });
 
-  it("slides a short highlight across the status word", () => {
-    expect(shineText("thinking", -1).every((cell) => !cell.hot)).toBe(true);
-    expect(shineText("thinking", 0).map((cell) => cell.hot)).toEqual([
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
-    expect(shineText("thinking", 1).map((cell) => cell.hot)).toEqual([
-      true,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-    ]);
-    const swept = shineText("thinking", 3).flatMap((cell) => (cell.hot ? cell.text : ""));
-    expect(swept.join("")).toBe("in");
-    expect(shineText("thinking", "thinking".length + 1).some((cell) => cell.hot)).toBe(false);
-    expect(shineText("thinking", "thinking".length + 2)[0]?.hot).toBe(true);
+  it("slides a soft highlight across the status word and back", () => {
+    expect(shineText("thinking", -1).every((cell) => cell.heat === 0)).toBe(true);
+    const start = shineText("thinking", 0);
+    expect(start[0]?.heat).toBeGreaterThan(start[1]?.heat ?? 0);
+    expect(start.some((cell) => cell.heat === 0)).toBe(true);
+    const next = shineText("thinking", 1);
+    expect(next[1]?.heat).toBeGreaterThan(start[1]?.heat ?? 0);
+    const end = shineText("Thinking...", 10);
+    expect(end[end.length - 1]?.heat).toBeGreaterThan(end[0]?.heat ?? 0);
+    const back = shineText("Thinking...", 11);
+    expect(back[end.length - 2]?.heat).toBeGreaterThan(end[end.length - 2]?.heat ?? 0);
   });
 });
