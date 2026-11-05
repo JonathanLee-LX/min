@@ -1,13 +1,13 @@
 import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
-import { BLOCK_GAP, shineText, type Activity } from "../paint.js";
+import { SIDE_BLOCK_GAP, shineText, type Activity } from "../paint.js";
 import type { TuiTheme } from "../theme.js";
 
 /** One step of the highlight. Slow enough to read, still overlaps the last step. */
 export const SHINE_MS = 160;
 
-/** Top and bottom blank rows around the status word (2X). */
-export const SPINNER_PAD_Y = BLOCK_GAP;
+/** Top and bottom blank rows around the status word (1X). */
+export const SPINNER_PAD_Y = SIDE_BLOCK_GAP;
 
 export function activitySpinnerRows(visible: boolean): number {
   return visible ? SPINNER_PAD_Y * 2 + 1 : 0;
