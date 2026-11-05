@@ -101,18 +101,44 @@ export function padToWidth(text: string, width: number): string {
   return text + " ".repeat(width - used);
 }
 
-/** Blank rows inserted before each new user or assistant turn. */
-const TURN_GAP_ROWS = 2;
+/** One transcript row. Side blocks use 1, content-to-side uses 2, sessions use 3. */
+export const GAP_UNIT = 1;
+export const SIDE_BLOCK_GAP = 1 * GAP_UNIT;
+export const CONTENT_SIDE_GAP = 2 * GAP_UNIT;
+export const SESSION_GAP = 3 * GAP_UNIT;
 
-/** Blank lines before each new user or assistant turn. */
+function isContent(kind: LogKind): boolean {
+  return kind === "user" || kind === "assistant";
+}
+
+function isSide(kind: LogKind): boolean {
+  return kind === "thinking" || kind === "tool" || kind === "tool-result" || kind === "tool-error";
+}
+
+function sameToolBlock(prev: LogKind, next: LogKind): boolean {
+  return prev === "tool" && (next === "tool-result" || next === "tool-error");
+}
+
+/** Blank rows to insert before `next`, given the previous non-gap kind. */
+export function gapBefore(prev: LogKind | undefined, next: LogKind): number {
+  if (!prev || prev === "gap" || next === "gap") return 0;
+  if (next === "user") return SESSION_GAP;
+  if (sameToolBlock(prev, next)) return 0;
+  if (isSide(prev) && isSide(next)) return SIDE_BLOCK_GAP;
+  if ((isContent(prev) && isSide(next)) || (isSide(prev) && isContent(next))) {
+    return CONTENT_SIDE_GAP;
+  }
+  return SIDE_BLOCK_GAP;
+}
+
+/** Blank rows between sessions, content, and tool/thinking blocks. */
 export function separateTurns(lines: readonly TranscriptSource[]): TranscriptSource[] {
   const out: TranscriptSource[] = [];
   let prev: LogKind | undefined;
   for (const line of lines) {
-    if (prev && isTurn(line.kind) && line.kind !== prev) {
-      for (let i = 0; i < TURN_GAP_ROWS; i++) {
-        out.push({ key: `${line.key}:gap${i}`, kind: "gap", text: "" });
-      }
+    const gaps = gapBefore(prev, line.kind);
+    for (let i = 0; i < gaps; i++) {
+      out.push({ key: `${line.key}:gap${i}`, kind: "gap", text: "" });
     }
     out.push(line);
     if (line.kind !== "gap") prev = line.kind;
@@ -577,10 +603,6 @@ function wrapSpanRows(spans: readonly RenderSpan[], width: number): RenderSpan[]
   return rows;
 }
 
-function isTurn(kind: LogKind): boolean {
-  return kind === "user" || kind === "assistant";
-}
-
 export type ActivityPhase = "thinking" | "tool" | "working";
 
 export interface Activity {
@@ -591,9 +613,9 @@ export interface Activity {
 }
 
 const ACTIVITY_LABEL: Record<ActivityPhase, string> = {
-  thinking: "thinking",
-  tool: "tool calling",
-  working: "working",
+  thinking: "Thinking",
+  tool: "Tool calling",
+  working: "Working",
 };
 
 export function activityFor(

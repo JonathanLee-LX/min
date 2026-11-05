@@ -1111,7 +1111,7 @@ export function App({ args }: { args: TuiArgs }) {
           <ActivitySpinner
             activity={{
               phase: "thinking",
-              label: "thinking",
+              label: "Thinking",
               color: theme.activity.thinking,
             }}
             focused={focused}

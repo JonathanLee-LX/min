@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { shineText, type Activity } from "../paint.js";
 import type { TuiTheme } from "../theme.js";
 
-const SHINE_MS = 90;
+/** One cell of the highlight per interval. Slower than a typical spinner. */
+export const SHINE_MS = 160;
 
 /**
  * One status word with a highlight sliding across it.

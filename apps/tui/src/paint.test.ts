@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   activityFor,
+  CONTENT_SIDE_GAP,
+  gapBefore,
+  SESSION_GAP,
   shineText,
+  SIDE_BLOCK_GAP,
   createPaintCache,
   paintTranscript,
 } from "./paint.js";
@@ -160,21 +164,44 @@ describe("paintTranscript", () => {
     expect(displayWidth(filled[0]!.body)).toBe(15);
   });
 
-  it("opens a gap before a new turn", () => {
+  it("spaces tool, thinking, content, and sessions on a 1 / 2 / 3 scale", () => {
+    expect(gapBefore("thinking", "tool")).toBe(SIDE_BLOCK_GAP);
+    expect(gapBefore("tool", "thinking")).toBe(SIDE_BLOCK_GAP);
+    expect(gapBefore("tool", "tool-result")).toBe(0);
+    expect(gapBefore("tool", "tool-error")).toBe(0);
+    expect(gapBefore("user", "thinking")).toBe(CONTENT_SIDE_GAP);
+    expect(gapBefore("thinking", "assistant")).toBe(CONTENT_SIDE_GAP);
+    expect(gapBefore("tool-result", "assistant")).toBe(CONTENT_SIDE_GAP);
+    expect(gapBefore("assistant", "user")).toBe(SESSION_GAP);
+    expect(gapBefore("user", "assistant")).toBe(SIDE_BLOCK_GAP);
+    expect(gapBefore(undefined, "user")).toBe(0);
+
     const rows = paintTranscript(
       [
+        { key: "u1", kind: "user", text: "run it" },
+        { key: "th", kind: "thinking", text: "plan" },
         { key: "t", kind: "tool", text: "bash  ls" },
         { key: "r", kind: "tool-result", text: "ok" },
         { key: "a", kind: "assistant", text: "done" },
+        { key: "u2", kind: "user", text: "again" },
       ],
       40,
     );
     expect(rows.map((row) => row.kind)).toEqual([
+      "user",
+      "gap",
+      "gap",
+      "thinking",
+      "gap",
       "tool",
       "tool-result",
       "gap",
       "gap",
       "assistant",
+      "gap",
+      "gap",
+      "gap",
+      "user",
     ]);
   });
 });
@@ -206,16 +233,16 @@ describe("activityFor", () => {
   it("uses thinking, tool calling, or working", () => {
     expect(
       activityFor({ status: "running", streaming: false, toolName: null, continuing: false }),
-    ).toMatchObject({ phase: "thinking", label: "thinking" });
+    ).toMatchObject({ phase: "thinking", label: "Thinking" });
     expect(
       activityFor({ status: "running", streaming: true, toolName: null, continuing: false }),
-    ).toMatchObject({ phase: "working", label: "working" });
+    ).toMatchObject({ phase: "working", label: "Working" });
     expect(
       activityFor({ status: "running", streaming: false, toolName: null, continuing: true }),
-    ).toMatchObject({ phase: "working", label: "working" });
+    ).toMatchObject({ phase: "working", label: "Working" });
     expect(
       activityFor({ status: "running", streaming: true, toolName: "bash", continuing: false }),
-    ).toMatchObject({ phase: "tool", label: "tool calling" });
+    ).toMatchObject({ phase: "tool", label: "Tool calling" });
     expect(
       activityFor({ status: "asking", streaming: false, toolName: "bash", continuing: false }),
     ).toBeNull();
