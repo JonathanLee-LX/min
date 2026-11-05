@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.0-alpha.5
+
+TUI theme, spinner, and session polish.
+
 - Config files follow a Command Code-style layout: `~/.min/` for preferences, credentials, providers, keybindings, and MCP; `<cwd>/.min/settings.json` (commit) and `settings.local.json` (gitignore) for project policy; `<cwd>/.mcp.json` for shared MCP servers. Field schemas and which of those files the CLI, TUI, and Web server apply are in `packages/config/README.md`.
 - `~/.config/min/config.json` and `<cwd>/.min/config.json` are read only for compatibility. They do not change settings. The notice is recorded on the process notice log and shown through `client.notices` in the CLI, TUI, and Web UI.
 - TUI notices use peach copy on a raised slate band that hugs the text, so the warning stands out from tool lines without filling the row.
@@ -14,6 +18,8 @@
 - Default theme paints user input in brand mint (`mocha.lightGreen`) and leaves model output — assistant body, thinking, and tool copy — on the terminal foreground.
 - Drag selects transcript text in the app, the same way Pi's fullscreen TUI does, and copies on release. The pointer is an I-beam over transcript text. Wheel ticks coalesce so scrolling does not hitch.
 - `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen. Each row lines up the name, the latest prompt, the turn count, the local time, and a short id. The CLI session list uses the same columns. Slash-command hints share one column. Lists of records keep each field aligned.
+
+Install: `npm install -g @min-agent/min@alpha`
 
 ## 0.1.0-alpha.4
 
