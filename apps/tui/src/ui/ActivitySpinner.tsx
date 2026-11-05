@@ -6,11 +6,11 @@ import type { TuiTheme } from "../theme.js";
 /** One step of the highlight. Slow enough to read, still overlaps the last step. */
 export const SHINE_MS = 160;
 
-/** Top and bottom blank rows around the status word (1X). */
+/** Blank rows above the status word (1X). No pad below. */
 export const SPINNER_PAD_Y = SIDE_BLOCK_GAP;
 
 export function activitySpinnerRows(visible: boolean): number {
-  return visible ? SPINNER_PAD_Y * 2 + 1 : 0;
+  return visible ? SPINNER_PAD_Y + 1 : 0;
 }
 
 /** Shine step from wall time so stream paints do not jump the highlight. */
@@ -78,7 +78,6 @@ export function ActivitySpinner({
           );
         })}
       </Text>
-      {pads}
     </Box>
   );
 }

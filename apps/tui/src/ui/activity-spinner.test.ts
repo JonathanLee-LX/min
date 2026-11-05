@@ -8,11 +8,11 @@ import {
 } from "./ActivitySpinner.js";
 
 describe("ActivitySpinner", () => {
-  it("steps the highlight slowly and keeps 1X vertical padding", () => {
+  it("steps the highlight slowly and keeps 1X padding above only", () => {
     expect(SHINE_MS).toBe(160);
     expect(SPINNER_PAD_Y).toBe(SIDE_BLOCK_GAP);
     expect(activitySpinnerRows(false)).toBe(0);
-    expect(activitySpinnerRows(true)).toBe(SIDE_BLOCK_GAP * 2 + 1);
+    expect(activitySpinnerRows(true)).toBe(SIDE_BLOCK_GAP + 1);
   });
 
   it("keeps the shine on a clock, not on token count", () => {

@@ -9,7 +9,7 @@
 - The slash-command list and the `/resume` list render above the composer. Opening or closing them no longer moves the input.
 - A session name defaults to the first user message. `/name` asks the model for a short name, and `/name <text>` sets one. After Enter selects `/name`, the composer shows `设置会话名称或者AI总结` until a name is typed. The model request is not stored as a turn. `/resume` shows that name.
 - Ctrl+T expands or collapses thinking. Ctrl+O still does that for tool output.
-- The running line says `Thinking...`, `Tool calling...`, or `Working...`. A three-cell highlight sweeps left to right, then restarts, with one blank row above and below. The shine follows wall time so stream paints do not jump it.
+- The running line says `Thinking...`, `Tool calling...`, or `Working...`. A three-cell highlight sweeps left to right, then restarts, with one blank row above. The shine follows wall time so stream paints do not jump it.
 - Transcript spacing is 1 row between tool and thinking blocks, and 2 rows everywhere else.
 - Drag selects transcript text in the app, the same way Pi's fullscreen TUI does, and copies on release. The pointer is an I-beam over transcript text. Wheel ticks coalesce so scrolling does not hitch.
 - `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen. Each row lines up the name, the latest prompt, the turn count, the local time, and a short id. The CLI session list uses the same columns. Slash-command hints share one column. Lists of records keep each field aligned.
