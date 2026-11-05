@@ -50,7 +50,6 @@ import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { createKeyBuffer } from "./key-buffer.js";
 import { resolveKeybindings } from "./keybindings.js";
 import { decodeInput } from "./keys.js";
-import { enableMouseWheel, releaseMouseForSelect } from "./mouse-mode.js";
 import {
   activityFor,
   createPaintCache,
@@ -720,12 +719,7 @@ export function App({ args }: { args: TuiArgs }) {
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
     const action = inputAction(input, key, keybindings);
-    if (action.type === "mouse-select") {
-      releaseMouseForSelect();
-      return;
-    }
     if (action.type === "scroll") {
-      enableMouseWheel();
       setScroll((current) => {
         const step = action.delta ?? Math.max(1, viewRef.current.height);
         const max = Math.max(0, viewRef.current.total - viewRef.current.height);
@@ -734,7 +728,6 @@ export function App({ args }: { args: TuiArgs }) {
       });
       return;
     }
-    if (action.type !== "ignore") enableMouseWheel();
     if (sessionPicker) {
       if (key.escape || (action.type === "interrupt" && key.escape)) {
         setSessionPicker(null);
