@@ -101,15 +101,10 @@ export function padToWidth(text: string, width: number): string {
   return text + " ".repeat(width - used);
 }
 
-/** One transcript row. Side blocks use 1, content-to-side uses 2, sessions use 3. */
+/** One transcript row. Tool/thinking blocks use 1; everything else uses 2. */
 export const GAP_UNIT = 1;
 export const SIDE_BLOCK_GAP = 1 * GAP_UNIT;
-export const CONTENT_SIDE_GAP = 2 * GAP_UNIT;
-export const SESSION_GAP = 3 * GAP_UNIT;
-
-function isContent(kind: LogKind): boolean {
-  return kind === "user" || kind === "assistant";
-}
+export const BLOCK_GAP = 2 * GAP_UNIT;
 
 function isSide(kind: LogKind): boolean {
   return kind === "thinking" || kind === "tool" || kind === "tool-result" || kind === "tool-error";
@@ -122,16 +117,12 @@ function sameToolBlock(prev: LogKind, next: LogKind): boolean {
 /** Blank rows to insert before `next`, given the previous non-gap kind. */
 export function gapBefore(prev: LogKind | undefined, next: LogKind): number {
   if (!prev || prev === "gap" || next === "gap") return 0;
-  if (next === "user") return SESSION_GAP;
   if (sameToolBlock(prev, next)) return 0;
   if (isSide(prev) && isSide(next)) return SIDE_BLOCK_GAP;
-  if ((isContent(prev) && isSide(next)) || (isSide(prev) && isContent(next))) {
-    return CONTENT_SIDE_GAP;
-  }
-  return SIDE_BLOCK_GAP;
+  return BLOCK_GAP;
 }
 
-/** Blank rows between sessions, content, and tool/thinking blocks. */
+/** Blank rows between tool/thinking blocks (1) and every other block (2). */
 export function separateTurns(lines: readonly TranscriptSource[]): TranscriptSource[] {
   const out: TranscriptSource[] = [];
   let prev: LogKind | undefined;

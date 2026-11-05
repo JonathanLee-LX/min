@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   activityFor,
-  CONTENT_SIDE_GAP,
+  BLOCK_GAP,
   gapBefore,
-  SESSION_GAP,
   shineText,
   SIDE_BLOCK_GAP,
   createPaintCache,
@@ -164,16 +163,18 @@ describe("paintTranscript", () => {
     expect(displayWidth(filled[0]!.body)).toBe(15);
   });
 
-  it("spaces tool, thinking, content, and sessions on a 1 / 2 / 3 scale", () => {
+  it("uses 1 row between tool/thinking blocks and 2 rows everywhere else", () => {
     expect(gapBefore("thinking", "tool")).toBe(SIDE_BLOCK_GAP);
     expect(gapBefore("tool", "thinking")).toBe(SIDE_BLOCK_GAP);
+    expect(gapBefore("thinking", "thinking")).toBe(SIDE_BLOCK_GAP);
+    expect(gapBefore("tool", "tool")).toBe(SIDE_BLOCK_GAP);
     expect(gapBefore("tool", "tool-result")).toBe(0);
     expect(gapBefore("tool", "tool-error")).toBe(0);
-    expect(gapBefore("user", "thinking")).toBe(CONTENT_SIDE_GAP);
-    expect(gapBefore("thinking", "assistant")).toBe(CONTENT_SIDE_GAP);
-    expect(gapBefore("tool-result", "assistant")).toBe(CONTENT_SIDE_GAP);
-    expect(gapBefore("assistant", "user")).toBe(SESSION_GAP);
-    expect(gapBefore("user", "assistant")).toBe(SIDE_BLOCK_GAP);
+    expect(gapBefore("user", "thinking")).toBe(BLOCK_GAP);
+    expect(gapBefore("thinking", "assistant")).toBe(BLOCK_GAP);
+    expect(gapBefore("tool-result", "assistant")).toBe(BLOCK_GAP);
+    expect(gapBefore("assistant", "user")).toBe(BLOCK_GAP);
+    expect(gapBefore("user", "assistant")).toBe(BLOCK_GAP);
     expect(gapBefore(undefined, "user")).toBe(0);
 
     const rows = paintTranscript(
@@ -198,7 +199,6 @@ describe("paintTranscript", () => {
       "gap",
       "gap",
       "assistant",
-      "gap",
       "gap",
       "gap",
       "user",
