@@ -11,7 +11,7 @@
 - Ctrl+T expands or collapses thinking. Ctrl+O still does that for tool output.
 - The running line says `Thinking...`, `Tool calling...`, or `Working...`. A three-cell highlight walks off the word and re-enters from the left, on its own clock, like other Ink agent TUIs.
 - Transcript spacing is 1 row between tool and thinking blocks, and 2 rows everywhere else.
-- Default theme paints assistant body in brand mint (`mocha.lightGreen`), thinking and tool copy one step darker, and leaves user input on the terminal foreground.
+- Default theme paints assistant body in brand mint (`mocha.lightGreen`), thinking one step darker, tool copy two steps darker, and leaves user input on the terminal foreground.
 - Drag selects transcript text in the app, the same way Pi's fullscreen TUI does, and copies on release. The pointer is an I-beam over transcript text. Wheel ticks coalesce so scrolling does not hitch.
 - `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen. Each row lines up the name, the latest prompt, the turn count, the local time, and a short id. The CLI session list uses the same columns. Slash-command hints share one column. Lists of records keep each field aligned.
 

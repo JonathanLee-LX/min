@@ -105,10 +105,13 @@ const mocha = {
    */
   lightGreen: "#4e9a57",
   /**
-   * One step down from lightGreen for thinking, tool calls, and other
-   * secondary model copy.
+   * One step down from lightGreen for thinking and other secondary model copy.
    */
   darkGreen: "#3a7340",
+  /**
+   * Two steps down from lightGreen for tool calls and tool output.
+   */
+  forestGreen: "#2d5a32",
   blue: "#89b4fa",
   yellow: "#f9e2af",
   peach: "#fab387",
@@ -142,13 +145,13 @@ export const defaultTheme: TuiTheme = {
       italicBody: true,
     },
     tool: {
-      label: mocha.darkGreen,
-      body: mocha.darkGreen,
+      label: mocha.forestGreen,
+      body: mocha.forestGreen,
       dimLabel: false,
       dimBody: false,
     },
     "tool-result": {
-      body: mocha.darkGreen,
+      body: mocha.forestGreen,
       dimLabel: false,
       dimBody: false,
     },
