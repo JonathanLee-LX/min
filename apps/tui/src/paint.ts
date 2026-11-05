@@ -630,11 +630,12 @@ export interface ShineCell {
   heat: number;
 }
 
-/** Soft highlight width. Overlap between steps makes the slide look continuous. */
+/** Soft highlight width. Claude-style glimmer is also three cells. */
 export const SHINE_WIDTH = 3;
 
 /**
- * A soft highlight that sweeps left to right, then restarts at the first cell.
+ * A three-cell band that walks off the end, then enters again from the left.
+ * Extra cycle cells (same as Claude's width+pad) avoid a snap from last to first.
  * Negative `tick` leaves every cell dim.
  */
 export function shineText(text: string, tick: number, width = SHINE_WIDTH): ShineCell[] {
@@ -642,11 +643,22 @@ export function shineText(text: string, tick: number, width = SHINE_WIDTH): Shin
   if (chars.length === 0) return [];
   if (tick < 0) return chars.map((ch) => ({ text: ch, heat: 0 }));
   const shine = Math.max(1, Math.min(width, chars.length));
-  const head = tick % chars.length;
+  const head = tick % (chars.length + shine);
   return chars.map((ch, index) => {
     const dist = head - index;
     return { text: ch, heat: dist >= 0 && dist < shine ? shine - dist : 0 };
   });
+}
+
+/** Merge adjacent cells of the same heat so Ink paints a few spans, not one per glyph. */
+export function shineRuns(text: string, tick: number, width = SHINE_WIDTH): ShineCell[] {
+  const runs: ShineCell[] = [];
+  for (const cell of shineText(text, tick, width)) {
+    const last = runs.at(-1);
+    if (last && last.heat === cell.heat) last.text += cell.text;
+    else runs.push({ text: cell.text, heat: cell.heat });
+  }
+  return runs;
 }
 
 function spec(phase: ActivityPhase, color: string): Activity {

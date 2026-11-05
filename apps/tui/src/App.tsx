@@ -1231,13 +1231,7 @@ export function App({ args }: { args: TuiArgs }) {
       </Box>
 
       {activity ? (
-        <ActivitySpinner
-          activity={activity}
-          focused={focused}
-          theme={theme}
-          // Extra timer paints hitch the stream; sample wall time on these paints.
-          animate={!stream && !thinking}
-        />
+        <ActivitySpinner activity={activity} focused={focused} theme={theme} />
       ) : null}
 
       {pendingPerm ? (

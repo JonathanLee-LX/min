@@ -3,6 +3,7 @@ import {
   activityFor,
   BLOCK_GAP,
   gapBefore,
+  shineRuns,
   shineText,
   SIDE_BLOCK_GAP,
   createPaintCache,
@@ -251,7 +252,7 @@ describe("activityFor", () => {
     ).toBeNull();
   });
 
-  it("sweeps left to right in three cells, then restarts", () => {
+  it("sweeps a three-cell band off the end, then enters from the left", () => {
     expect(shineText("thinking", -1).every((cell) => cell.heat === 0)).toBe(true);
     expect(shineText("thinking", 0).map((cell) => cell.heat)).toEqual([
       3, 0, 0, 0, 0, 0, 0, 0,
@@ -259,10 +260,11 @@ describe("activityFor", () => {
     expect(shineText("thinking", 2).map((cell) => cell.heat)).toEqual([
       1, 2, 3, 0, 0, 0, 0, 0,
     ]);
-    const end = shineText("Thinking...", 10);
-    expect(end[end.length - 1]?.heat).toBe(3);
-    const restart = shineText("Thinking...", 11);
-    expect(restart[0]?.heat).toBe(3);
-    expect(restart[restart.length - 1]?.heat).toBe(0);
+    const word = "Thinking...";
+    expect(shineText(word, 10).at(-1)?.heat).toBe(3);
+    expect(shineText(word, 12).at(-1)?.heat).toBe(1);
+    expect(shineText(word, 13).every((cell) => cell.heat === 0)).toBe(true);
+    expect(shineText(word, 14)[0]?.heat).toBe(3);
+    expect(shineRuns(word, 2).map((run) => run.heat)).toEqual([1, 2, 3, 0]);
   });
 });
