@@ -14,6 +14,7 @@ export type {
   RuntimeConfig,
   ThemeOverrideConfig,
   UiConfig,
+  UiDensity,
 } from "./types.js";
 
 export {

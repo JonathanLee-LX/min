@@ -5,6 +5,7 @@ import {
   type RuntimeConfig,
   type ThemeOverrideConfig,
   type UiConfig,
+  type UiDensity,
 } from "./types.js";
 
 export interface ParseResult {
@@ -145,11 +146,20 @@ function parseUi(value: unknown): UiConfig | undefined {
   const raw = value as Record<string, unknown>;
   const out: UiConfig = {};
   if (typeof raw.theme === "string" && raw.theme.trim()) out.theme = raw.theme.trim();
+  const density = parseDensity(raw.density);
+  if (density) out.density = density;
   const overrides = parseThemeOverrides(raw.themeOverrides);
   if (overrides) out.themeOverrides = overrides;
   const keybindings = parseKeybindings(raw.keybindings);
   if (keybindings) out.keybindings = keybindings;
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseDensity(value: unknown): UiDensity | undefined {
+  if (typeof value !== "string") return undefined;
+  const density = value.trim().toLowerCase();
+  if (density === "compact" || density === "comfortable") return density;
+  return undefined;
 }
 
 function parseKeybindings(value: unknown): Record<string, string> | undefined {

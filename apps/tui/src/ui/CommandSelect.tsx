@@ -1,8 +1,7 @@
 import { Box, Text } from "ink";
 import { commandColumnWidth, type CommandSpec } from "../commands.js";
+import { densityListVisible, type UiDensity } from "../density.js";
 import { displayWidth } from "../text.js";
-
-const VISIBLE = 8;
 
 /**
  * Slash-command menu as plain Ink Text rows.
@@ -13,15 +12,18 @@ export function CommandSelect({
   suggestions,
   selectedIndex = 0,
   highlightText,
+  density = "comfortable",
 }: {
   suggestions: readonly CommandSpec[];
   /** Which match is highlighted (host cycles with ↑↓). */
   selectedIndex?: number;
   /** Typed command prefix without leading slash, for label highlighting. */
   highlightText?: string;
+  density?: UiDensity;
 }) {
   if (suggestions.length === 0) return null;
-  const visible = suggestions.slice(0, VISIBLE);
+  const cap = densityListVisible(density);
+  const visible = suggestions.slice(0, cap);
   const selected =
     ((selectedIndex % visible.length) + visible.length) % visible.length;
   const needle = (highlightText ?? "").toLowerCase();
@@ -64,7 +66,10 @@ export function CommandSelect({
   );
 }
 
-export function commandSelectRows(count: number): number {
+export function commandSelectRows(
+  count: number,
+  density: UiDensity = "comfortable",
+): number {
   if (count <= 0) return 0;
-  return Math.min(VISIBLE, count);
+  return Math.min(densityListVisible(density), count);
 }

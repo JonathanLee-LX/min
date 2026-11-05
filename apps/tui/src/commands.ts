@@ -28,6 +28,8 @@ export type TuiCommand =
   | { type: "dense"; text: string }
   | { type: "dense-usage" }
   | { type: "thinking" }
+  | { type: "density" }
+  | { type: "density-set"; value: string }
   | { type: "model" }
   | { type: "model-set"; args: string[] }
   | { type: "effort" }
@@ -66,6 +68,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "reset", hint: "clear conversation history" },
   { name: "queue", hint: "show the follow-up queue" },
   { name: "thinking", hint: "expand / collapse thinking content" },
+  { name: "density", hint: "toggle compact layout, or set compact / comfortable", arg: true },
   { name: "model", hint: "show or switch the model", arg: true },
   { name: "effort", hint: "show or set thinking intensity", arg: true },
   { name: "name", hint: "generate a session name, or set one", arg: true },
@@ -87,6 +90,9 @@ export const TUI_HELP = `Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
+  /density           toggle compact layout (0.8 scale)
+  /density compact   compact spacing
+  /density comfortable  default spacing
   /model             show provider, model, and thinking effort
   /model <model>     switch model on the current provider
   /model <provider> <model>
@@ -212,6 +218,10 @@ export function parseTuiCommand(line: string): TuiCommand {
   if (name === "reset") return { type: "reset" };
   if (name === "queue") return { type: "queue" };
   if (name === "thinking" || name === "think") return { type: "thinking" };
+  if (name === "density") {
+    const value = rest.join(" ").trim();
+    return value ? { type: "density-set", value } : { type: "density" };
+  }
   if (name === "model") {
     const args = rest.filter(Boolean);
     return args.length > 0 ? { type: "model-set", args } : { type: "model" };

@@ -8,6 +8,7 @@ describe("commandSelectRows", () => {
     expect(commandSelectRows(0)).toBe(0);
     expect(commandSelectRows(3)).toBe(3);
     expect(commandSelectRows(12)).toBe(8);
+    expect(commandSelectRows(12, "compact")).toBe(6);
   });
 });
 
@@ -16,6 +17,7 @@ describe("sessionSelectRows", () => {
     expect(sessionSelectRows(0)).toBe(1);
     expect(sessionSelectRows(3)).toBe(4);
     expect(sessionSelectRows(12)).toBe(9);
+    expect(sessionSelectRows(12, "compact")).toBe(7);
   });
 
   it("keeps the selected session inside the visible window", () => {

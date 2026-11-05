@@ -39,6 +39,13 @@ describe("parseConfigDocument", () => {
     });
   });
 
+  it("parses ui.density compact or comfortable", () => {
+    expect(parseConfigDocument({ version: 1, ui: { density: "compact" } }).document.ui).toEqual({
+      density: "compact",
+    });
+    expect(parseConfigDocument({ version: 1, ui: { density: "wide" } }).document.ui).toBeUndefined();
+  });
+
   it("accepts a newer version with a warning", () => {
     const parsed = parseConfigDocument({ version: 99, ui: { theme: "default" } });
     expect(parsed.document.ui?.theme).toBe("default");

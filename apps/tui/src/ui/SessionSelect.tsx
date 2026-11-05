@@ -1,8 +1,7 @@
 import { Box, Text } from "ink";
 import type { SessionListItem } from "../commands.js";
+import { densityListVisible, type UiDensity } from "../density.js";
 import { layoutResumeRows } from "../session-brief.js";
-
-const VISIBLE = 8;
 
 /**
  * Interactive session picker for `/resume`.
@@ -13,12 +12,14 @@ export function SessionSelect({
   currentId,
   selectedIndex = 0,
   columns = 80,
+  density = "comfortable",
 }: {
   sessions: readonly SessionListItem[];
   currentId: string;
   selectedIndex?: number;
   /** Width available for one row, including the focus marker. */
   columns?: number;
+  density?: UiDensity;
 }) {
   if (sessions.length === 0) {
     return (
@@ -28,7 +29,11 @@ export function SessionSelect({
     );
   }
   const at = ((selectedIndex % sessions.length) + sessions.length) % sessions.length;
-  const { start, end } = sessionSelectWindow(sessions.length, at);
+  const { start, end } = sessionSelectWindow(
+    sessions.length,
+    at,
+    densityListVisible(density),
+  );
   const visible = sessions.slice(start, end);
   const rows = layoutResumeRows(sessions, Math.max(20, columns - 2), currentId);
 
@@ -60,16 +65,19 @@ export function SessionSelect({
   );
 }
 
-export function sessionSelectRows(count: number): number {
+export function sessionSelectRows(
+  count: number,
+  density: UiDensity = "comfortable",
+): number {
   if (count <= 0) return 1; // empty-state line
-  return 1 + Math.min(VISIBLE, count); // hint + rows
+  return 1 + Math.min(densityListVisible(density), count); // hint + rows
 }
 
 /** Slice of the full list that keeps `selectedIndex` on screen. */
 export function sessionSelectWindow(
   count: number,
   selectedIndex: number,
-  visible = VISIBLE,
+  visible = densityListVisible("comfortable"),
 ): { start: number; end: number } {
   if (count <= 0) return { start: 0, end: 0 };
   const at = ((selectedIndex % count) + count) % count;

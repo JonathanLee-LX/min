@@ -36,6 +36,11 @@ describe("routeSubmit", () => {
     });
     expect(routeSubmit("/queue", true)).toEqual({ type: "command", command: { type: "queue" } });
     expect(routeSubmit("/thinking", true)).toEqual({ type: "command", command: { type: "thinking" } });
+    expect(routeSubmit("/density", true)).toEqual({ type: "command", command: { type: "density" } });
+    expect(routeSubmit("/density compact", false)).toEqual({
+      type: "command",
+      command: { type: "density-set", value: "compact" },
+    });
     expect(routeSubmit("/think", false)).toEqual({ type: "command", command: { type: "thinking" } });
     expect(routeSubmit("/session", true).type).toBe("command");
     expect(routeSubmit("/sessions", true).type).toBe("command");

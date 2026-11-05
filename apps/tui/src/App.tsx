@@ -18,6 +18,13 @@ import { Box, Text, useApp, useStdin, useStdout } from "ink";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TuiArgs } from "./args.js";
 import { minBannerLines } from "./banner.js";
+import {
+  densityPaddingX,
+  parseUiDensity,
+  scaleCount,
+  toggleDensity,
+  type UiDensity,
+} from "./density.js";
 import { composerFrameRows } from "./chrome-layout.js";
 import {
   TUI_HELP,
@@ -115,6 +122,7 @@ export function App({ args }: { args: TuiArgs }) {
       { cwd: args.cwd },
       {
         ...(args.theme ? { theme: args.theme } : {}),
+        ...(args.compact ? { density: "compact" as const } : {}),
         ...(args.provider ? { provider: args.provider } : {}),
         ...(args.model ? { model: args.model } : {}),
       },
@@ -124,7 +132,7 @@ export function App({ args }: { args: TuiArgs }) {
       theme: themeFromConfig(config.ui),
       keybindings: resolveKeybindings(config.ui.keybindings),
     };
-  }, [args.cwd, args.theme, args.provider, args.model]);
+  }, [args.cwd, args.theme, args.compact, args.provider, args.model]);
   const [client, setClient] = useState<MinClient | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>(createEditor);
@@ -151,6 +159,9 @@ export function App({ args }: { args: TuiArgs }) {
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
   /** Thinking content starts collapsed; Ctrl+T toggles. */
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [density, setDensity] = useState<UiDensity>(
+    () => (config.ui.density === "compact" ? "compact" : "comfortable"),
+  );
   const [selection, setSelection] = useState<{
     anchor: SelCell;
     focus: SelCell;
@@ -544,6 +555,24 @@ export function App({ args }: { args: TuiArgs }) {
         setThinkingExpanded((current) => {
           const next = !current;
           pushLine("sys", next ? "thinking expanded" : "thinking collapsed");
+          return next;
+        });
+        return;
+      }
+      if (command.type === "density" || command.type === "density-set") {
+        if (command.type === "density-set") {
+          const next = parseUiDensity(command.value);
+          if (!next) {
+            pushLine("error", "density must be compact, comfortable, or default");
+            return;
+          }
+          setDensity(next);
+          pushLine("sys", `density ${next}`);
+          return;
+        }
+        setDensity((current) => {
+          const next = toggleDensity(current);
+          pushLine("sys", `density ${next}`);
           return next;
         });
         return;
@@ -943,7 +972,8 @@ export function App({ args }: { args: TuiArgs }) {
    * flush to the bottom edge, giving maximum vertical space to the transcript.
    */
   const paintRows = Math.max(1, termRows);
-  const innerWidth = Math.max(1, columns - 2);
+  const padX = densityPaddingX(density);
+  const innerWidth = Math.max(1, columns - padX * 2);
   const suggestions = commandSuggestions(editor.text);
   const selectedComplete =
     suggestions.length > 0
@@ -952,9 +982,9 @@ export function App({ args }: { args: TuiArgs }) {
   const slashHighlight = editor.text.startsWith("/") ? editor.text.slice(1) : "";
   /** Body between rules: paddingY + content (+ soft wraps / newlines) + paddingY. */
   const inputRows = composerBodyRowCount(editor.text, innerWidth);
-  const slashOpenRows = sessionPicker ? 0 : commandSelectRows(suggestions.length);
+  const slashOpenRows = sessionPicker ? 0 : commandSelectRows(suggestions.length, density);
   const sessionPickRows = sessionPicker
-    ? sessionSelectRows(sessionPicker.sessions.length)
+    ? sessionSelectRows(sessionPicker.sessions.length, density)
     : 0;
   const suggestRows =
     sessionPickRows > 0 ? sessionPickRows : slashOpenRows > 0 ? slashOpenRows : slashFillRows;
@@ -975,7 +1005,7 @@ export function App({ args }: { args: TuiArgs }) {
   const imeAnchor =
     client && !error
       ? composerCaretAnchor({
-          paddingX: 1,
+          paddingX: padX,
           chatBar: "",
           text: editor.text,
           cursor: editor.cursor,
@@ -990,9 +1020,10 @@ export function App({ args }: { args: TuiArgs }) {
   const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
     toolOutputExpanded,
     thinkingExpanded,
+    density,
   });
 
-  const bannerLines = minBannerLines(innerWidth);
+  const bannerLines = minBannerLines(innerWidth, density);
   const bannerRows: PaintedRow[] = bannerLines.map((line, index) => ({
     key: `banner:${index}`,
     kind: "banner",
@@ -1030,7 +1061,7 @@ export function App({ args }: { args: TuiArgs }) {
   const allPainted: PaintedRow[] = [
     ...bannerRows,
     ...bannerMetaRow,
-    bannerGapRow,
+    ...(scaleCount(1, density) > 0 ? [bannerGapRow] : []),
     ...painted,
   ];
   const rowCount = allPainted.length;
@@ -1073,7 +1104,7 @@ export function App({ args }: { args: TuiArgs }) {
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(allPainted, logHeight, scroll);
   selectRef.current = {
-    paddingX: 1,
+    paddingX: padX,
     logHeight,
     rowCount: layout.visible.length,
     rowWidth: innerWidth,
@@ -1129,7 +1160,7 @@ export function App({ args }: { args: TuiArgs }) {
 
   return (
     <ThemeProvider theme={inkChromeTheme}>
-    <Box flexDirection="column" paddingX={1} width={columns} height={paintRows}>
+    <Box flexDirection="column" paddingX={padX} width={columns} height={paintRows}>
       <Box flexDirection="column" height={logHeight} overflow="hidden">
         {layout.visible.map((row, rowIndex) => {
           const selectedCols = selectedRange
@@ -1255,12 +1286,14 @@ export function App({ args }: { args: TuiArgs }) {
           currentId={sessionPicker.currentId}
           selectedIndex={sessionPicker.selected}
           columns={innerWidth}
+          density={density}
         />
       ) : slashOpenRows > 0 ? (
         <CommandSelect
           suggestions={suggestions}
           selectedIndex={selectedComplete}
           highlightText={slashHighlight || undefined}
+          density={density}
         />
       ) : slashFillRows > 0 ? (
         <Box flexDirection="column" flexShrink={0}>
