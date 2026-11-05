@@ -4,6 +4,15 @@
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
+## 0.1.0-alpha.7
+
+TUI slash pickers open on Enter and filter as you type.
+
+- Enter on `/model` or `/resume` in the slash menu opens the list. Tab still completes with a trailing space so you can type an id.
+- Session, model, and thinking-effort lists have a `filter` field. Typing narrows rows in place; column widths stay based on the full list.
+
+Install: `npm install -g @min-agent/min@alpha`
+
 ## 0.1.0-alpha.6
 
 TUI model picker, thinking/tool colors, and `--version`.
