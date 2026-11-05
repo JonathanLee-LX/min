@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   applyImeCursor,
   composerCaretAnchor,
+  CURSOR_HIDE,
+  diffFrameLines,
   installImeCursorHook,
+  parseClearTerminalFrame,
   rewriteEraseLinesFrame,
   type ImeCaretAnchor,
   SYNC_BEGIN,
@@ -118,6 +121,42 @@ describe("rewriteEraseLinesFrame", () => {
   });
 });
 
+describe("parseClearTerminalFrame", () => {
+  it("strips ED2/ED3/home and keeps the frame body", () => {
+    expect(parseClearTerminalFrame(`${clearTerminal}hello\n`)).toEqual({
+      body: "hello\n",
+      hardClear: false,
+    });
+  });
+
+  it("marks a bare clear as a hard clear", () => {
+    expect(parseClearTerminalFrame(clearTerminal)).toEqual({
+      body: "",
+      hardClear: true,
+    });
+  });
+});
+
+describe("diffFrameLines", () => {
+  it("writes every row when there is no previous frame", () => {
+    expect(diffFrameLines(["aaa", "bbb"], null)).toBe(
+      "\x1b[1;1Haaa\x1b[K\x1b[2;1Hbbb\x1b[K",
+    );
+  });
+
+  it("rewrites only the rows that changed", () => {
+    expect(diffFrameLines(["aaa", "bbX", "ccc"], ["aaa", "bbb", "ccc"])).toBe(
+      "\x1b[2;1HbbX\x1b[K",
+    );
+  });
+
+  it("clears rows the new frame dropped", () => {
+    expect(diffFrameLines(["hi"], ["hello", "world"])).toBe(
+      "\x1b[1;1Hhi\x1b[K\x1b[2;1H\x1b[K",
+    );
+  });
+});
+
 describe("installImeCursorHook", () => {
   it("ships the frame and caret in one synchronized write", () => {
     const writes: string[] = [];
@@ -138,26 +177,21 @@ describe("installImeCursorHook", () => {
     stdout.write(frame);
     stdout.write("plain");
 
-    expect(writes).toHaveLength(3);
-    expect(writes[2]).toBe("plain");
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).toBe("plain");
     expect(writes[0]).toBe(
-      `${SYNC_BEGIN}\x1b[1A\x1b[Ghello\x1b[K\n\x1b[K\x1b[?25h\x1b[3A\x1b[2G${SYNC_END}`,
-    );
-    // Next frame starts from the parked caret, so it steps back to the
-    // trailing row before overwriting. Same caret park either way.
-    expect(writes[1]).toBe(
-      `${SYNC_BEGIN}\x1b[3B\x1b[1A\x1b[Ghello\x1b[K\n\x1b[K\x1b[?25h\x1b[3A\x1b[2G${SYNC_END}`,
+      `${SYNC_BEGIN}${CURSOR_HIDE}\x1b[1;1Hhello\x1b[K\x1b[2;1H\x1b[K\x1b[?25h\x1b[21;2H${SYNC_END}`,
     );
     restore();
-    expect(writes.at(-1)).toBe("\x1b[?25l");
+    expect(writes.at(-1)).toBe(CURSOR_HIDE);
   });
 });
 
 /**
- * Flicker regression. Ink's log-update clears every previous row with CSI 2K
- * before drawing the next frame. Terminals paint that wipe immediately, so
- * stream and spinner ticks flash. These cases feed ansi-escapes' own
- * `eraseLines` (the bytes Ink writes) through the hook.
+ * Flicker regression. Ink's fullscreen path emits `clearTerminal` (ED2)
+ * whenever the frame fills the terminal. Web terminals paint that wipe
+ * immediately. These cases feed ansi-escapes' own `eraseLines` /
+ * `clearTerminal` (the bytes Ink writes) through the hook.
  */
 describe("paint flicker regression", () => {
   it("does not full-line-wipe successive log-update frames", () => {
@@ -182,6 +216,7 @@ describe("paint flicker regression", () => {
     expect(sent[2]).toContain("\x1b[2K");
     expectStablePaint(writes[1] ?? "", "hello");
     expectStablePaint(writes[2] ?? "", "hello!");
+    expect(writes[2]).not.toContain("\x1b[2;1H");
   });
 
   it("drops a shorter row without wiping the frame", () => {
@@ -222,26 +257,55 @@ describe("paint flicker regression", () => {
     expect(menu.chunk).toContain("\x1b[2K");
     expect(submitted.chunk).toContain("\x1b[2K");
     expectStablePaint(writes[1] ?? "", "/resume");
-    expect(writes[1]).toContain("\x1b[?25h\x1b[9A\x1b[2G");
+    expect(writes[1]).toContain("\x1b[?25h\x1b[21;2H");
     expectStablePaint(writes[2] ?? "", "");
-    // Empty composer: climb past the trailing newline and the two chrome rows.
-    expect(writes[2]).toContain("\x1b[?25h\x1b[3A\x1b[2G");
-    expect(writes[2]?.startsWith(`${SYNC_BEGIN}\x1b[9B`)).toBe(true);
+    expect(writes[2]).toContain("\x1b[?25h\x1b[21;2H");
+    expect(writes[2]).toContain("\x1b[1;1H\x1b[K");
   });
 
-  it("keeps a hard clear and the caret in one write", () => {
+  it("rewrites Ink fullscreen clears to CUP overwrites without ED2", () => {
     const writes: string[] = [];
     const stdout = captureStdout(writes);
     const restore = installImeCursorHook(stdout, () => caret(2), () => 80);
-    stdout.write(`${clearTerminal}hello\n`);
+    stdout.write(`${clearTerminal}hello\nworld`);
+    stdout.write(`${clearTerminal}hello\nworl!`);
+    restore();
+
+    expectStablePaint(writes[0] ?? "", "hello");
+    expect(writes[0]).not.toContain("\x1b[2J");
+    expect(writes[0]).not.toContain("\x1b[3J");
+    expect(writes[0]).toContain("\x1b[?25h\x1b[21;2H");
+    expectStablePaint(writes[1] ?? "", "worl!");
+    expect(writes[1]).not.toContain("\x1b[1;1Hhello");
+    expect(writes[1]).toContain("\x1b[2;1Hworl!\x1b[K");
+  });
+
+  it("keeps a bare resize clear and the caret in one write", () => {
+    const writes: string[] = [];
+    const stdout = captureStdout(writes);
+    const restore = installImeCursorHook(stdout, () => caret(2), () => 80);
+    stdout.write(clearTerminal);
     restore();
 
     expect(writes[0]?.startsWith(SYNC_BEGIN)).toBe(true);
     expect(writes[0]?.endsWith(SYNC_END)).toBe(true);
     expect(writes[0]).toContain(clearTerminal);
-    expect(writes[0]).toContain("hello");
+    expect(writes[0]).toContain(CURSOR_HIDE);
     expect(writes[0]).toContain("\x1b[?25h\x1b[21;2H");
-    expect(writes[0]?.indexOf("\x1b[?25h")).toBeLessThan(writes[0]?.lastIndexOf(SYNC_END) ?? -1);
+  });
+
+  it("skips a second identical fullscreen frame", () => {
+    const writes: string[] = [];
+    const stdout = captureStdout(writes);
+    const restore = installImeCursorHook(stdout, () => caret(2), () => 80);
+    const frame = `${clearTerminal}same\n`;
+    stdout.write(frame);
+    stdout.write(frame);
+    restore();
+
+    expect(writes).toHaveLength(2);
+    expectStablePaint(writes[0] ?? "", "same");
+    expect(writes[1]).toBe(CURSOR_HIDE);
   });
 });
 
@@ -271,13 +335,17 @@ function captureStdout(writes: string[]): NodeJS.WriteStream {
   } as NodeJS.WriteStream;
 }
 
-/** A finished paint: one synchronized write, no CSI 2K wipe, caret inside it. */
+/** A finished paint: one synchronized write, no ED2/CSI 2K wipe, caret inside it. */
 function expectStablePaint(write: string, text: string): void {
   expect(write.startsWith(SYNC_BEGIN)).toBe(true);
   expect(write.endsWith(SYNC_END)).toBe(true);
   expect(write).not.toContain("\x1b[2K");
+  expect(write).not.toContain("\x1b[2J");
+  expect(write).toContain(CURSOR_HIDE);
   if (text) expect(write).toContain(text);
+  const hideAt = write.indexOf(CURSOR_HIDE);
   const caretAt = write.indexOf("\x1b[?25h");
-  expect(caretAt).toBeGreaterThan(SYNC_BEGIN.length);
+  expect(hideAt).toBeGreaterThan(SYNC_BEGIN.length - 1);
+  expect(caretAt).toBeGreaterThan(hideAt);
   expect(caretAt).toBeLessThan(write.lastIndexOf(SYNC_END));
 }

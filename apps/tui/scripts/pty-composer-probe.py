@@ -14,18 +14,12 @@ import termios
 import time
 from pathlib import Path
 
+from pty_screen import last_frame, strip_ansi
+
 ROOT = Path(__file__).resolve().parents[3]
 TUI = ROOT / "apps" / "tui"
 ROWS = 36
 COLS = 80
-
-
-def strip_ansi(text: str) -> str:
-    text = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", text)
-    text = re.sub(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", "", text)
-    text = re.sub(r"\x1b[()><=].", "", text)
-    text = text.replace("\r", "")
-    return text
 
 
 def read_available(fd: int, timeout: float = 0.3) -> bytes:
@@ -65,12 +59,6 @@ def find_composer(lines: list[str]) -> tuple[int, int, list[str]] | None:
         return None
     top, bottom = idxs[-2], idxs[-1]
     return top, bottom, lines[top + 1 : bottom]
-
-
-def last_frame(raw: str) -> list[str]:
-    parts = re.split(r"\x1b\[2J|\x1b\[H\x1b\[2J|\x1b\[2J\x1b\[H|\x1b\[H", raw)
-    screen = strip_ansi(parts[-1] if parts else raw)
-    return screen.splitlines()
 
 
 def dump_composer(label: str, between: list[str]) -> None:

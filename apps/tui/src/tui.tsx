@@ -3,6 +3,7 @@ import React from "react";
 import { helpText, parseArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
 import { formatVersionLine } from "./version.js";
+import { enterAltScreen } from "./alt-screen.js";
 import { disableMouse, enableMouseWheel } from "./mouse-mode.js";
 
 loadEnvFiles();
@@ -26,9 +27,14 @@ async function main(): Promise<void> {
     return;
   }
 
+  const leaveAltScreen = enterAltScreen();
   enableMouseWheel();
+  let cleaned = false;
   const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
     disableMouse();
+    leaveAltScreen();
   };
   process.on("exit", cleanup);
   process.on("SIGINT", () => {

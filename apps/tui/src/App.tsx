@@ -1291,7 +1291,7 @@ export function App({ args }: { args: TuiArgs }) {
   const selectedRange = selection ? selectionRange(selection.anchor, selection.focus) : null;
 
   // Re-park the caret inside each Ink stdout write. The hook also turns
-  // eraseLines into an in-place frame so stream paints do not flash blank.
+  // eraseLines / clearTerminal into CUP diffs so stream paints do not flash.
   // useLayoutEffect alone loses to Ink's throttled paint.
   useEffect(() => {
     return installImeCursorHook(

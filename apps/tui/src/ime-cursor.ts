@@ -2,22 +2,25 @@ import { composerPaddingRows } from "./ui/Composer.js";
 import { displayWidth, wrapText } from "./text.js";
 
 /**
- * Ink 5 IME caret sync.
+ * Ink 5 IME caret sync + flicker-free paints.
  *
- * log-update wipes the frame with eraseLines and then redraws it. Terminals
- * paint that wipe immediately, so every stream or spinner tick flashes.
- * Paint chunks are rewritten to in-place row updates and wrapped in a
- * synchronized output (DEC 2026) together with the caret park, so the
- * terminal shows one finished frame.
+ * Ink's fullscreen path (`outputHeight >= stdout.rows`) writes
+ * `clearTerminal` (ED2 + ED3 + CUP home) on every frame. Terminals that
+ * honor synchronized output (DEC 2026) — Ghostty, iTerm — show one
+ * finished frame. Web terminals often ignore 2026 (or still yank on ED2),
+ * so each spinner / stream tick flashes a blank screen.
  *
- * Normal paints use eraseLines (relative climb from under the frame).
- * A rare clearTerminal / hard-clear write uses absolute CUP from top.
+ * Paint chunks are rewritten to per-row CUP overwrites of *changed*
+ * lines, wrapped in DEC 2026 with the cursor hidden, then the caret is
+ * parked. A bare resize clear still passes through.
  */
 
 /** Begin synchronized update (DEC mode 2026). Ignored when unsupported. */
 export const SYNC_BEGIN = "\x1b[?2026h";
 /** End synchronized update. */
 export const SYNC_END = "\x1b[?2026l";
+/** Hide the cursor so it does not race through the frame. */
+export const CURSOR_HIDE = "\x1b[?25l";
 
 export interface ImeCaretAnchor {
   /** 0-based column in the terminal. */
@@ -100,6 +103,39 @@ export function rewriteEraseLinesFrame(text: string): string | null {
   return inPlaceFrame(parsed.linesCleared, parsed.body);
 }
 
+/**
+ * Strip Ink's `clearTerminal` (ED2 + ED3 + home) prefix. Empty body is a
+ * resize hard-clear and should still pass through.
+ */
+export function parseClearTerminalFrame(
+  text: string,
+): { body: string; hardClear: boolean } | null {
+  if (!text.startsWith("\x1b[2J")) return null;
+  let index = 4;
+  if (text.startsWith("\x1b[3J", index)) index += 4;
+  if (text.startsWith("\x1b[H", index)) index += 3;
+  else if (text.startsWith("\x1b[1;1H", index)) index += 6;
+  const body = text.slice(index);
+  return { body, hardClear: body.length === 0 };
+}
+
+/** CUP each changed row. `prev === null` writes every row. */
+export function diffFrameLines(
+  lines: readonly string[],
+  prev: readonly string[] | null,
+): string {
+  let out = "";
+  const prevLen = prev?.length ?? 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (prev && prev[i] === lines[i]) continue;
+    out += `\x1b[${i + 1};1H${lines[i]}\x1b[K`;
+  }
+  for (let i = lines.length; i < prevLen; i++) {
+    out += `\x1b[${i + 1};1H\x1b[K`;
+  }
+  return out;
+}
+
 function parseEraseLinesFrame(text: string): { linesCleared: number; body: string } | null {
   if (!text.startsWith("\x1b[2K")) return null;
   let index = 0;
@@ -131,8 +167,14 @@ function inPlaceFrame(linesCleared: number, body: string): string {
   return out;
 }
 
+function paintBody(text: string): { body: string; hardClear: boolean } | null {
+  const erased = parseEraseLinesFrame(text);
+  if (erased) return { body: erased.body, hardClear: false };
+  return parseClearTerminalFrame(text);
+}
+
 export function hideImeCursor(write: (chunk: string) => void): void {
-  write("\x1b[?25l");
+  write(CURSOR_HIDE);
 }
 
 type StdoutWrite = NodeJS.WriteStream["write"];
@@ -166,6 +208,15 @@ function writeChunk(
   );
 }
 
+function skipWrite(encoding: unknown, cb: unknown): true {
+  if (typeof encoding === "function") {
+    (encoding as (err?: Error | null) => void)();
+  } else if (typeof cb === "function") {
+    (cb as (err?: Error | null) => void)();
+  }
+  return true;
+}
+
 export function installImeCursorHook(
   stdout: NodeJS.WriteStream,
   getAnchor: () => ImeCaretAnchor | null,
@@ -174,9 +225,8 @@ export function installImeCursorHook(
   if (!stdout.isTTY) return () => {};
   const originalWrite: StdoutWrite = stdout.write.bind(stdout);
   let syncing = false;
-  // After a park the real cursor sits in the composer. The next eraseLines
-  // frame expects it on the trailing row under the frame; move it back first.
-  let returnDown = 0;
+  let prevLines: string[] | null = null;
+  let lastCursor = "";
 
   const writeRaw = (chunk: string) => {
     originalWrite(chunk);
@@ -185,18 +235,40 @@ export function installImeCursorHook(
   stdout.write = ((chunk: Parameters<StdoutWrite>[0], encoding?: unknown, cb?: unknown) => {
     const text = chunkText(chunk);
     const mode = !syncing && text ? paintModeForChunk(text) : null;
-    // One write: in-place rows (no blanking wipe) + caret, inside DEC 2026.
-    // A second write after eraseLines let the terminal paint the cursor under
-    // the frame, and skipping unchanged anchors left it there after Enter.
     if (mode) {
+      const parsed = paintBody(text);
       const anchor = getAnchor();
-      const back =
-        mode === "relative" && returnDown > 0 ? `\x1b[${returnDown}B` : "";
-      const stable =
-        mode === "relative" ? (rewriteEraseLinesFrame(text) ?? text) : text;
-      const cursor = anchor ? imeCursorSequence(anchor, getColumns(), mode) : "";
-      returnDown = anchor ? 1 + Math.max(0, anchor.rowsBelowCaret) : 0;
-      const wrapped = `${SYNC_BEGIN}${back}${stable}${cursor}${SYNC_END}`;
+      const cursor = anchor ? imeCursorSequence(anchor, getColumns(), "absolute") : "";
+      if (parsed?.hardClear) {
+        prevLines = null;
+        lastCursor = cursor;
+        const wrapped = `${SYNC_BEGIN}${CURSOR_HIDE}${text}${cursor}${SYNC_END}`;
+        syncing = true;
+        try {
+          return writeChunk(originalWrite, wrapped, encoding, cb);
+        } finally {
+          syncing = false;
+        }
+      }
+      if (parsed) {
+        const lines = parsed.body.split("\n");
+        const bytes = diffFrameLines(lines, prevLines);
+        if (bytes === "" && cursor === lastCursor) {
+          return skipWrite(encoding, cb);
+        }
+        prevLines = lines;
+        lastCursor = cursor;
+        const wrapped = `${SYNC_BEGIN}${CURSOR_HIDE}${bytes}${cursor}${SYNC_END}`;
+        syncing = true;
+        try {
+          return writeChunk(originalWrite, wrapped, encoding, cb);
+        } finally {
+          syncing = false;
+        }
+      }
+      // Unparsed 2J/2K: still hide the cursor and park inside one 2026 write.
+      lastCursor = cursor;
+      const wrapped = `${SYNC_BEGIN}${CURSOR_HIDE}${text}${cursor}${SYNC_END}`;
       syncing = true;
       try {
         return writeChunk(originalWrite, wrapped, encoding, cb);
