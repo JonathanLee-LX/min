@@ -175,9 +175,6 @@ describe("paintTranscript", () => {
     expect(gapBefore("assistant", "user")).toBe(SESSION_GAP);
     expect(gapBefore("user", "assistant")).toBe(SIDE_BLOCK_GAP);
     expect(gapBefore(undefined, "user")).toBe(0);
-    expect(gapBefore("assistant", "user", "compact")).toBe(2);
-    expect(gapBefore("user", "thinking", "compact")).toBe(1);
-    expect(gapBefore("thinking", "tool", "compact")).toBe(0);
 
     const rows = paintTranscript(
       [

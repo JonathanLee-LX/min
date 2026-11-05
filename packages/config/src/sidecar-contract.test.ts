@@ -35,7 +35,6 @@ describe("config sidecar contracts", () => {
   it("maps MIN_* env keys into sparse document layers", () => {
     const doc = documentFromEnv({
       MIN_THEME: "forest",
-      MIN_DENSITY: "compact",
       MIN_MAX_TURNS: "9",
       MIN_MAX_CONTEXT_TOKENS: "32000",
       MIN_CONTEXT_STRATEGY: "hybrid",
@@ -44,7 +43,7 @@ describe("config sidecar contracts", () => {
       MIN_REASONING_EFFORT: "low",
     });
     expect(doc).toMatchObject({
-      ui: { theme: "forest", density: "compact" },
+      ui: { theme: "forest" },
       runtime: {
         maxTurns: 9,
         maxContextTokens: 32_000,

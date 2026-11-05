@@ -10,7 +10,7 @@
 - A session name defaults to the first user message. `/name` asks the model for a short name, and `/name <text>` sets one. After Enter selects `/name`, the composer shows `设置会话名称或者AI总结` until a name is typed. The model request is not stored as a turn. `/resume` shows that name.
 - Ctrl+T expands or collapses thinking. Ctrl+O still does that for tool output.
 - The running line says `Thinking`, `Tool calling`, or `Working`, and a highlight slides across the word more slowly.
-- Transcript spacing is 1 row between tool and thinking blocks, 2 rows between those and user or assistant copy, and 3 rows between turns. `/density`, `--compact`, or `ui.density` / `MIN_DENSITY` switch a compact layout at 0.8 of that scale.
+- Transcript spacing is 1 row between tool and thinking blocks, 2 rows between those and user or assistant copy, and 3 rows between turns.
 - Drag selects transcript text in the app, the same way Pi's fullscreen TUI does, and copies on release. The pointer is an I-beam over transcript text. Wheel ticks coalesce so scrolling does not hitch.
 - `/resume` switches to a saved session. An exact id or a unique prefix matches. An unknown id is an error and does not create a session. The TUI list follows the selection past the first screen. Each row lines up the name, the latest prompt, the turn count, the local time, and a short id. The CLI session list uses the same columns. Slash-command hints share one column. Lists of records keep each field aligned.
 

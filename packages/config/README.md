@@ -73,7 +73,6 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 | `reasoningEffort` | yes, the next model call | yes; `/effort` changes it for this process | yes, the next model call |
 | `runtime.maxTurns`, `maxContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
-| `ui.density` | — | yes; `--compact` / `MIN_DENSITY` / `/density` | — |
 | `ui.keybindings` | — | yes, merged onto the built-in chords | — |
 | `settings.permissions.bash` set to `allow` | turns bash on | turns bash on, unless `-y` / `--auto` already did | turns bash on, unless `MIN_AUTO` / `MIN_YES` |
 | `settings.permissions.write` set to `ask` | confirms writes | confirms writes | confirms writes |
@@ -104,7 +103,6 @@ User preferences, and the per-project state file under `~/.min/projects/{project
   },
   "ui": {
     "theme": "default",
-    "density": "comfortable",
     "themeOverrides": { "name": "Project" },
     "keybindings": { "ctrl+j": "newline" }
   }
@@ -225,7 +223,6 @@ These variables are a layer above every file. A blank value is ignored. Counts m
 | `MIN_MODEL` | `model` |
 | `MIN_REASONING_EFFORT` | `reasoningEffort` (`none`, `low`, `medium`, `high`, `max`) |
 | `MIN_THEME` | `ui.theme` |
-| `MIN_DENSITY` | `ui.density` (`compact` or `comfortable`) |
 | `MIN_MAX_TURNS` | `runtime.maxTurns` |
 | `MIN_MAX_CONTEXT_TOKENS` | `runtime.maxContextTokens` |
 | `MIN_CONTEXT_STRATEGY` | `runtime.contextStrategy` |

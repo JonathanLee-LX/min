@@ -38,13 +38,9 @@ export interface ThemeOverrideConfig {
   markdown?: Record<string, unknown>;
 }
 
-export type UiDensity = "compact" | "comfortable";
-
 export interface UiConfig {
   /** Registered theme id, or a local override id. */
   theme?: string;
-  /** TUI spacing. Compact is 0.8 of the comfortable row scale. */
-  density?: UiDensity;
   themeOverrides?: ThemeOverrideConfig;
   /**
    * Sparse chord → command overrides for the TUI composer.
@@ -161,7 +157,6 @@ export interface FlagOverrides {
   provider?: string;
   model?: string;
   theme?: string;
-  density?: UiDensity;
   maxTurns?: number;
   maxContextTokens?: number;
   contextStrategy?: string;

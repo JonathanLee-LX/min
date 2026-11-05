@@ -1,4 +1,3 @@
-import type { UiDensity } from "./density.js";
 import { displayWidth } from "./text.js";
 
 /**
@@ -32,19 +31,13 @@ function fits(lines: readonly string[], columns: number): boolean {
   return lines.every((line) => displayWidth(line) <= columns);
 }
 
-export function minBannerLines(
-  columns: number,
-  density: UiDensity = "comfortable",
-): string[] {
+export function minBannerLines(columns: number): string[] {
   const width = Math.max(1, columns);
-  if (density !== "compact" && fits(BANNER_FULL, width)) return [...BANNER_FULL];
+  if (fits(BANNER_FULL, width)) return [...BANNER_FULL];
   if (fits(BANNER_MID, width)) return [...BANNER_MID];
   return [BANNER_COMPACT];
 }
 
-export function minBannerRows(
-  columns: number,
-  density: UiDensity = "comfortable",
-): number {
-  return minBannerLines(columns, density).length;
+export function minBannerRows(columns: number): number {
+  return minBannerLines(columns).length;
 }

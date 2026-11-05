@@ -21,12 +21,6 @@ describe("tui parseArgs", () => {
     expect(helpText()).toContain("--theme");
   });
 
-  it("parses --compact", () => {
-    expect(parseArgs(["--compact"])).toMatchObject({ compact: true });
-    expect(helpText()).toContain("--compact");
-    expect(helpText()).toContain("/density");
-  });
-
   it("documents session commands and multiline keys", () => {
     const help = helpText();
     expect(help).toContain("/sessions");

@@ -7,11 +7,6 @@ import {
   type SpanTone,
   type TableAlign,
 } from "./render.js";
-import {
-  densityChromeWidth,
-  scaleCount,
-  type UiDensity,
-} from "./density.js";
 import { defaultTheme, type TuiTheme } from "./theme.js";
 import { foldThinking, foldToolOutput } from "./tool-fold.js";
 import type { LogKind } from "./transcript.js";
@@ -25,8 +20,6 @@ export interface PaintOptions {
   toolOutputExpanded?: boolean;
   /** When false (default), multi-line thinking collapses to one summary line. */
   thinkingExpanded?: boolean;
-  /** Compact is 0.8 of comfortable transcript gaps. */
-  density?: UiDensity;
 }
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
@@ -66,7 +59,6 @@ function frameFor(
   kind: Exclude<LogKind, "gap">,
   columns: number,
   theme: TuiTheme,
-  density: UiDensity = "comfortable",
 ): { gutter: string; blank: string; bodyWidth: number } {
   const { frames } = theme;
   if (kind === "user" || kind === "assistant") {
@@ -93,7 +85,7 @@ function frameFor(
   if (kind === "banner" || kind === "banner-meta") {
     return { gutter: "", blank: "", bodyWidth: Math.max(1, columns) };
   }
-  const chromeWidth = densityChromeWidth(Math.max(1, frames.chromeWidth), density);
+  const chromeWidth = Math.max(1, frames.chromeWidth);
   const label = (CHROME_LABELS[kind] ?? "·").padEnd(chromeWidth, " ");
   return {
     gutter: label,
@@ -128,31 +120,23 @@ function sameToolBlock(prev: LogKind, next: LogKind): boolean {
 }
 
 /** Blank rows to insert before `next`, given the previous non-gap kind. */
-export function gapBefore(
-  prev: LogKind | undefined,
-  next: LogKind,
-  density: UiDensity = "comfortable",
-): number {
+export function gapBefore(prev: LogKind | undefined, next: LogKind): number {
   if (!prev || prev === "gap" || next === "gap") return 0;
-  let rows = SIDE_BLOCK_GAP;
-  if (next === "user") rows = SESSION_GAP;
-  else if (sameToolBlock(prev, next)) rows = 0;
-  else if (isSide(prev) && isSide(next)) rows = SIDE_BLOCK_GAP;
-  else if ((isContent(prev) && isSide(next)) || (isSide(prev) && isContent(next))) {
-    rows = CONTENT_SIDE_GAP;
+  if (next === "user") return SESSION_GAP;
+  if (sameToolBlock(prev, next)) return 0;
+  if (isSide(prev) && isSide(next)) return SIDE_BLOCK_GAP;
+  if ((isContent(prev) && isSide(next)) || (isSide(prev) && isContent(next))) {
+    return CONTENT_SIDE_GAP;
   }
-  return scaleCount(rows, density);
+  return SIDE_BLOCK_GAP;
 }
 
 /** Blank rows between sessions, content, and tool/thinking blocks. */
-export function separateTurns(
-  lines: readonly TranscriptSource[],
-  density: UiDensity = "comfortable",
-): TranscriptSource[] {
+export function separateTurns(lines: readonly TranscriptSource[]): TranscriptSource[] {
   const out: TranscriptSource[] = [];
   let prev: LogKind | undefined;
   for (const line of lines) {
-    const gaps = gapBefore(prev, line.kind, density);
+    const gaps = gapBefore(prev, line.kind);
     for (let i = 0; i < gaps; i++) {
       out.push({ key: `${line.key}:gap${i}`, kind: "gap", text: "" });
     }
@@ -169,7 +153,7 @@ export function paintTranscript(
   options: PaintOptions = {},
 ): PaintedRow[] {
   const rows: PaintedRow[] = [];
-  for (const line of separateTurns(lines, options.density)) {
+  for (const line of separateTurns(lines)) {
     rows.push(...paintOne(line, columns, theme, options));
   }
   return rows;
@@ -191,12 +175,11 @@ export function createPaintCache(theme: TuiTheme = defaultTheme): {
     paint(lines, columns, options = {}) {
       const toolExpanded = options.toolOutputExpanded === true ? "1" : "0";
       const thinkExpanded = options.thinkingExpanded === true ? "1" : "0";
-      const density = options.density ?? "comfortable";
       const seen = new Set<string>();
       const rows: PaintedRow[] = [];
-      for (const line of separateTurns(lines, density)) {
+      for (const line of separateTurns(lines)) {
         seen.add(line.key);
-        const sig = `${theme.id}\0${columns}\0${toolExpanded}\0${thinkExpanded}\0${density}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const sig = `${theme.id}\0${columns}\0${toolExpanded}\0${thinkExpanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
         const cached = cache.get(line.key);
         if (cached?.sig === sig) {
           rows.push(...cached.rows);
@@ -233,7 +216,7 @@ function paintOne(
       },
     ];
   }
-  const { gutter, blank, bodyWidth } = frameFor(line.kind, columns, theme, options.density);
+  const { gutter, blank, bodyWidth } = frameFor(line.kind, columns, theme);
   const sourceText =
     line.kind === "tool-result" || line.kind === "tool-error"
       ? foldToolOutput(line.text, options.toolOutputExpanded === true)

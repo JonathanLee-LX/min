@@ -6,8 +6,6 @@ export interface TuiArgs {
   sessionId?: string;
   /** Registered theme id. Defaults to `default`. */
   theme?: string;
-  /** Start in compact density (0.8 of comfortable spacing). */
-  compact: boolean;
   noTools: boolean;
   yes: boolean;
   /** Full-auto permissions (implies yes). */
@@ -21,7 +19,6 @@ export function parseArgs(argv: string[]): TuiArgs {
     noTools: false,
     yes: false,
     auto: false,
-    compact: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -35,14 +32,12 @@ export function parseArgs(argv: string[]): TuiArgs {
     else if (a === "--model") args.model = argv[++i];
     else if (a === "--session") args.sessionId = argv[++i];
     else if (a === "--theme") args.theme = argv[++i];
-    else if (a === "--compact") args.compact = true;
     else if (a.startsWith("-")) throw new Error(`Unknown flag: ${a}`);
   }
 
   if (envFlagTrue(process.env.MIN_AUTO)) args.auto = true;
   if (args.auto) args.yes = true;
   if (!args.theme && process.env.MIN_THEME?.trim()) args.theme = process.env.MIN_THEME.trim();
-  if (envFlagTrue(process.env.MIN_COMPACT)) args.compact = true;
 
   return args;
 }
@@ -59,7 +54,6 @@ Options:
   --cwd <dir>         sandbox root
   --session <id>      resume a saved session
   --theme <id>        theme id from config / registry (MIN_THEME also works)
-  --compact           compact density (0.8 of comfortable; MIN_DENSITY=compact)
 
 Config (later layers win):
   ~/.min/config.json            preferences
@@ -87,7 +81,6 @@ Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
-  /density           toggle compact layout, or set compact / comfortable
   /name              ask the model for a short name
   /name <text>       set the session name
   /dense <text>      queue text as a dense-latest supplement

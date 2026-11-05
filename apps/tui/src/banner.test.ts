@@ -24,11 +24,4 @@ describe("minBanner", () => {
     expect(lines.join("\n")).not.toMatch(/agent/i);
     expect(minBannerRows(40)).toBe(6);
   });
-
-  it("uses the mid glyph in compact density even when the full mark fits", () => {
-    const lines = minBannerLines(40, "compact");
-    expect(lines).toHaveLength(5);
-    expect(lines.some((line) => line.includes("███╗"))).toBe(false);
-    expect(minBannerRows(40, "compact")).toBe(5);
-  });
 });

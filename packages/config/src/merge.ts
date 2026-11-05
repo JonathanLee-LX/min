@@ -31,7 +31,6 @@ export function toResolved(
     runtime: { ...(document.runtime ?? {}) },
     ui: {
       ...(document.ui?.theme ? { theme: document.ui.theme } : {}),
-      ...(document.ui?.density ? { density: document.ui.density } : {}),
       ...(document.ui?.themeOverrides
         ? { themeOverrides: { ...document.ui.themeOverrides } }
         : {}),
@@ -66,7 +65,6 @@ export function applyFlagOverrides(
 
   const ui: UiConfig = { ...config.ui };
   if (flags.theme !== undefined) ui.theme = flags.theme;
-  if (flags.density !== undefined) ui.density = flags.density;
 
   return {
     ...config,
@@ -91,8 +89,6 @@ export function documentFromEnv(env: NodeJS.ProcessEnv): MinConfigDocument {
 
   const ui: UiConfig = {};
   if (env.MIN_THEME?.trim()) ui.theme = env.MIN_THEME.trim();
-  const density = env.MIN_DENSITY?.trim().toLowerCase();
-  if (density === "compact" || density === "comfortable") ui.density = density;
 
   return {
     version: CONFIG_VERSION,
@@ -134,7 +130,6 @@ function mergeRuntime(
 function mergeUi(base?: UiConfig, overlay?: UiConfig): UiConfig | undefined {
   if (!base && !overlay) return undefined;
   const theme = overlay?.theme ?? base?.theme;
-  const density = overlay?.density ?? base?.density;
   const themeOverrides = mergeThemeOverrides(base?.themeOverrides, overlay?.themeOverrides);
   const keybindings =
     base?.keybindings || overlay?.keybindings
@@ -142,7 +137,6 @@ function mergeUi(base?: UiConfig, overlay?: UiConfig): UiConfig | undefined {
       : undefined;
   const out: UiConfig = {};
   if (theme) out.theme = theme;
-  if (density) out.density = density;
   if (themeOverrides) out.themeOverrides = themeOverrides;
   if (keybindings && Object.keys(keybindings).length > 0) out.keybindings = keybindings;
   return Object.keys(out).length > 0 ? out : undefined;
