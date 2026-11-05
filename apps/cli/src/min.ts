@@ -5,6 +5,7 @@ import { helpText, parseArgs } from "./args.js";
 import { combinedHelpText, launchTui, resolveMinMode } from "./dispatch.js";
 import { loadEnvFiles } from "./load-env.js";
 import { runCli } from "./cli.js";
+import { formatVersionLine } from "./version.js";
 
 loadEnvFiles();
 
@@ -21,6 +22,11 @@ async function main(): Promise<void> {
 
   if (mode === "help") {
     console.log(combinedHelpText());
+    return;
+  }
+
+  if (mode === "version") {
+    console.log(formatVersionLine());
     return;
   }
 
@@ -46,6 +52,10 @@ async function main(): Promise<void> {
   }
   if (args.help) {
     console.log(helpText());
+    return;
+  }
+  if (args.version) {
+    console.log(formatVersionLine());
     return;
   }
   await runCli(args);

@@ -3,6 +3,7 @@ import { DEFAULT_MAX_CONTEXT_TOKENS } from "@min-agent/session";
 
 export interface CliArgs {
   help: boolean;
+  version: boolean;
   repl: boolean;
   cwd: string;
   provider?: string;
@@ -57,6 +58,7 @@ export interface CliArgs {
 export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     help: false,
+    version: false,
     repl: false,
     cwd: process.env.INIT_CWD ?? process.cwd(),
     noTools: false,
@@ -83,6 +85,8 @@ export function parseArgs(argv: string[]): CliArgs {
     if (a === "--") continue;
     if (a === "-h" || a === "--help") {
       args.help = true;
+    } else if (a === "-v" || a === "-V" || a === "--version") {
+      args.version = true;
     } else if (a === "-i" || a === "--repl") {
       args.repl = true;
     } else if (a === "--no-tools") {
@@ -221,6 +225,7 @@ Options:
   --max-turns <n>           max model completes per user message (default: 40)
   --context-strategy <id>   trim|hmt|tool-offload|sticky-trim|hybrid
   -i, --repl          interactive mode
+  -v, -V, --version   print version and exit
   -h, --help          show help
 
 During a run:

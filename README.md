@@ -18,6 +18,7 @@ Since `0.1.0-alpha.4`: Command Code-style config, `/model` and `/effort`, named 
 npm install -g @min-agent/min@alpha
 min                      # terminal UI (default)
 min -p "your prompt"     # one-shot CLI
+min --version
 min-tui
 min-web
 ```
@@ -42,7 +43,7 @@ min-web
 
 Preferences, settings, and credentials use `@min-agent/config`. The file layout and the fields each app actually applies are in [Configuration](#configuration).
 
-Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, mermaid diagrams, and a context usage meter (estimated chars÷4). User input uses brand mint, and model output inherits the terminal foreground; tool output collapses by default (Ctrl+O expands). Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. Assistant Markdown goes through `@min-agent/render` (`markdown-it` → `RenderBlock`); TUI and Web paint that model separately. Web and some CLI startup flags are still thinner. There is no authentication.
+Known limits of this alpha: MCP is not connected by `createRuntime` (the host calls `mcp().connect()`). A remembered bash approval stores the command's first token; shell compounds are stored exactly. The TUI has the REPL commands, scrollback, grapheme editing, phase spinners, Markdown assistant text, mermaid diagrams, and a context usage meter (estimated chars÷4). User input uses brand mint, assistant body inherits the terminal foreground, thinking is muted overlay, and tool copy is sky; tool output collapses by default (Ctrl+O expands). Slash commands complete with Tab. Shared preferences go through `@min-agent/config`; TUI themes read `ui.theme` / `ui.themeOverrides`. Assistant text is painted per burst, so the screen follows the model instead of one token per layout. Assistant Markdown goes through `@min-agent/render` (`markdown-it` → `RenderBlock`); TUI and Web paint that model separately. Web and some CLI startup flags are still thinner. There is no authentication.
 
 ## Publishing
 
@@ -88,7 +89,7 @@ Low → high: defaults, `~/.min/config.json`, `keybindings.json`, user settings 
 
 `MIN_PROVIDER`, `MIN_MODEL`, `MIN_THEME`, `MIN_MAX_TURNS`, `MIN_MAX_CONTEXT_TOKENS`, and `MIN_CONTEXT_STRATEGY` override the files. A flag such as `--provider` or `--max-turns` overrides those variables. `auth.json` fills an environment variable only when it is still unset, so `.env` wins.
 
-The CLI, TUI, and Web server apply provider, model, reasoning effort, runtime limits, and the bash/write permission policy. The TUI also applies theme and keybindings. `/model` switches the model for this process, and `/effort` sets thinking intensity (`none`, `low`, `medium`, `high`, `max`). Remembered grants stay in `.min/permissions.json`. Sessions stay in `.min/sessions/`. `providers.json` is loaded onto the resolved config; the TUI can select one of those entries with `/model <name>`. The apps do not connect MCP or run cron jobs yet. Config warnings, including a legacy `config.json` notice, go to the process notice log. Views read them with `client.notices`. `MIN_SIMULATE_NOTICE=1` adds one sample notice so the CLI, TUI, and Web can be checked without an old config file.
+The CLI, TUI, and Web server apply provider, model, reasoning effort, runtime limits, and the bash/write permission policy. The TUI also applies theme and keybindings. `/model` opens a list to switch the model for this process; models that accept thinking intensity open a second menu (`none`, `low`, `medium`, `high`, `max`, or `default`). `/effort` still sets intensity directly. Remembered grants stay in `.min/permissions.json`. Sessions stay in `.min/sessions/`. `providers.json` is loaded onto the resolved config; the TUI can select one of those entries from the `/model` list or with `/model <name>`. The apps do not connect MCP or run cron jobs yet. Config warnings, including a legacy `config.json` notice, go to the process notice log. Views read them with `client.notices`. `MIN_SIMULATE_NOTICE=1` adds one sample notice so the CLI, TUI, and Web can be checked without an old config file.
 
 ```gitignore
 .min/*

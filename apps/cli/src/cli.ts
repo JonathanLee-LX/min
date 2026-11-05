@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs, type CliArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
+import { formatVersionLine } from "./version.js";
 import { handleReplCommand, listSessionsViaClient } from "./repl.js";
 import { createCliClient, listSessions, runTurn } from "./run.js";
 
@@ -180,6 +181,10 @@ async function main(): Promise<void> {
 
   if (args.help) {
     console.log(helpText());
+    return;
+  }
+  if (args.version) {
+    console.log(formatVersionLine());
     return;
   }
 

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type MinMode = "help" | "cli" | "tui";
+export type MinMode = "help" | "cli" | "tui" | "version";
 
 /** Flags whose next argv token is a value (not a bare positional prompt). */
 const VALUE_FLAGS = new Set([
@@ -28,6 +28,7 @@ const VALUE_FLAGS = new Set([
  *
  * - default → TUI
  * - `-p` / `--prompt`, `-i` / `--repl`, `--list-sessions` → CLI
+ * - `--version` / `-v` / `-V` → print version and exit
  * - bare `-h` / `--help` (no CLI mode flags) → combined help
  */
 export function resolveMinMode(argv: string[]): MinMode {
@@ -35,6 +36,7 @@ export function resolveMinMode(argv: string[]): MinMode {
   let repl = false;
   let listSessions = false;
   let help = false;
+  let version = false;
   const positional: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
@@ -61,6 +63,10 @@ export function resolveMinMode(argv: string[]): MinMode {
       help = true;
       continue;
     }
+    if (a === "-v" || a === "-V" || a === "--version") {
+      version = true;
+      continue;
+    }
     if (VALUE_FLAGS.has(a)) {
       i += 1;
       continue;
@@ -69,6 +75,7 @@ export function resolveMinMode(argv: string[]): MinMode {
     positional.push(a);
   }
 
+  if (version) return "version";
   if (prompt || repl || listSessions) return "cli";
   if (help) return "help";
   if (positional.length > 0) {
@@ -91,6 +98,7 @@ Usage:
   min --prompt "your prompt"  same as -p
   min -i                      interactive CLI REPL
   min --list-sessions         list saved sessions
+  min --version               print version and exit
   min-tui                     terminal UI (explicit)
   min-web                     web UI
 
@@ -102,6 +110,7 @@ Common flags:
   --no-tools          disable workspace tools
   -y, --yes           auto-approve tool prompts once
   --auto              full-auto permissions
+  -v, -V, --version   print version and exit
   -h, --help          show this help
 
 CLI extras (-p / -i): --skills, --session-dir, --max-turns, --context-strategy, …

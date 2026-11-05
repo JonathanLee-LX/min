@@ -10,6 +10,8 @@ describe("tui parseArgs", () => {
       cwd: "/tmp",
       yes: true,
     });
+    expect(parseArgs(["--version"])).toMatchObject({ version: true });
+    expect(parseArgs(["-v"])).toMatchObject({ version: true });
   });
 
   it("parses --auto and implies yes", () => {
@@ -27,6 +29,8 @@ describe("tui parseArgs", () => {
     expect(help).toContain("/resume");
     expect(help).toContain("/context");
     expect(help).toContain("/version");
+    expect(help).toContain("--version");
+    expect(help).toContain("/model");
     expect(help).toContain("Shift+Enter");
     expect(help).toContain("Alt+Enter");
     expect(help).toContain("keybindings.json");

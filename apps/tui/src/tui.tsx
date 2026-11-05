@@ -1,8 +1,8 @@
 import { render } from "ink";
 import React from "react";
 import { helpText, parseArgs } from "./args.js";
-import { App } from "./App.js";
 import { loadEnvFiles } from "./load-env.js";
+import { formatVersionLine } from "./version.js";
 import { disableMouse, enableMouseWheel } from "./mouse-mode.js";
 
 loadEnvFiles();
@@ -21,6 +21,10 @@ async function main(): Promise<void> {
     console.log(helpText());
     return;
   }
+  if (args.version) {
+    console.log(formatVersionLine());
+    return;
+  }
 
   enableMouseWheel();
   const cleanup = () => {
@@ -36,6 +40,7 @@ async function main(): Promise<void> {
     process.exit(0);
   });
 
+  const { App } = await import("./App.js");
   const app = render(<App args={args} />, { exitOnCtrlC: false });
   try {
     await app.waitUntilExit();

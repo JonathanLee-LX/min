@@ -1,5 +1,6 @@
 export interface TuiArgs {
   help: boolean;
+  version: boolean;
   cwd: string;
   provider?: string;
   model?: string;
@@ -15,6 +16,7 @@ export interface TuiArgs {
 export function parseArgs(argv: string[]): TuiArgs {
   const args: TuiArgs = {
     help: false,
+    version: false,
     cwd: process.env.INIT_CWD ?? process.cwd(),
     noTools: false,
     yes: false,
@@ -24,6 +26,7 @@ export function parseArgs(argv: string[]): TuiArgs {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "-h" || a === "--help") args.help = true;
+    else if (a === "-v" || a === "-V" || a === "--version") args.version = true;
     else if (a === "--no-tools") args.noTools = true;
     else if (a === "-y" || a === "--yes") args.yes = true;
     else if (a === "--auto") args.auto = true;
@@ -66,6 +69,7 @@ Config (later layers win):
   --no-tools          disable workspace tools
   -y, --yes           auto-approve tool prompts once
   --auto              full-auto (bash + session grants + root grants)
+  -v, -V, --version   print version and exit
   -h, --help          show help
 
 Commands:
@@ -81,6 +85,7 @@ Commands:
   /reset             clear conversation history
   /queue             show the follow-up queue
   /thinking          expand / collapse thinking content
+  /model             pick a model (↑↓ Enter); thinking submenu when supported
   /name              ask the model for a short name
   /name <text>       set the session name
   /dense <text>      queue text as a dense-latest supplement

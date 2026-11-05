@@ -73,5 +73,11 @@ describe("parseArgs", () => {
   it("documents -p one-shot in help", () => {
     expect(helpText()).toContain('-p, --prompt');
     expect(helpText()).toContain('min -p "your prompt"');
+    expect(helpText()).toContain("--version");
+  });
+
+  it("parses --version", () => {
+    expect(parseArgs(["--version"])).toMatchObject({ version: true });
+    expect(parseArgs(["-V"])).toMatchObject({ version: true });
   });
 });

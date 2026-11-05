@@ -19,6 +19,14 @@ describe("resolveMinMode", () => {
     expect(resolveMinMode(["-h"])).toBe("help");
     expect(resolveMinMode(["--help"])).toBe("help");
     expect(combinedHelpText()).toContain('min -p "your prompt"');
+    expect(combinedHelpText()).toContain("min --version");
+  });
+
+  it("prints version for --version without opening the TUI", () => {
+    expect(resolveMinMode(["--version"])).toBe("version");
+    expect(resolveMinMode(["-v"])).toBe("version");
+    expect(resolveMinMode(["-V"])).toBe("version");
+    expect(resolveMinMode(["--provider", "mock", "--version"])).toBe("version");
   });
 
   it("rejects bare positionals without -p", () => {

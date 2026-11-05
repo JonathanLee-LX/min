@@ -10,6 +10,7 @@ min -p "your prompt"        # one-shot
 min --prompt "your prompt"  # same as -p
 min -i                      # interactive REPL
 min --list-sessions         # list saved sessions
+min --version               # print version and exit
 min-tui                     # TUI explicitly
 ```
 
