@@ -1,18 +1,24 @@
-import { Text } from "ink";
+import { Box, Text } from "ink";
 import { useEffect, useState } from "react";
-import { shineText, type Activity } from "../paint.js";
+import { BLOCK_GAP, shineText, type Activity } from "../paint.js";
 import type { TuiTheme } from "../theme.js";
 
-/** One step of the highlight. Short enough that the soft edge blends. */
-export const SHINE_MS = 80;
+/** One step of the highlight. Slow enough to read, still overlaps the last step. */
+export const SHINE_MS = 160;
+
+/** Top and bottom blank rows around the status word (2X). */
+export const SPINNER_PAD_Y = BLOCK_GAP;
+
+export function activitySpinnerRows(visible: boolean): number {
+  return visible ? SPINNER_PAD_Y * 2 + 1 : 0;
+}
 
 function shineProps(
   heat: number,
   color: string,
 ): { color: string; bold: boolean; dimColor: boolean } {
-  if (heat >= 4) return { color: "white", bold: true, dimColor: false };
-  if (heat === 3) return { color: "white", bold: false, dimColor: false };
-  if (heat === 2) return { color, bold: true, dimColor: false };
+  if (heat >= 3) return { color: "white", bold: true, dimColor: false };
+  if (heat === 2) return { color: "white", bold: false, dimColor: false };
   if (heat === 1) return { color, bold: false, dimColor: false };
   return { color, bold: false, dimColor: true };
 }
@@ -48,22 +54,29 @@ export function ActivitySpinner({
 
   const frame = focused ? (live ? tick : Math.floor(pulse / 4)) : -1;
   const cells = shineText(activity.label, frame);
+  const pads = Array.from({ length: SPINNER_PAD_Y }, (_, index) => (
+    <Text key={`pad:${index}`}> </Text>
+  ));
 
   return (
-    <Text>
-      {cells.map((cell, index) => {
-        const style = shineProps(cell.heat, activity.color);
-        return (
-          <Text
-            key={index}
-            color={style.color}
-            bold={style.bold}
-            dimColor={style.dimColor}
-          >
-            {cell.text}
-          </Text>
-        );
-      })}
-    </Text>
+    <Box flexDirection="column" flexShrink={0}>
+      {pads}
+      <Text>
+        {cells.map((cell, index) => {
+          const style = shineProps(cell.heat, activity.color);
+          return (
+            <Text
+              key={index}
+              color={style.color}
+              bold={style.bold}
+              dimColor={style.dimColor}
+            >
+              {cell.text}
+            </Text>
+          );
+        })}
+      </Text>
+      {pads}
+    </Box>
   );
 }

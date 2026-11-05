@@ -251,16 +251,18 @@ describe("activityFor", () => {
     ).toBeNull();
   });
 
-  it("slides a soft highlight across the status word and back", () => {
+  it("sweeps left to right in three cells, then restarts", () => {
     expect(shineText("thinking", -1).every((cell) => cell.heat === 0)).toBe(true);
-    const start = shineText("thinking", 0);
-    expect(start[0]?.heat).toBeGreaterThan(start[1]?.heat ?? 0);
-    expect(start.some((cell) => cell.heat === 0)).toBe(true);
-    const next = shineText("thinking", 1);
-    expect(next[1]?.heat).toBeGreaterThan(start[1]?.heat ?? 0);
+    expect(shineText("thinking", 0).map((cell) => cell.heat)).toEqual([
+      3, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    expect(shineText("thinking", 2).map((cell) => cell.heat)).toEqual([
+      1, 2, 3, 0, 0, 0, 0, 0,
+    ]);
     const end = shineText("Thinking...", 10);
-    expect(end[end.length - 1]?.heat).toBeGreaterThan(end[0]?.heat ?? 0);
-    const back = shineText("Thinking...", 11);
-    expect(back[end.length - 2]?.heat).toBeGreaterThan(end[end.length - 2]?.heat ?? 0);
+    expect(end[end.length - 1]?.heat).toBe(3);
+    const restart = shineText("Thinking...", 11);
+    expect(restart[0]?.heat).toBe(3);
+    expect(restart[restart.length - 1]?.heat).toBe(0);
   });
 });

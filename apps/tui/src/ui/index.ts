@@ -1,4 +1,4 @@
-export { ActivitySpinner } from "./ActivitySpinner.js";
+export { ActivitySpinner, activitySpinnerRows } from "./ActivitySpinner.js";
 export { CommandSelect, commandSelectRows } from "./CommandSelect.js";
 export {
   Composer,

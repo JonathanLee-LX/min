@@ -631,26 +631,21 @@ export interface ShineCell {
 }
 
 /** Soft highlight width. Overlap between steps makes the slide look continuous. */
-export const SHINE_WIDTH = 5;
+export const SHINE_WIDTH = 3;
 
 /**
- * A soft highlight that ping-pongs across `text`.
- * Negative `tick` leaves every cell dim. Each cell has a falloff so the
- * peak moves one step without a hard edge.
+ * A soft highlight that sweeps left to right, then restarts at the first cell.
+ * Negative `tick` leaves every cell dim.
  */
 export function shineText(text: string, tick: number, width = SHINE_WIDTH): ShineCell[] {
   const chars = [...text];
   if (chars.length === 0) return [];
   if (tick < 0) return chars.map((ch) => ({ text: ch, heat: 0 }));
-  const last = Math.max(0, chars.length - 1);
-  const span = Math.max(1, last);
-  const cycle = span * 2;
-  const phase = tick % cycle;
-  const head = phase <= span ? phase : cycle - phase;
-  const shine = Math.max(2, Math.min(width, chars.length));
+  const shine = Math.max(1, Math.min(width, chars.length));
+  const head = tick % chars.length;
   return chars.map((ch, index) => {
-    const dist = Math.abs(index - head);
-    return { text: ch, heat: dist < shine ? shine - dist : 0 };
+    const dist = head - index;
+    return { text: ch, heat: dist >= 0 && dist < shine ? shine - dist : 0 };
   });
 }
 

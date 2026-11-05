@@ -78,6 +78,7 @@ import {
 } from "./transcript.js";
 import {
   ActivitySpinner,
+  activitySpinnerRows,
   CommandSelect,
   commandSelectRows,
   Composer,
@@ -958,7 +959,7 @@ export function App({ args }: { args: TuiArgs }) {
     : 0;
   const suggestRows =
     sessionPickRows > 0 ? sessionPickRows : slashOpenRows > 0 ? slashOpenRows : slashFillRows;
-  const activityRows = activity ? 1 : 0;
+  const activityRows = activitySpinnerRows(Boolean(activity));
   const modelId = client?.getStatus().provider ?? "";
   const cwdPath = client?.getStatus().cwd ?? args.cwd;
   const bottomStatusRows = contextMeterRows(cwdPath, modelId);
