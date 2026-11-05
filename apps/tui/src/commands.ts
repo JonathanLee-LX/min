@@ -105,7 +105,7 @@ Keys:
   Tab                complete a /command
   Alt+Enter / Ctrl+J also insert a newline
   Up/Down            previous line, or input history at the ends
-  Shift+drag         select text (Option+drag in VS Code)
+  Drag               select transcript text (copies on release)
   Mouse wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
   Ctrl+O             expand / collapse tool output

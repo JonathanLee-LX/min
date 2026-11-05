@@ -46,6 +46,8 @@ export interface InputKey {
   meta: boolean;
   mouseWheelUp: boolean;
   mouseWheelDown: boolean;
+  /** App-owned transcript selection. Coordinates are 0-based. */
+  mouse?: { kind: "down" | "drag" | "up"; x: number; y: number };
 }
 
 export type InputAction =
@@ -140,6 +142,7 @@ export function inputAction(
   key: InputKey,
   bindings: KeybindingTable = DEFAULT_KEYBINDINGS,
 ): InputAction {
+  if (key.mouse) return { type: "ignore" };
   if (key.mouseWheelUp) return { type: "scroll", direction: "up", delta: 3 };
   if (key.mouseWheelDown) return { type: "scroll", direction: "down", delta: 3 };
   const bound = lookupKeybinding(input, key, bindings);

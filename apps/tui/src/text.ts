@@ -104,3 +104,18 @@ export function wrapText(text: string, columns: number): string[] {
 export function wrappedRows(text: string, columns: number): number {
   return wrapText(text, columns).length;
 }
+
+/** Characters whose cells overlap the half-open display range `[start, end)`. */
+export function sliceByColumns(text: string, start: number, end: number): string {
+  if (end <= start || start < 0) return "";
+  let col = 0;
+  let out = "";
+  for (const ch of text) {
+    const cell = codePointWidth(ch.codePointAt(0) ?? 0);
+    const next = col + cell;
+    if (next > start && col < end) out += ch;
+    col = next;
+    if (col >= end) break;
+  }
+  return out;
+}

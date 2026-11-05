@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inputAction } from "./editor.js";
-import { actionFromChunk, createInputDecoder } from "./keys.js";
+import { actionFromChunk, createInputDecoder, decodeInput } from "./keys.js";
 
 describe("actionFromChunk", () => {
   it("treats the Backspace byte as a backward delete", () => {
@@ -33,7 +33,9 @@ describe("actionFromChunk", () => {
       delta: 3,
     });
     expect(actionFromChunk("\x1b[<0;12;8M")).toEqual({ type: "ignore" });
-    expect(actionFromChunk("\x1b[<0;12;8m")).toEqual({ type: "ignore" });
+    expect(decodeInput("\x1b[<0;12;8M").key.mouse).toEqual({ kind: "down", x: 11, y: 7 });
+    expect(decodeInput("\x1b[<32;12;8M").key.mouse).toEqual({ kind: "drag", x: 11, y: 7 });
+    expect(decodeInput("\x1b[<0;12;8m").key.mouse).toEqual({ kind: "up", x: 11, y: 7 });
     expect(actionFromChunk("\x03")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x1b")).toEqual({ type: "interrupt" });
     expect(actionFromChunk("\x0f")).toEqual({ type: "toggle-tool-output" });

@@ -82,12 +82,19 @@ export function decodeInput(chunk: string): { input: string; key: InputKey } {
   if (pasted) return plain(pasted[1] ?? "");
   if (chunk === "\x1b[200~" || chunk === "\x1b[201~") return plain("");
 
-  const mouse = /^\x1b\[<(\d+);\d+;\d+([Mm])$/.exec(chunk);
+  const mouse = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/.exec(chunk);
   if (mouse) {
     const button = Number(mouse[1]);
-    if (mouse[2] === "M" && (button & 0x40) !== 0) {
+    const x = Math.max(0, Number(mouse[2]) - 1);
+    const y = Math.max(0, Number(mouse[3]) - 1);
+    const release = mouse[4] === "m";
+    if ((button & 0x40) !== 0) {
+      if (release) return plain("");
       return flagged({ mouseWheelUp: (button & 1) === 0, mouseWheelDown: (button & 1) !== 0 });
     }
+    if (release) return flagged({ mouse: { kind: "up", x, y } });
+    if ((button & 0x20) !== 0) return flagged({ mouse: { kind: "drag", x, y } });
+    if ((button & 3) === 0) return flagged({ mouse: { kind: "down", x, y } });
     return plain("");
   }
 

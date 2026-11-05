@@ -45,11 +45,21 @@ import {
   type EditorState,
   type InputKey,
 } from "./editor.js";
+import { copyToClipboard } from "./clipboard.js";
 import { enableFocusReporting, focusStateFromChunk } from "./focus.js";
 import { composerCaretAnchor, installImeCursorHook } from "./ime-cursor.js";
 import { createKeyBuffer } from "./key-buffer.js";
 import { resolveKeybindings } from "./keybindings.js";
 import { decodeInput } from "./keys.js";
+import {
+  cellFromMouse,
+  clampCell,
+  rowSelectionCols,
+  selectedText,
+  selectionRange,
+  type SelCell,
+} from "./selection.js";
+import { sliceByColumns } from "./text.js";
 import {
   activityFor,
   createPaintCache,
@@ -145,6 +155,20 @@ export function App({ args }: { args: TuiArgs }) {
   const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
   /** Thinking content starts collapsed; Ctrl+T toggles. */
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [selection, setSelection] = useState<{
+    anchor: SelCell;
+    focus: SelCell;
+    dragging: boolean;
+  } | null>(null);
+  const selectRef = useRef({
+    paddingX: 1,
+    logHeight: 0,
+    rowCount: 0,
+    rowWidth: 0,
+    lines: [] as string[],
+  });
+  const selectionStateRef = useRef(selection);
+  selectionStateRef.current = selection;
   const [size, setSize] = useState(() => terminalSize(stdout));
   const [focused, setFocused] = useState(true);
   const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>();
@@ -718,6 +742,29 @@ export function App({ args }: { args: TuiArgs }) {
 
   const handleInput = useRef<(input: string, key: InputKey) => void>(() => {});
   handleInput.current = (input, key) => {
+    if (key.mouse) {
+      const geom = selectRef.current;
+      if (key.mouse.kind === "down") {
+        const cell = cellFromMouse(key.mouse.x, key.mouse.y, geom);
+        setSelection(cell ? { anchor: cell, focus: cell, dragging: true } : null);
+        return;
+      }
+      if (key.mouse.kind === "drag") {
+        setSelection((current) => {
+          if (!current?.dragging) return current;
+          const cell = clampCell(key.mouse!.x, key.mouse!.y, geom);
+          return cell ? { ...current, focus: cell } : current;
+        });
+        return;
+      }
+      const current = selectionStateRef.current;
+      if (!current?.dragging) return;
+      const cell = clampCell(key.mouse.x, key.mouse.y, geom) ?? current.focus;
+      const text = selectedText(geom.lines, current.anchor, cell);
+      if (text) copyToClipboard(text, stdout);
+      setSelection(text ? { anchor: current.anchor, focus: cell, dragging: false } : null);
+      return;
+    }
     const action = inputAction(input, key, keybindings);
     if (action.type === "scroll") {
       setScroll((current) => {
@@ -1033,6 +1080,14 @@ export function App({ args }: { args: TuiArgs }) {
 
   viewRef.current = { total: rowCount, height: logHeight };
   const layout = sliceViewport(allPainted, logHeight, scroll);
+  selectRef.current = {
+    paddingX: 1,
+    logHeight,
+    rowCount: layout.visible.length,
+    rowWidth: innerWidth,
+    lines: layout.visible.map((row) => `${row.gutter}${row.body}`),
+  };
+  const selectedRange = selection ? selectionRange(selection.anchor, selection.focus) : null;
 
   // Re-park the caret inside each Ink stdout write. The hook also turns
   // eraseLines into an in-place frame so stream paints do not flash blank.
@@ -1084,7 +1139,25 @@ export function App({ args }: { args: TuiArgs }) {
     <ThemeProvider theme={inkChromeTheme}>
     <Box flexDirection="column" paddingX={1} width={columns} height={paintRows}>
       <Box flexDirection="column" height={logHeight} overflow="hidden">
-        {layout.visible.map((row) => {
+        {layout.visible.map((row, rowIndex) => {
+          const selectedCols = selectedRange
+            ? rowSelectionCols(rowIndex, selectedRange, innerWidth)
+            : null;
+          if (selectedCols) {
+            const line = `${row.gutter}${row.body}`;
+            const before = sliceByColumns(line, 0, selectedCols.start);
+            const mid = sliceByColumns(line, selectedCols.start, selectedCols.end);
+            const after = sliceByColumns(line, selectedCols.end, innerWidth + 8);
+            return (
+              <Box key={row.key} height={1} overflow="hidden" flexShrink={0}>
+                <Text wrap="truncate">
+                  {before}
+                  {mid ? <Text inverse>{mid}</Text> : null}
+                  {after}
+                </Text>
+              </Box>
+            );
+          }
           if (row.kind === "gap") {
             return (
               <Box key={row.key} height={1} flexShrink={0}>

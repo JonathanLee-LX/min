@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { displayWidth, graphemeBounds, nextBound, previousBound, wrapText, wrappedRows } from "./text.js";
+import {
+  displayWidth,
+  graphemeBounds,
+  nextBound,
+  previousBound,
+  sliceByColumns,
+  wrapText,
+  wrappedRows,
+} from "./text.js";
 
 describe("graphemes", () => {
   it("treats CJK characters as one grapheme", () => {
@@ -32,5 +40,7 @@ describe("display width", () => {
   it("wraps wide characters onto the next row", () => {
     expect(wrapText("你好你好你好", 4)).toEqual(["你好", "你好", "你好"]);
     expect(wrappedRows("a\n\n你", 4)).toBe(3);
+    expect(sliceByColumns("hello", 1, 4)).toBe("ell");
+    expect(sliceByColumns("你好", 0, 2)).toBe("你");
   });
 });

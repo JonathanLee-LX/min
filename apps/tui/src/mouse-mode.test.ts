@@ -18,12 +18,12 @@ afterEach(() => {
 });
 
 describe("mouse mode", () => {
-  it("turns on wheel reporting without drag or click tracking", () => {
+  it("turns on wheel and button-motion reporting", () => {
     const stream = tty();
     enableMouseWheel(stream);
     expect(stream.writes.join("")).toContain("\x1b[?1000h");
+    expect(stream.writes.join("")).toContain("\x1b[?1002h");
     expect(stream.writes.join("")).toContain("\x1b[?1006h");
-    expect(stream.writes.join("")).not.toContain("1002h");
     stream.writes.length = 0;
     enableMouseWheel(stream);
     expect(stream.writes).toEqual([]);
