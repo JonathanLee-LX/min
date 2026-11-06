@@ -282,7 +282,7 @@ On-demand (not a continuous strategy): `session.compact()` / Client `compact()` 
 - That closes the gap where a single user-turn coding run never got a second assemble (hybrid used to look idle until the next `session.run`).
 - Multi-turn fold/stash/recall check: `pnpm --filter @min-agent/example-hmt-context exec tsx verify-multiturn.mts`
 
-- Stash markers look like `…[hidden:tool_<id> · recall_context · key=NAME@offset]…` when a stash strategy is on. `recall_context` takes `need: { kind, query }` to return that span.
+- Stash markers look like `…[hidden:tool_<id> · recall_context · file=.min/sessions/<id>/outputs/<stash-id>.txt · key=NAME@offset]…`. Search the spilled file with `rg -n -C 2 -F`. `recall_context` takes `need: { kind, query }` when the original has no file.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
 - CLI: `--context-strategy <id>`, `--session`, `--max-context-tokens`, …
 - Env: `MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid`.

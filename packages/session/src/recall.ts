@@ -189,11 +189,11 @@ function recallPage(
 
 export const RECALL_SYSTEM = [
   "Some older tool outputs may be folded for context budget.",
-  "Folded spans look like …[hidden:<id> · recall_context · key=NAME@offset]…",
+  "Folded spans look like …[hidden:<id> · recall_context · file=<path> · key=NAME@offset]…",
   "The marker names headings, keys, symbols, and errors, but not their values.",
-  "Call recall_context with that id and need={kind, query} to fetch only the matching lines.",
-  "For a key, query is the name (TOKEN_SKILL), not the value. Omit need to list the outline.",
-  "A recalled span stays in the view. Do not recall the same id again unless the hidden marker comes back.",
+  "When file= is present, search that file with `rg -n -C 2 -F <NAME> <path>`. Do not read_file it.",
+  "Otherwise call recall_context with that id and need={kind, query}. For a key, query is the name, not the value.",
+  "A recalled span stays in the view. Do not search or recall the same id again unless the hidden marker comes back.",
 ].join(" ");
 
 /**

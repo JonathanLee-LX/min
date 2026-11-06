@@ -1,3 +1,5 @@
+import { readdirSync, statSync } from "node:fs";
+import path from "node:path";
 import { createAutoPermissionApprover, createClient } from "@min-agent/client";
 import type { ModelProvider } from "@min-agent/core";
 import { resolveProvider } from "@min-agent/runtime";
@@ -18,8 +20,9 @@ const prompt = [
   "Do not cat, sed, head, or tail those two files via bash.",
   "TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first or last 120 characters",
   "of either file.",
-  "If a tool result contains [hidden:<id> · recall_context], call",
-  "recall_context for that id to recover the token.",
+  "If a tool result contains [hidden:<id> · recall_context · file=<path>],",
+  "search that spilled file with rg -n -C 2 -F <NAME> <path>.",
+  "Do not read_file the spilled file. Do not cat, sed, head, or tail it.",
   "Quote both exact token values in the final answer.",
   "Do not write or delete files.",
 ].join(" ");
@@ -68,6 +71,7 @@ async function main(): Promise<void> {
 
   const acc: Acc = { inputTokens: 0, outputTokens: 0, modelCalls: 0 };
   const tools: string[] = [];
+  const bashCommands: string[] = [];
   const recallOffsets: number[] = [];
   const recallIds: string[] = [];
   const recallNeeds: Array<string | null> = [];
@@ -77,6 +81,8 @@ async function main(): Promise<void> {
     string,
     { offset: number; need: string | null }
   >();
+  const pendingRg = new Set<string>();
+  const rgResultChars: number[] = [];
   let text = "";
 
   const provider = wrapUsage(
@@ -101,6 +107,10 @@ async function main(): Promise<void> {
   client.subscribe((event) => {
     if (event.type === "tool_start") {
       tools.push(event.name);
+      if (event.name === "bash" && typeof event.args?.command === "string") {
+        bashCommands.push(event.args.command);
+        if (/^\s*rg\b/.test(event.args.command)) pendingRg.add(event.toolCallId);
+      }
       if (event.name === "recall_context") {
         const off = event.args?.offset;
         const offset = typeof off === "number" ? off : 0;
@@ -118,12 +128,14 @@ async function main(): Promise<void> {
       }
     }
     if (event.type === "tool_end") {
+      if (pendingRg.delete(event.toolCallId)) rgResultChars.push(event.content.length);
       const pending = pendingRecall.get(event.toolCallId);
-      if (!pending) return;
-      pendingRecall.delete(event.toolCallId);
-      recallResultChars.push(event.content.length);
-      const mode = /(?:^|\s)mode=(\w+)/.exec(event.content);
-      recallModes.push(mode?.[1] ?? "page");
+      if (pending) {
+        pendingRecall.delete(event.toolCallId);
+        recallResultChars.push(event.content.length);
+        const mode = /(?:^|\s)mode=(\w+)/.exec(event.content);
+        recallModes.push(mode?.[1] ?? "page");
+      }
     }
     if (event.type === "assistant_delta") text += event.text;
     if (event.type === "assistant_done" && event.text) {
@@ -134,6 +146,7 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   await client.send(prompt);
   const elapsedMs = Date.now() - t0;
+  const spilledFiles = listSpilled(cwd);
   await client.dispose();
 
   const counts: Record<string, number> = {};
@@ -155,6 +168,11 @@ async function main(): Promise<void> {
     modelCalls: acc.modelCalls,
     toolCallTotal: tools.length,
     toolCalls: counts,
+    bashCommands,
+    rgCount: bashCommands.filter((command) => /^\s*rg\b/.test(command)).length,
+    rgResultChars,
+    rgResultCharsTotal: rgResultChars.reduce((sum, n) => sum + n, 0),
+    spilledFiles,
     recallContextCount: counts.recall_context ?? 0,
     recallOffsets,
     recallNeeds,
@@ -176,6 +194,32 @@ async function main(): Promise<void> {
   };
   console.log(JSON.stringify(payload, null, 2));
   if (!payload.completedTask) process.exitCode = 3;
+}
+
+function listSpilled(root: string): string[] {
+  const sessions = path.join(root, ".min", "sessions");
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    let names: string[] = [];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const abs = path.join(dir, name);
+      let st;
+      try {
+        st = statSync(abs);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) walk(abs);
+      else if (name.endsWith(".txt")) found.push(path.relative(root, abs).split(path.sep).join("/"));
+    }
+  };
+  walk(sessions);
+  return found;
 }
 
 main().catch((err) => {

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Hybrid context projection folds oversized `tool_result`s even under the 256k default (middle offload + intra-turn aging of every oversized body). The fold marker lists indexed facts (`key=NAME@offset`, headings, symbols, errors) without their values. `recall_context` with `need` returns only the matching lines; omitting `need` returns that outline. `offset`/`limit` still pages the raw original. A recalled span stays in the view, and a last-resort shrink does not mint a nested `hidden:` id. Turn collapse and emergency fold still wait until the view exceeds the token budget.
+- Hybrid context projection folds oversized `tool_result`s even under the 256k default. Each folded original is written to `<cwd>/.min/sessions/<id>/outputs/<stash-id>.txt`, and the fold marker records `file=` plus indexed fact names (`key=NAME@offset`) without their values. Search that file with `rg -n -C 2 -F`. `recall_context` with `need` still returns one matching span when there is no file. Session dispose deletes the spilled directory.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
 ## 0.1.0-alpha.8

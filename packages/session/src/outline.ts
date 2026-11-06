@@ -71,13 +71,20 @@ export function buildOutline(content: string): ContextOutlineItem[] {
 export function outlineDigest(entry: {
   charCount: number;
   outline: readonly ContextOutlineItem[];
+  file?: string;
 }): string {
-  const parts = [`chars=${entry.charCount}`];
+  const parts = [
+    entry.file ? `file=${entry.file}` : null,
+    `chars=${entry.charCount}`,
+  ].filter((part): part is string => Boolean(part));
   for (const item of entry.outline.slice(0, 8)) {
     parts.push(`${item.kind}=${item.label}@${item.offset}`);
   }
-  const digest = parts.join(" · ");
-  return digest.length > 280 ? `${digest.slice(0, 277)}...` : digest;
+  const headCount = entry.file ? 2 : 1;
+  const head = parts.slice(0, headCount);
+  const rest = parts.slice(headCount);
+  while (rest.length > 0 && [...head, ...rest].join(" · ").length > 420) rest.pop();
+  return [...head, ...rest].join(" · ");
 }
 
 export function formatOutline(items: readonly ContextOutlineItem[]): string {
