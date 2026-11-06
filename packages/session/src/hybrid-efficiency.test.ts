@@ -10,6 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { assembleHybridContext } from "./assemble-hybrid.js";
 import { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
+import { createRecallTool } from "./recall.js";
 import { createContextStash, parseHiddenIds } from "./stash.js";
 import { estimateMessagesTokens } from "./tokens.js";
 
@@ -193,6 +194,87 @@ describe("hybrid efficiency eval (disk-cleaner-like loop)", () => {
     expect(stash.size).toBeGreaterThan(0);
     expect(hiddenCount(result.view)).toBeGreaterThan(0);
     expect(isFull(result.view, "skill", SKILL_MD)).toBe(false);
+  });
+});
+
+/**
+ * Fold compresses a fat body (needle sits past the 120-char head, so it
+ * disappears from the view). Recall brings a 12k page back; two more small
+ * tools must not hide that page again — that is the recall mechanism working
+ * with fold, not against it.
+ */
+describe("hybrid fold + recall (over budget)", () => {
+  const NEEDLE = "NEEDLE_SKILL_7f3c";
+  const NEEDLE_AT = 5_000;
+  const skillWithNeedle =
+    "H".repeat(NEEDLE_AT) + NEEDLE + "T".repeat(45_252 - NEEDLE_AT - NEEDLE.length);
+
+  async function foldThenRecallThenTwoSmall(maxContextTokens: number) {
+    const stash = createContextStash();
+    let messages: Message[] = [userMessage("find disk-cleaner skill and follow it")];
+    messages = plus(messages, "skill", "read_file", skillWithNeedle);
+    messages = plus(messages, "script", "read_file", CLEAN_PY);
+    messages = plus(messages, "dry", "bash", DRY_RUN);
+
+    const folded = assembleHybridContext({
+      messages,
+      budget: { maxContextTokens, stash },
+    });
+    const skillView = toolBody(folded.view, "skill") ?? "";
+    const hiddenIds = parseHiddenIds(skillView);
+    expect(folded.foldedParts ?? 0).toBeGreaterThan(0);
+    expect(skillView).not.toContain(NEEDLE);
+    expect(hiddenIds.length).toBeGreaterThan(0);
+
+    const recallTool = createRecallTool(stash);
+    const page = await recallTool.execute({ id: hiddenIds[0] }, {});
+    expect(page.isError).toBeFalsy();
+    expect(page.content).toContain(NEEDLE);
+
+    messages = plus(messages, "recall", "recall_context", page.content);
+    const justRecalled = assembleHybridContext({
+      messages,
+      budget: { maxContextTokens, stash },
+    });
+
+    messages = plus(messages, "analyze", "bash", ANALYZE);
+    messages = plus(messages, "grep", "bash", GREP);
+    const afterSmall = assembleHybridContext({
+      messages,
+      budget: { maxContextTokens, stash },
+    });
+    return { folded, justRecalled, afterSmall, hiddenIds };
+  }
+
+  it("does not stash a nested id when a recall page is the thing being folded", async () => {
+    const { afterSmall, hiddenIds } = await foldThenRecallThenTwoSmall(8_000);
+    const recalled = toolBody(afterSmall.view, "recall") ?? "";
+    for (const id of parseHiddenIds(recalled)) {
+      expect(hiddenIds).toContain(id);
+    }
+    expect(recalled).not.toMatch(/\[hidden:tool_recall/);
+  });
+
+  it("keeps the recalled needle in the view after two more small tools", async () => {
+    // Tight enough that the 45k skill folds; roomy enough that a 12k recall
+    // page plus two small results still fit, so recall can actually be used.
+    const { justRecalled, afterSmall } = await foldThenRecallThenTwoSmall(12_000);
+    expect(toolBody(justRecalled.view, "recall")).toContain(NEEDLE);
+    const recalled = toolBody(afterSmall.view, "recall") ?? "";
+    expect(recalled).toContain(NEEDLE);
+    expect(parseHiddenIds(recalled)).toHaveLength(0);
+    expect(isFull(afterSmall.view, "skill", skillWithNeedle)).toBe(false);
+  });
+
+  it("still emergency-folds a recall page when even that page cannot fit", async () => {
+    const { afterSmall, hiddenIds } = await foldThenRecallThenTwoSmall(2_000);
+    const recalled = toolBody(afterSmall.view, "recall") ?? "";
+    expect(recalled.length).toBeGreaterThan(0);
+    expect(recalled.length).toBeLessThan(12_000);
+    // Truncation must not mint a nested hidden id on the recall page.
+    // The original skill id stays in stash so the model can recall it again.
+    expect(parseHiddenIds(recalled)).toHaveLength(0);
+    expect(hiddenIds.length).toBeGreaterThan(0);
   });
 });
 

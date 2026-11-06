@@ -11,6 +11,9 @@ import {
 } from "./fold.js";
 import { defaultTokenEstimator } from "./tokens.js";
 
+/** Recalled pages stay in the view so the model can use them. */
+export const HYBRID_PROTECT_TOOL_NAMES = ["recall_context"] as const;
+
 export interface HybridAssembleOptions {
   /** Leading user-turns kept verbatim (cache-stable). Default: 1. */
   stickyTurns?: number;
@@ -36,10 +39,13 @@ export interface HybridAssembleOptions {
  * 2. Keep middle + active-turn tool bodies verbatim while they fit the budget
  * 3. If over budget, fold oversized middle tool_results into stash
  * 4. If still over, drop oldest middle turns
- * 5. If still over, age older tool_results in the active turn (keep last N)
- * 6. If still over, emergency-fold after sticky
+ * 5. If still over, age older tool_results in the active turn (keep last N;
+ *    `recall_context` results are not aged)
+ * 6. If still over, emergency-fold after sticky (recall pages last)
  *
- * Recall stays available; folding is budget-triggered, not eager at 900 chars.
+ * Folding compresses; `recall_context` brings a hidden span back. Recalled
+ * pages stay verbatim until a true last-resort fold, so the model can use
+ * the details it just asked for.
  */
 export function assembleHybridContext(
   input: AssembleInput,
@@ -112,6 +118,7 @@ export function assembleHybridContext(
         end: viewSticky.length + viewMiddle.length,
       },
       toolNameByCallId: toolNames,
+      protectToolNames: HYBRID_PROTECT_TOOL_NAMES,
     });
     view = folded.messages;
     foldedParts += folded.foldedParts;
@@ -151,6 +158,7 @@ export function assembleHybridContext(
       fold: foldOpts,
       stash: input.budget.stash,
       toolNames,
+      protectToolNames: HYBRID_PROTECT_TOOL_NAMES,
     });
     view = aged.messages;
     foldedParts += aged.foldedParts;
@@ -163,27 +171,41 @@ export function assembleHybridContext(
     viewTail = view.slice(viewSticky.length + viewMiddle.length);
   }
 
-  // Last resort: fold everything after sticky (or the whole view when the
-  // sole turn lives in sticky) so single-turn overflow still offloads.
+  // Last resort: fold after sticky (or the whole view when the sole turn
+  // lives in sticky). Keep `recall_context` pages on the first pass so a
+  // just-recalled span remains usable; fold them only if still over budget.
   if (!fits(view) && foldOpts) {
     const emergencyStart =
       viewSticky.length > 0 && viewSticky.length < view.length
         ? viewSticky.length
         : 0;
-    const emergency = foldMessagesForView(view, {
-      fold: {
-        ...foldOpts,
-        maxToolResultChars: 500,
-        toolResultHeadChars: 80,
-        toolResultTailChars: 80,
-      },
+    const emergencyFold = {
+      ...foldOpts,
+      maxToolResultChars: 500,
+      toolResultHeadChars: 80,
+      toolResultTailChars: 80,
+    };
+    const first = foldMessagesForView(view, {
+      fold: emergencyFold,
       stash: input.budget.stash,
       range: { start: emergencyStart, end: view.length },
       toolNameByCallId: toolNames,
+      protectToolNames: HYBRID_PROTECT_TOOL_NAMES,
     });
-    view = emergency.messages;
-    foldedParts += emergency.foldedParts;
-    stashedIds.push(...emergency.stashedIds);
+    view = first.messages;
+    foldedParts += first.foldedParts;
+    stashedIds.push(...first.stashedIds);
+    if (!fits(view)) {
+      // Shrink remaining pages (including recall) without minting nested
+      // hidden ids. The original stash entry is still recallable.
+      const last = foldMessagesForView(view, {
+        fold: emergencyFold,
+        range: { start: emergencyStart, end: view.length },
+        toolNameByCallId: toolNames,
+      });
+      view = last.messages;
+      foldedParts += last.foldedParts;
+    }
   }
 
   const uniqueIds = [...new Set(stashedIds)];
@@ -221,6 +243,7 @@ export function ageOlderToolResults(
     fold: ContextFoldOptions | false;
     stash?: AssembleInput["budget"]["stash"];
     toolNames: ReadonlyMap<string, string>;
+    protectToolNames?: readonly string[];
   },
 ): { messages: Message[]; foldedParts: number; stashedIds: string[] } {
   if (opts.fold === false || opts.start >= opts.end) {
@@ -254,6 +277,7 @@ export function ageOlderToolResults(
     stash: opts.stash,
     range: { start: opts.start, end: protectFrom },
     toolNameByCallId: opts.toolNames,
+    protectToolNames: opts.protectToolNames,
   });
 }
 

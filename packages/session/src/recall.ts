@@ -111,6 +111,7 @@ export const RECALL_SYSTEM = [
   "Some older tool outputs may be folded in the middle of the conversation for context budget.",
   "Folded spans look like …[hidden:<id> · recall_context]…",
   "Call recall_context with that id when you need the full original; omit id to list what is hidden.",
+  "A recalled page stays in the view so you can use it. Do not recall the same id again unless the hidden marker comes back.",
 ].join(" ");
 
 /**
