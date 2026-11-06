@@ -1,4 +1,5 @@
 import type { ContentPart, Message, ToolResultPart } from "@min-agent/core";
+import { outlineDigest } from "./outline.js";
 import {
   hiddenMarker,
   type ContextStash,
@@ -46,6 +47,11 @@ export function resolveFoldOptions(
   };
 }
 
+/** True when `tool_result` text is a `recall_context` page (header from createRecallTool). */
+export function looksLikeRecallPage(content: string): boolean {
+  return /^id=\S+\s+kind=/.test(content);
+}
+
 /** Head+tail fold of a single string when over maxChars. */
 export function foldText(
   text: string,
@@ -77,6 +83,11 @@ export interface FoldViewOptions {
   range?: { start: number; end: number };
   /** Resolve tool name for a tool_call id (for stash metadata). */
   toolNameByCallId?: ReadonlyMap<string, string>;
+  /**
+   * Tool names whose `tool_result`s stay verbatim (e.g. `recall_context`).
+   * Used so a just-recalled page is not immediately folded again.
+   */
+  protectToolNames?: readonly string[];
 }
 
 /**
@@ -93,13 +104,15 @@ export function foldMessagesForView(
     ("fold" in foldOrOpts ||
       "stash" in foldOrOpts ||
       "range" in foldOrOpts ||
-      "toolNameByCallId" in foldOrOpts)
+      "toolNameByCallId" in foldOrOpts ||
+      "protectToolNames" in foldOrOpts)
       ? foldOrOpts
       : { fold: foldOrOpts as ContextFoldOptions | false | undefined };
 
   const foldOpts = resolveFoldOptions(opts.fold);
   const start = opts.range?.start ?? 0;
   const end = opts.range?.end ?? messages.length;
+  const protect = new Set(opts.protectToolNames ?? []);
   const stashedIds: string[] = [];
 
   if (!foldOpts) {
@@ -115,9 +128,16 @@ export function foldMessagesForView(
     const inRange = mi >= start && mi < end;
     const content = msg.content.map((part) => {
       if (!inRange || part.type !== "tool_result") return clonePart(part);
+      const toolName = opts.toolNameByCallId?.get(part.toolCallId);
+      if (
+        (toolName && protect.has(toolName)) ||
+        (protect.has("recall_context") && looksLikeRecallPage(part.content))
+      ) {
+        return clonePart(part);
+      }
       const next = foldToolResultPart(part, foldOpts, {
         stash: opts.stash,
-        toolName: opts.toolNameByCallId?.get(part.toolCallId),
+        toolName,
       });
       if (next.folded) {
         foldedParts += 1;
@@ -169,7 +189,7 @@ export function shrinkToolResultsToFit(
       });
       stashId = entry.id;
       stashedIds.push(entry.id);
-      marker = hiddenMarker(entry.id);
+      marker = hiddenMarker(entry.id, outlineDigest(entry));
     }
 
     const folded = foldText(
@@ -232,7 +252,7 @@ function foldToolResultPart(
       id: `tool_${part.toolCallId}`,
     });
     stashId = entry.id;
-    marker = hiddenMarker(entry.id);
+    marker = hiddenMarker(entry.id, outlineDigest(entry));
   }
 
   const folded = foldText(

@@ -110,7 +110,7 @@ export function createStickyTrimAssembler(
   };
 }
 
-/** Sticky head + aggressive middle tool offload + middle collapse. */
+/** Sticky head + budget-triggered offload, middle collapse, and intra-turn aging. */
 export function createHybridAssembler(
   budget: ContextBudget,
   stash?: ContextStash,
@@ -253,6 +253,10 @@ export interface ResolveContextStrategyOptions {
   stickyTurns?: number;
   protectRecentToolResults?: number;
   minDroppedTokens?: number;
+  /** Folded originals are written here so the model can `rg` them. */
+  spillDir?: string;
+  /** Workspace root for the marker's relative `file=` path. */
+  spillRoot?: string;
 }
 
 /**
@@ -278,7 +282,7 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
     case "hmt": {
       const ext = hmtContextExtension({
         budget: opts.budget,
-        stash: opts.stash,
+        stash: stashWithSpill(opts),
       });
       return {
         strategy: "hmt",
@@ -290,7 +294,7 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
     case "tool-offload": {
       const ext = toolOffloadContextExtension({
         budget: opts.budget,
-        stash: opts.stash,
+        stash: stashWithSpill(opts),
         protectTailTurns: opts.protectTailTurns,
       });
       return {
@@ -312,7 +316,7 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
     case "hybrid": {
       const ext = hybridContextExtension({
         budget: opts.budget,
-        stash: opts.stash,
+        stash: stashWithSpill(opts),
         stickyTurns: opts.stickyTurns,
         protectTailTurns: opts.protectTailTurns,
         protectRecentToolResults: opts.protectRecentToolResults,
@@ -329,6 +333,13 @@ export function resolveContextStrategy(opts: ResolveContextStrategyOptions): {
       throw new Error(`Unknown context strategy: ${_exhaustive}`);
     }
   }
+}
+
+function stashWithSpill(opts: ResolveContextStrategyOptions): ContextStash {
+  return (
+    opts.stash ??
+    createContextStash({ spillDir: opts.spillDir, spillRoot: opts.spillRoot })
+  );
 }
 
 function budgetFromPartial(
@@ -353,7 +364,9 @@ export function mergeBudget(
 ): ContextBudget {
   if (!overlay) return base;
   return {
-    maxContextTokens: overlay.maxContextTokens ?? base.maxContextTokens,
+    // Session always fills maxContextTokens (often the 256k default). Take the
+    // tighter cap so an extension budget still applies.
+    maxContextTokens: Math.min(base.maxContextTokens, overlay.maxContextTokens),
     reservedOutputTokens:
       overlay.reservedOutputTokens ?? base.reservedOutputTokens,
     maxUserTurns: overlay.maxUserTurns ?? base.maxUserTurns,

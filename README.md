@@ -267,7 +267,7 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 | Strategy | How to enable | Behavior |
 |----------|---------------|----------|
-| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + middle tool-offload + **intra-turn aging** (fold older `tool_result`s inside the active turn, keep last N verbatim) + middle collapse; + `recall_context`. |
+| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + middle offload and intra-turn aging (fold oversized `tool_result`s even under the 256k default) + budget-gated middle collapse; + `recall_context`. The fold marker lists fact names and offsets. `recall_context` `need` returns that span; recalled spans stay in the view until a last-resort fold. |
 | **`trim`** (default w/o tools) | `--no-tools` / `contextStrategy: "trim"` | Drop oldest user-turns under budget. Eval baseline. |
 | **`sticky-trim`** | `contextStrategy: "sticky-trim"` | Freeze leading turns; only trim after them (cache-friendlier). |
 | **`tool-offload`** | `contextStrategy: "tool-offload"` | Fold large `tool_result`s into stash (protect last turn); + `recall_context`. |
@@ -282,7 +282,7 @@ On-demand (not a continuous strategy): `session.compact()` / Client `compact()` 
 - That closes the gap where a single user-turn coding run never got a second assemble (hybrid used to look idle until the next `session.run`).
 - Multi-turn fold/stash/recall check: `pnpm --filter @min-agent/example-hmt-context exec tsx verify-multiturn.mts`
 
-- Stash markers look like `…[hidden:tool_<id> · recall_context]…` when a stash strategy is on.
+- Stash markers look like `…[hidden:tool_<id> · recall_context · file=.min/sessions/<id>/outputs/<stash-id>.txt · key=NAME@offset]…`. The model chooses: `recall_context` with `need: { kind, query }` returns a short window, or `rg -n -C 2 -F` searches the spilled file.
 - Token estimate defaults to ~4 chars/token; inject `budget.estimate` to override.
 - CLI: `--context-strategy <id>`, `--session`, `--max-context-tokens`, …
 - Env: `MIN_CONTEXT_STRATEGY=trim|hmt|tool-offload|sticky-trim|hybrid`.

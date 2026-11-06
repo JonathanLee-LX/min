@@ -11,6 +11,9 @@ import {
 } from "./fold.js";
 import { defaultTokenEstimator } from "./tokens.js";
 
+/** Recalled pages stay in the view so the model can use them. */
+export const HYBRID_PROTECT_TOOL_NAMES = ["recall_context"] as const;
+
 export interface HybridAssembleOptions {
   /** Leading user-turns kept verbatim (cache-stable). Default: 1. */
   stickyTurns?: number;
@@ -19,22 +22,31 @@ export interface HybridAssembleOptions {
   /**
    * Inside the active turn (sole sticky turn, or protected tail), keep the
    * last N `tool_result` messages verbatim and fold older oversized ones.
-   * Closes the single user-turn + long tool-loop gap where H/M/T has no
-   * middle. Default: 2. Pass `0` to fold every tool_result in that span.
+   * Default: 0 (fold every oversized body, including the most recent).
+   * Fat reads then compress even under the 256k default; `recall_context`
+   * recovers a hidden span. Pass a positive N to keep the last N full.
    */
   protectRecentToolResults?: number;
-  /** Aggressive fold defaults (smaller than plain tool-offload). */
+  /**
+   * Fold knobs for middle offload and intra-turn aging (always on).
+   * Smaller than plain tool-offload so overflow still offloads tightly.
+   */
   fold?: ContextFoldOptions | false;
 }
 
 /**
- * Hybrid strategy for harder evals:
+ * Hybrid strategy:
  * 1. Freeze sticky head (prefix-cache)
- * 2. Aggressively offload tool_results outside head+tail into stash
- * 3. Age older tool_results inside the active turn (single-turn coding loops)
- * 4. If still over budget, drop oldest turns between sticky and tail
+ * 2. Fold oversized middle tool_results into stash (even under budget)
+ * 3. If over budget, drop oldest middle turns
+ * 4. Age tool_results in the active turn (default: every oversized body;
+ *    `recall_context` results are not aged)
+ * 5. If still over, emergency-fold after sticky (recall pages last)
  *
- * Forces reliance on recall when earlier fat tool bodies are needed later.
+ * Folding compresses; one default `recall_context` page (12k from offset 0)
+ * should expose a needle that sits past the 120-char fold head. Recalled
+ * pages stay verbatim until a true last-resort fold, so a second recall of
+ * the same id is not required.
  */
 export function assembleHybridContext(
   input: AssembleInput,
@@ -51,7 +63,7 @@ export function assembleHybridContext(
 
   const stickyN = Math.max(0, opts.stickyTurns ?? 1);
   const protectTail = Math.max(0, opts.protectTailTurns ?? 1);
-  const protectRecent = Math.max(0, opts.protectRecentToolResults ?? 2);
+  const protectRecent = Math.max(0, opts.protectRecentToolResults ?? 0);
   const foldOpts =
     opts.fold === false
       ? false
@@ -82,39 +94,60 @@ export function assembleHybridContext(
   const tailFlat = tail.flat();
 
   const toolNames = indexToolNames(input.messages);
-  // Fold only the middle span — sticky + tail tool bodies stay full initially.
   const preFold = [...stickyFlat, ...middleFlat, ...tailFlat];
   const midStart = stickyFlat.length;
   const midEnd = midStart + middleFlat.length;
 
-  const folded = foldMessagesForView(preFold, {
-    fold: foldOpts,
-    stash: input.budget.stash,
-    range: { start: midStart, end: midEnd },
-    toolNameByCallId: toolNames,
-  });
+  const cloned = foldMessagesForView(preFold, { fold: false });
+  let viewSticky = cloned.messages.slice(0, midStart);
+  let viewMiddle = cloned.messages.slice(midStart, midEnd);
+  let viewTail = cloned.messages.slice(midEnd);
+  let foldedParts = 0;
+  const stashedIds: string[] = [];
 
-  let viewSticky = folded.messages.slice(0, midStart);
-  let viewMiddle = folded.messages.slice(midStart, midEnd);
-  let viewTail = folded.messages.slice(midEnd);
-  let foldedParts = folded.foldedParts;
-  const stashedIds = [...folded.stashedIds];
+  const fits = (msgs: Message[]) => estimate.messages(msgs) <= messageBudget;
+
+  let view = [...viewSticky, ...viewMiddle, ...viewTail];
+
+  // Always shrink oversized middle tool bodies, including under the 256k
+  // default. Collapse of whole turns stays budget-gated.
+  if (foldOpts && viewMiddle.length > 0) {
+    const folded = foldMessagesForView(view, {
+      fold: foldOpts,
+      stash: input.budget.stash,
+      range: {
+        start: viewSticky.length,
+        end: viewSticky.length + viewMiddle.length,
+      },
+      toolNameByCallId: toolNames,
+      protectToolNames: HYBRID_PROTECT_TOOL_NAMES,
+    });
+    view = folded.messages;
+    foldedParts += folded.foldedParts;
+    stashedIds.push(...folded.stashedIds);
+    viewSticky = view.slice(0, viewSticky.length);
+    viewMiddle = view.slice(
+      viewSticky.length,
+      viewSticky.length + viewMiddle.length,
+    );
+    viewTail = view.slice(viewSticky.length + viewMiddle.length);
+  }
 
   // Collapse oldest middle turns if still over budget.
   let middleTurns = splitUserTurns(viewMiddle);
   while (
-    estimate.messages([...viewSticky, ...middleTurns.flat(), ...viewTail]) >
-      messageBudget &&
+    !fits([...viewSticky, ...middleTurns.flat(), ...viewTail]) &&
     middleTurns.length > 0
   ) {
     middleTurns = middleTurns.slice(1);
     foldedParts += 1;
   }
   viewMiddle = middleTurns.flat();
+  view = [...viewSticky, ...viewMiddle, ...viewTail];
 
-  let view = [...viewSticky, ...viewMiddle, ...viewTail];
-
-  // Intra-turn aging: fold older tool_results inside the active span.
+  // Intra-turn aging even under budget so a 256k single-turn loop still
+  // compresses fat bodies. Default protectRecent=0 folds every oversized
+  // result, including the most recent; recall_context pages are skipped.
   // - Single user-turn (no middle/tail): age inside sticky.
   // - Multi-turn: age inside protected tail (where the tool loop grows).
   if (foldOpts) {
@@ -129,6 +162,7 @@ export function assembleHybridContext(
       fold: foldOpts,
       stash: input.budget.stash,
       toolNames,
+      protectToolNames: HYBRID_PROTECT_TOOL_NAMES,
     });
     view = aged.messages;
     foldedParts += aged.foldedParts;
@@ -141,27 +175,41 @@ export function assembleHybridContext(
     viewTail = view.slice(viewSticky.length + viewMiddle.length);
   }
 
-  // Last resort: fold everything after sticky (or the whole view when the
-  // sole turn lives in sticky) so single-turn overflow still offloads.
-  if (estimate.messages(view) > messageBudget && foldOpts) {
+  // Last resort: fold after sticky (or the whole view when the sole turn
+  // lives in sticky). Keep `recall_context` pages on the first pass so a
+  // just-recalled span remains usable; fold them only if still over budget.
+  if (!fits(view) && foldOpts) {
     const emergencyStart =
       viewSticky.length > 0 && viewSticky.length < view.length
         ? viewSticky.length
         : 0;
-    const emergency = foldMessagesForView(view, {
-      fold: {
-        ...foldOpts,
-        maxToolResultChars: 500,
-        toolResultHeadChars: 80,
-        toolResultTailChars: 80,
-      },
+    const emergencyFold = {
+      ...foldOpts,
+      maxToolResultChars: 500,
+      toolResultHeadChars: 80,
+      toolResultTailChars: 80,
+    };
+    const first = foldMessagesForView(view, {
+      fold: emergencyFold,
       stash: input.budget.stash,
       range: { start: emergencyStart, end: view.length },
       toolNameByCallId: toolNames,
+      protectToolNames: HYBRID_PROTECT_TOOL_NAMES,
     });
-    view = emergency.messages;
-    foldedParts += emergency.foldedParts;
-    stashedIds.push(...emergency.stashedIds);
+    view = first.messages;
+    foldedParts += first.foldedParts;
+    stashedIds.push(...first.stashedIds);
+    if (!fits(view)) {
+      // Shrink remaining pages (including recall) without minting nested
+      // hidden ids. The original stash entry is still recallable.
+      const last = foldMessagesForView(view, {
+        fold: emergencyFold,
+        range: { start: emergencyStart, end: view.length },
+        toolNameByCallId: toolNames,
+      });
+      view = last.messages;
+      foldedParts += last.foldedParts;
+    }
   }
 
   const uniqueIds = [...new Set(stashedIds)];
@@ -189,6 +237,7 @@ export function assembleHybridContext(
 /**
  * Fold oversized tool_results in [start, end) except the last
  * `protectRecent` tool_result-bearing messages (kept verbatim).
+ * `protectRecent === 0` folds the whole span.
  */
 export function ageOlderToolResults(
   messages: Message[],
@@ -199,6 +248,7 @@ export function ageOlderToolResults(
     fold: ContextFoldOptions | false;
     stash?: AssembleInput["budget"]["stash"];
     toolNames: ReadonlyMap<string, string>;
+    protectToolNames?: readonly string[];
   },
 ): { messages: Message[]; foldedParts: number; stashedIds: string[] } {
   if (opts.fold === false || opts.start >= opts.end) {
@@ -232,6 +282,7 @@ export function ageOlderToolResults(
     stash: opts.stash,
     range: { start: opts.start, end: protectFrom },
     toolNameByCallId: opts.toolNames,
+    protectToolNames: opts.protectToolNames,
   });
 }
 

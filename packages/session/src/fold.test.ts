@@ -88,6 +88,53 @@ describe("foldMessagesForView", () => {
     }
   });
 
+  it("does not fold recall pages even when the tool name map is missing", () => {
+    const page = "id=tool_c1 kind=tool_result tool=read_file chars=10000 offset=0 returned=12000 complete\n\n" + "R".repeat(12_000);
+    const messages = [toolMessage([toolResultPart("r1", page)])];
+    const { foldedParts, messages: view } = foldMessagesForView(messages, {
+      fold: { maxToolResultChars: 500, toolResultHeadChars: 50, toolResultTailChars: 50 },
+      protectToolNames: ["recall_context"],
+    });
+    expect(foldedParts).toBe(0);
+    const part = view[0]!.content[0];
+    expect(part?.type).toBe("tool_result");
+    if (part?.type === "tool_result") expect(part.content).toBe(page);
+  });
+
+  it("does not fold protected tool names such as recall_context", () => {
+    const page = "R".repeat(12_000);
+    const messages = [
+      userMessage("go"),
+      assistantMessage([toolCallPart("c1", "bash", { command: "x" })]),
+      toolMessage([toolResultPart("c1", "B".repeat(10_000))]),
+      assistantMessage([toolCallPart("r1", "recall_context", { id: "tool_c1" })]),
+      toolMessage([toolResultPart("r1", page)]),
+    ];
+    const { messages: view, foldedParts } = foldMessagesForView(messages, {
+      fold: {
+        maxToolResultChars: 500,
+        toolResultHeadChars: 50,
+        toolResultTailChars: 50,
+      },
+      toolNameByCallId: new Map([
+        ["c1", "bash"],
+        ["r1", "recall_context"],
+      ]),
+      protectToolNames: ["recall_context"],
+    });
+    expect(foldedParts).toBe(1);
+    const bash = view[2]!.content[0];
+    const recalled = view[4]!.content[0];
+    expect(bash?.type).toBe("tool_result");
+    expect(recalled?.type).toBe("tool_result");
+    if (bash?.type === "tool_result") {
+      expect(bash.content.length).toBeLessThan(10_000);
+    }
+    if (recalled?.type === "tool_result") {
+      expect(recalled.content).toBe(page);
+    }
+  });
+
   it("disables when fold is false", () => {
     const big = "y".repeat(10_000);
     const messages = [toolMessage([toolResultPart("c1", big)])];

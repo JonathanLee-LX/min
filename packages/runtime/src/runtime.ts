@@ -10,6 +10,7 @@ import {
   createFsStore,
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
+  newSessionId,
   recallContextExtension,
   resolveContextStrategy,
   type ContextPartId,
@@ -105,10 +106,18 @@ export async function createRuntime(
     reservedOutputTokens: 1024,
   };
 
+  const sessionId = opts.sessionId ?? newSessionId();
+  const spillFolded = process.env.MIN_SPILL_FOLDED !== "0";
   const resolved = resolveContextStrategy({
     strategy: contextStrategy,
     budget,
     provider: opts.provider,
+    ...(spillFolded
+      ? {
+          spillDir: path.join(sessionDirFor(opts.cwd, opts.sessionDir), sessionId, "outputs"),
+          spillRoot: opts.cwd,
+        }
+      : {}),
   });
 
   const labeledSystem: ContextSystemPart[] = [{ id: "system", text: BASE_SYSTEM }];
@@ -224,7 +233,7 @@ export async function createRuntime(
   const session = await createSession({
     agent,
     store,
-    id: opts.sessionId,
+    id: sessionId,
     stash: resolved.stash,
     systemForBudget: liveSystem,
     contextParts,

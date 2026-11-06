@@ -422,6 +422,7 @@ export async function createSession(
 
     async dispose() {
       await persist();
+      stash?.clear();
     },
   };
 
