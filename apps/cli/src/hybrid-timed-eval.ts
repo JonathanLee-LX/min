@@ -4,15 +4,16 @@ import { createAutoPermissionApprover, createClient } from "@min-agent/client";
 import type { ModelProvider } from "@min-agent/core";
 import { resolveProvider } from "@min-agent/runtime";
 
-const cwd = process.argv[2];
+const cwdArg = process.argv[2];
 const maxContextTokens = Number(process.argv[3] ?? 256000);
 const maxTurns = Number(process.argv[4] ?? 25);
 const tokenSkill = process.argv[5] ?? "min-eval-skill-7f3c";
 const tokenScript = process.argv[6] ?? "min-eval-script-9a2b";
-if (!cwd) {
+if (!cwdArg) {
   console.error("usage: hybrid-timed-eval.ts <cwd> [maxContextTokens] [maxTurns]");
   process.exit(2);
 }
+const cwd: string = cwdArg;
 
 const recovery = process.env.HYBRID_EVAL_RECOVERY ?? "either";
 const recoveryLine =
