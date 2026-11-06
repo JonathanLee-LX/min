@@ -278,6 +278,55 @@ describe("hybrid fold + recall (over budget)", () => {
   });
 });
 
+/**
+ * 256k product-default case: the needle sits past the default 12k recall
+ * page. Eager hybrid (fold at 900, protect-last-2) therefore cannot expose
+ * it with a single offset-0 recall; restrained hybrid at 256k never folds
+ * the 45k body, so the needle stays in the view with no recall.
+ */
+describe("256k deep needle (default recall page misses)", () => {
+  const NEEDLE = "NEEDLE_DEEP_7f3c";
+  const NEEDLE_AT = 20_000;
+  const deepSkill =
+    "H".repeat(NEEDLE_AT) + NEEDLE + "T".repeat(45_252 - NEEDLE_AT - NEEDLE.length);
+
+  it("restrained hybrid at 256k keeps the needle after five in-turn tools", () => {
+    let messages: Message[] = [userMessage("follow the skill")];
+    messages = plus(messages, "skill", "read_file", deepSkill);
+    messages = plus(messages, "script", "read_file", CLEAN_PY);
+    messages = plus(messages, "dry", "bash", DRY_RUN);
+    messages = plus(messages, "ls", "bash", "total 2");
+    messages = plus(messages, "pwd", "bash", "/tmp");
+    const { result } = assemble(messages, DEFAULT_MAX_CONTEXT_TOKENS);
+    expect(result.foldedParts ?? 0).toBe(0);
+    expect(toolBody(result.view, "skill")).toContain(NEEDLE);
+  });
+
+  it("default 12k recall of a folded body misses; offset 12000 hits", async () => {
+    const stash = createContextStash();
+    let messages: Message[] = [userMessage("follow the skill")];
+    messages = plus(messages, "skill", "read_file", deepSkill);
+    messages = plus(messages, "script", "read_file", CLEAN_PY);
+    messages = plus(messages, "dry", "bash", DRY_RUN);
+    const folded = assembleHybridContext({
+      messages,
+      budget: { maxContextTokens: 8_000, stash },
+    });
+    const ids = parseHiddenIds(toolBody(folded.view, "skill") ?? "");
+    expect(ids.length).toBeGreaterThan(0);
+    expect(toolBody(folded.view, "skill")).not.toContain(NEEDLE);
+
+    const recallTool = createRecallTool(stash);
+    const page0 = await recallTool.execute({ id: ids[0] }, {});
+    expect(page0.isError).toBeFalsy();
+    expect(page0.content).not.toContain(NEEDLE);
+
+    const page1 = await recallTool.execute({ id: ids[0], offset: 12_000 }, {});
+    expect(page1.isError).toBeFalsy();
+    expect(page1.content).toContain(NEEDLE);
+  });
+});
+
 describe("hybrid efficiency timeline (under default budget)", () => {
   it("records when the skill body and recall page disappear from the view", () => {
     const stash = createContextStash();
