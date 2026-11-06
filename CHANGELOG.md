@@ -2,8 +2,15 @@
 
 ## Unreleased
 
-- Hybrid context projection folds oversized `tool_result`s even under the 256k default. Each folded original is written to `<cwd>/.min/sessions/<id>/outputs/<stash-id>.txt`, and the fold marker records `file=` plus indexed fact names (`key=NAME@offset`) without their values. The model chooses `recall_context` with `need` or `rg -n -C 2 -F` on that file. Session dispose deletes the spilled directory.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
+
+## 0.1.0-alpha.9
+
+Hybrid context folds oversized tool output, and the model can search it.
+
+- Hybrid context projection folds oversized `tool_result`s even under the 256k default. Each folded original is written to `<cwd>/.min/sessions/<id>/outputs/<stash-id>.txt`, and the fold marker records `file=` plus indexed fact names (`key=NAME@offset`) without their values. The model chooses `recall_context` with `need` or `rg -n -C 2 -F` on that file. Session dispose deletes the spilled directory.
+
+Install: `npm install -g @min-agent/min@alpha`
 
 ## 0.1.0-alpha.8
 

@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/cli",
-  "version": "0.1.0-alpha.8",
+  "version": "0.1.0-alpha.9",
   "license": "MIT",
   "description": "Minimal CLI for the min agent harness",
   "type": "module",
