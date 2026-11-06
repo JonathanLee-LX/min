@@ -111,6 +111,7 @@ The harness contract for this alpha:
 - `@min-agent/core` is the model round-trip and the tool loop.
 - Permissions, skills, workspace tools, and the projected model view are composed before `createAgent`.
 - CLI, TUI, and Web all go through `@min-agent/client`.
+- Sessions can be mirrored to S3-compatible object storage (Cloudflare R2) with the `r2SyncExtension` session pack; local history stays canonical.
 
 `[a]lways` writes a remembered pattern to `<cwd>/.min/permissions.json`. `--auto` keeps those grants in memory for the process only.
 

@@ -66,6 +66,21 @@ export {
   type SessionRunOptions,
 } from "./session.js";
 export {
+  createGzipCodec,
+  createR2BindingAdapter,
+  jsonCodec,
+  r2SyncExtension,
+  type BlobCodec,
+  type R2SyncErrorInfo,
+  type R2SyncExtension,
+  type R2SyncHydrateOptions,
+  type R2SyncHydrateResult,
+  type R2SyncOptions,
+  type R2SyncStats,
+  type SessionBlobPutOptions,
+  type SessionBlobStore,
+} from "./r2-sync.js";
+export {
   createContextStash,
   hiddenMarker,
   parseHiddenIds,
