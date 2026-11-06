@@ -242,7 +242,7 @@ Context:
   sticky-trim  freeze leading turns, trim after them (cache-friendlier)
   tool-offload fold large tool_results into stash + recall_context
   hmt          head/middle/tail fold + stash + recall_context
-  hybrid       sticky head + aggressive middle tool offload + recall (default w/ tools)
+  hybrid       sticky head + budget-triggered offload + recall (default w/ tools)
   /compact     on-demand LLM summary that rewrites stored history (not a strategy)
   Assistant text streams as it arrives; tool traces print on stderr-friendly lines.
 

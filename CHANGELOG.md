@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hybrid context projection folds only when the model view exceeds the token budget. A long in-turn tool loop no longer ages older `tool_result`s while they still fit, so a just-recalled page is not immediately hidden again. Over-budget offload, stash, and `recall_context` are unchanged.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
 ## 0.1.0-alpha.8

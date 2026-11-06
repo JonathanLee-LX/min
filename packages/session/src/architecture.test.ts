@@ -72,21 +72,23 @@ describe("session architecture contracts", () => {
         }),
       ],
     });
-    const hybrid = hybridContextExtension({
-      budget: {
-        maxContextTokens: 100_000,
-        fold: {
-          maxToolResultChars: 500,
-          toolResultHeadChars: 60,
-          toolResultTailChars: 60,
-        },
+    const budget = {
+      maxContextTokens: 4_000,
+      fold: {
+        maxToolResultChars: 500,
+        toolResultHeadChars: 60,
+        toolResultTailChars: 60,
       },
+    };
+    const hybrid = hybridContextExtension({
+      budget,
       protectRecentToolResults: 1,
     });
     const session = await createSession({
       agent,
       store: createMemoryStore(),
       stash: hybrid.stash,
+      budget,
       extensions: [hybrid],
     });
 

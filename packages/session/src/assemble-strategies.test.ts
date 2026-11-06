@@ -154,7 +154,7 @@ describe("assembleHybridContext", () => {
       {
         messages,
         budget: {
-          maxContextTokens: 100_000,
+          maxContextTokens: 4_000,
           stash,
           fold: {
             maxToolResultChars: 600,
@@ -187,7 +187,9 @@ describe("assembleHybridContext", () => {
       {
         messages,
         budget: {
-          maxContextTokens: 100_000,
+          // Room for the protected last 6k body after aging; still tight
+          // enough that the three raw 6k bodies do not fit.
+          maxContextTokens: 5_000,
           stash,
           fold: {
             maxToolResultChars: 400,
@@ -213,5 +215,32 @@ describe("assembleHybridContext", () => {
     expect(lengths[0]!).toBeLessThan(blob.length);
     expect(lengths[1]!).toBeLessThan(blob.length);
     expect(lengths[2]!).toBe(blob.length);
+  });
+
+  it("does not age the active turn while the view still fits", () => {
+    const stash = createContextStash();
+    const blob = "Q".repeat(6_000);
+    const messages = [
+      userMessage("implement feature"),
+      assistantMessage([toolCallPart("t1", "read_file", { path: "a" })]),
+      toolMessage([toolResultPart("t1", blob)]),
+      assistantMessage([toolCallPart("t2", "read_file", { path: "b" })]),
+      toolMessage([toolResultPart("t2", blob)]),
+      assistantMessage([toolCallPart("t3", "read_file", { path: "c" })]),
+      toolMessage([toolResultPart("t3", blob)]),
+    ];
+    const result = assembleHybridContext({
+      messages,
+      budget: { maxContextTokens: 256_000, stash },
+    });
+    expect(result.foldedParts ?? 0).toBe(0);
+    expect(stash.size).toBe(0);
+    const viewTools = result.view.filter((m) => m.role === "tool");
+    expect(viewTools).toHaveLength(3);
+    for (const message of viewTools) {
+      const part = message.content[0];
+      expect(part?.type).toBe("tool_result");
+      if (part?.type === "tool_result") expect(part.content).toBe(blob);
+    }
   });
 });

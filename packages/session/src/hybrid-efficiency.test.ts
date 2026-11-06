@@ -14,15 +14,13 @@ import { createContextStash, parseHiddenIds } from "./stash.js";
 import { estimateMessagesTokens } from "./tokens.js";
 
 /**
- * Flip to `true` when hybrid only folds under token budget and does not age
- * the active turn while the view still fits. Until then this file locks the
- * current (eager 900-char / protect-last-2) scoreboard so the delta is a
- * test change, not a guess.
+ * Product hybrid is restrained: fold/age only when the view exceeds the
+ * token budget. Keep `false` only to lock the old eager 900-char scoreboard.
  *
  * Mapped from ses_mw4bvjcw: one user turn, roomy budget, fat skill read,
  * then recall, then two small tools that hide the recall page.
  */
-const RESTRAINED_HYBRID = false;
+const RESTRAINED_HYBRID = true;
 
 /** Sizes from that session's real tool_results (chars). */
 const SKILL_MD = "S".repeat(45_252);

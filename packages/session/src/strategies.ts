@@ -110,7 +110,7 @@ export function createStickyTrimAssembler(
   };
 }
 
-/** Sticky head + aggressive middle tool offload + middle collapse. */
+/** Sticky head + budget-triggered offload, middle collapse, and intra-turn aging. */
 export function createHybridAssembler(
   budget: ContextBudget,
   stash?: ContextStash,
@@ -353,7 +353,9 @@ export function mergeBudget(
 ): ContextBudget {
   if (!overlay) return base;
   return {
-    maxContextTokens: overlay.maxContextTokens ?? base.maxContextTokens,
+    // Session always fills maxContextTokens (often the 256k default). Take the
+    // tighter cap so an extension budget still applies.
+    maxContextTokens: Math.min(base.maxContextTokens, overlay.maxContextTokens),
     reservedOutputTokens:
       overlay.reservedOutputTokens ?? base.reservedOutputTokens,
     maxUserTurns: overlay.maxUserTurns ?? base.maxUserTurns,
