@@ -107,12 +107,17 @@ export async function createRuntime(
   };
 
   const sessionId = opts.sessionId ?? newSessionId();
+  const spillFolded = process.env.MIN_SPILL_FOLDED !== "0";
   const resolved = resolveContextStrategy({
     strategy: contextStrategy,
     budget,
     provider: opts.provider,
-    spillDir: path.join(sessionDirFor(opts.cwd, opts.sessionDir), sessionId, "outputs"),
-    spillRoot: opts.cwd,
+    ...(spillFolded
+      ? {
+          spillDir: path.join(sessionDirFor(opts.cwd, opts.sessionDir), sessionId, "outputs"),
+          spillRoot: opts.cwd,
+        }
+      : {}),
   });
 
   const labeledSystem: ContextSystemPart[] = [{ id: "system", text: BASE_SYSTEM }];
