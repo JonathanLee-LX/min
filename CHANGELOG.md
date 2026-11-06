@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Hybrid context projection folds oversized `tool_result`s even under the 256k default (middle offload + intra-turn aging of every oversized body). `recall_context` brings a 12k page back and that page stays in the view (including after later small tools), so one offset-0 recall is enough when the needle sits past the 120-char fold head. A last-resort shrink of a recall page does not mint a nested `hidden:` id, so the original stash entry remains the one to recall. Turn collapse and emergency fold still wait until the view exceeds the token budget.
+- Hybrid context projection folds oversized `tool_result`s even under the 256k default (middle offload + intra-turn aging of every oversized body). The fold marker lists indexed facts (`key=NAME@offset`, headings, symbols, errors) without their values. `recall_context` with `need` returns only the matching lines; omitting `need` returns that outline. `offset`/`limit` still pages the raw original. A recalled span stays in the view, and a last-resort shrink does not mint a nested `hidden:` id. Turn collapse and emergency fold still wait until the view exceeds the token budget.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
 ## 0.1.0-alpha.8

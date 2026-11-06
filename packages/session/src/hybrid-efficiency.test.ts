@@ -232,9 +232,14 @@ describe("hybrid fold + recall (over budget)", () => {
     expect(hiddenIds.length).toBeGreaterThan(0);
 
     const recallTool = createRecallTool(stash);
-    const page = await recallTool.execute({ id: hiddenIds[0] }, {});
+    const page = await recallTool.execute(
+      { id: hiddenIds[0], need: { kind: "text", query: NEEDLE } },
+      {},
+    );
     expect(page.isError).toBeFalsy();
+    expect(page.content).toContain("mode=select");
     expect(page.content).toContain(NEEDLE);
+    expect(page.content.length).toBeLessThan(2_000);
 
     messages = plus(messages, "recall", "recall_context", page.content);
     const justRecalled = assembleHybridContext({
@@ -319,7 +324,7 @@ describe("256k fold + one recall (default page hits)", () => {
     );
   });
 
-  it("one default 12k recall of the folded body contains the needle", async () => {
+  it("one selective recall of the folded body contains the needle", async () => {
     const stash = createContextStash();
     let messages: Message[] = [userMessage("follow the skill")];
     messages = plus(messages, "skill", "read_file", skillWithNeedle);
@@ -334,9 +339,14 @@ describe("256k fold + one recall (default page hits)", () => {
     expect(toolBody(folded.view, "skill")).not.toContain(NEEDLE);
 
     const recallTool = createRecallTool(stash);
-    const page0 = await recallTool.execute({ id: ids[0] }, {});
+    const page0 = await recallTool.execute(
+      { id: ids[0], need: { kind: "text", query: NEEDLE } },
+      {},
+    );
     expect(page0.isError).toBeFalsy();
+    expect(page0.content).toContain("mode=select");
     expect(page0.content).toContain(NEEDLE);
+    expect(page0.content.length).toBeLessThan(2_000);
   });
 });
 

@@ -1,18 +1,35 @@
 import { defineTool, type Tool } from "@min-agent/core";
 import { z } from "zod";
-import type { ContextStash } from "./stash.js";
+import { formatOutline, selectSpans, type RecallNeed } from "./outline.js";
+import type { ContextStash, ContextStashEntry } from "./stash.js";
+
+const recallNeed = z.object({
+  /**
+   * What kind of fact to return.
+   * `key` matches `NAME=` lines. `text` matches the query literally.
+   * `heading` / `symbol` / `error` match the outline label.
+   */
+  kind: z.enum(["heading", "key", "symbol", "error", "text"]),
+  /** Name or literal to find. For `key`, pass the name, not the value. */
+  query: z.string().min(1).max(200),
+});
 
 const recallInput = z.object({
   /**
-   * Stash id from a `[hidden:… · recall_context]` marker.
+   * Stash id from a `[hidden:… · recall_context · …]` marker.
    * Omit to list what is currently hidden.
    */
   id: z.string().min(1).optional(),
-  /** Byte/char offset into the original content. Default 0. */
+  /**
+   * Which fact to return. Prefer this over paging the original.
+   * The marker lists kinds and names (`key=TOKEN_SKILL@5000`) but not values.
+   */
+  need: recallNeed.optional(),
+  /** Char offset into the original. Only for raw paging. */
   offset: z.number().int().min(0).optional(),
   /**
-   * Max characters to return. Default 12_000.
-   * Use with offset to page through large blobs.
+   * Max characters of the raw original. Only for paging.
+   * Default 12_000 when offset or limit is set.
    */
   limit: z.number().int().min(1).max(100_000).optional(),
 });
@@ -34,10 +51,12 @@ export function createRecallTool(
   return defineTool({
     name: "recall_context",
     description: [
-      "Retrieve original context that was folded/hidden from the model view.",
-      "Pass `id` from a `[hidden:<id> · recall_context]` marker.",
-      "Omit `id` to list available hidden entries (id, kind, tool, size, preview).",
-      "Use offset/limit to page through large payloads.",
+      "Retrieve one fact that was folded out of the model view.",
+      "Pass `id` from a `[hidden:<id> · recall_context · key=NAME@offset]` marker.",
+      "Pass `need` ({kind, query}) to return only the matching lines, not the whole text.",
+      "kind is heading, key, symbol, error, or text. For a key, query is the name (TOKEN_SKILL), not its value.",
+      "Omit `need` to list the outline. Omit `id` to list hidden entries.",
+      "Use offset/limit only to page the raw original.",
     ].join(" "),
     inputSchema: recallInput,
     async execute(input) {
@@ -55,6 +74,12 @@ export function createRecallTool(
             e.toolName ? `tool=${e.toolName}` : null,
             e.toolCallId ? `call=${e.toolCallId}` : null,
             `chars=${e.charCount}`,
+            e.outline.length
+              ? `outline=${e.outline
+                  .slice(0, 4)
+                  .map((item) => `${item.kind}:${item.label}@${item.offset}`)
+                  .join(",")}`
+              : null,
             `preview=${JSON.stringify(e.preview)}`,
           ]
             .filter(Boolean)
@@ -79,39 +104,96 @@ export function createRecallTool(
         };
       }
 
-      const offset = input.offset ?? 0;
-      const limit = input.limit ?? defaultLimit;
-      if (offset >= entry.content.length) {
-        return {
-          content: `offset ${offset} is past end (chars=${entry.charCount}).`,
-          isError: true,
-        };
+      if (input.need) return recallSelection(entry, input.need);
+      if (input.offset !== undefined || input.limit !== undefined) {
+        return recallPage(entry, input.offset ?? 0, input.limit ?? defaultLimit);
       }
-      const slice = entry.content.slice(offset, offset + limit);
-      const next = offset + slice.length;
-      const hasMore = next < entry.content.length;
-      const header = [
-        `id=${entry.id}`,
-        `kind=${entry.kind}`,
-        entry.toolName ? `tool=${entry.toolName}` : null,
-        `chars=${entry.charCount}`,
-        `offset=${offset}`,
-        `returned=${slice.length}`,
-        hasMore ? `next_offset=${next}` : "complete",
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      return { content: `${header}\n\n${slice}` };
+      return recallOutline(entry);
     },
   });
 }
 
+function recallHeader(
+  entry: ContextStashEntry,
+  extra: Array<string | null>,
+): string {
+  return [
+    `id=${entry.id}`,
+    `kind=${entry.kind}`,
+    entry.toolName ? `tool=${entry.toolName}` : null,
+    `chars=${entry.charCount}`,
+    ...extra,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function recallOutline(entry: ContextStashEntry): { content: string } {
+  return {
+    content: [
+      recallHeader(entry, ["mode=outline"]),
+      "Pass need={kind, query} to fetch one span. offset/limit pages the raw original.",
+      formatOutline(entry.outline),
+    ].join("\n"),
+  };
+}
+
+function recallSelection(
+  entry: ContextStashEntry,
+  need: RecallNeed,
+): { content: string } {
+  const spans = selectSpans(entry.content, entry.outline, need);
+  const chunks = spans.map((span) => {
+    const text = entry.content.slice(span.start, span.end).replace(/\s+$/, "");
+    return `--- offset=${span.start} ---\n${text}`;
+  });
+  const body = chunks.join("\n\n");
+  return {
+    content: [
+      recallHeader(entry, [
+        "mode=select",
+        `need=${need.kind}:${need.query}`,
+        `hits=${spans.length}`,
+        `returned=${body.length}`,
+      ]),
+      spans.length
+        ? body
+        : `No match for ${need.kind}:${need.query}.\n${formatOutline(entry.outline)}`,
+    ].join("\n\n"),
+  };
+}
+
+function recallPage(
+  entry: ContextStashEntry,
+  offset: number,
+  limit: number,
+): { content: string; isError?: boolean } {
+  if (offset >= entry.content.length) {
+    return {
+      content: `offset ${offset} is past end (chars=${entry.charCount}).`,
+      isError: true,
+    };
+  }
+  const slice = entry.content.slice(offset, offset + limit);
+  const next = offset + slice.length;
+  const hasMore = next < entry.content.length;
+  return {
+    content: `${recallHeader(entry, [
+      "mode=page",
+      `offset=${offset}`,
+      `returned=${slice.length}`,
+      hasMore ? `next_offset=${next}` : "complete",
+    ])}\n\n${slice}`,
+  };
+}
+
 export const RECALL_SYSTEM = [
-  "Some older tool outputs may be folded in the middle of the conversation for context budget.",
-  "Folded spans look like …[hidden:<id> · recall_context]…",
-  "Call recall_context with that id when you need the full original; omit id to list what is hidden.",
-  "A recalled page stays in the view so you can use it. Do not recall the same id again unless the hidden marker comes back.",
+  "Some older tool outputs may be folded for context budget.",
+  "Folded spans look like …[hidden:<id> · recall_context · key=NAME@offset]…",
+  "The marker names headings, keys, symbols, and errors, but not their values.",
+  "Call recall_context with that id and need={kind, query} to fetch only the matching lines.",
+  "For a key, query is the name (TOKEN_SKILL), not the value. Omit need to list the outline.",
+  "A recalled span stays in the view. Do not recall the same id again unless the hidden marker comes back.",
 ].join(" ");
 
 /**

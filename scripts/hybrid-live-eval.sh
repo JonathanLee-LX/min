@@ -3,8 +3,8 @@
 # Requires DEEPSEEK_API_KEY. Does not print the key.
 #
 # Fat reads fold even at the 256k product default. Needles sit past the
-# 120-char fold head but inside the default 12k recall page, so one
-# offset-0 recall_context per hidden id is enough.
+# 120-char fold head. The fold marker names TOKEN_* keys; recall_context
+# need={kind:key, query:TOKEN_*} returns that line. offset/limit still pages.
 #
 # 256k product-default comparison: set
 #   HYBRID_LIVE_EVAL_MAX_CONTEXT_TOKENS=256000
@@ -83,7 +83,7 @@ assert token_script in script[:12_000]
 print(f"wrote {len(skill)} {len(script)} needle_skill={needle_at_skill} needle_script={needle_at_script}")
 PY
 
-PROMPT="Read SKILL.md with read_file, then read clean_disk.py with read_file, then run python3 clean_disk.py --dry-run, then ls -la, then pwd. Do not cat, sed, head, or tail those two files via bash. TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first or last 120 characters of either file; they ARE in the first 12000. If a tool result contains [hidden:<id> · recall_context], call recall_context once with that id (default limit 12000, offset 0). Do not recall the same id again unless the hidden marker returns. Quote both token values in the final answer. Do not write or delete files."
+PROMPT="Read SKILL.md with read_file, then read clean_disk.py with read_file, then run python3 clean_disk.py --dry-run, then ls -la, then pwd. Do not cat, sed, head, or tail those two files via bash. TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first or last 120 characters of either file. If a tool result contains [hidden:<id> · recall_context], call recall_context for that id to recover the token. Quote both token values in the final answer. Do not write or delete files."
 
 export MIN_REASONING_EFFORT="${MIN_REASONING_EFFORT:-none}"
 export MIN_AUTO=1
@@ -141,11 +141,11 @@ max_id_repeats = max(id_counts.values()) if id_counts else 0
 recall_n = counts.get("recall_context", 0)
 quoted = has_skill and has_script and counts.get("read_file", 0) >= 2
 paged = any(off != 0 for off in recall_offsets)
-# Fold hid the needle; one offset-0 recall per id recovers it.
+# Fold hid the needle. One selective recall (or one raw page) per id recovers it.
 ok_path = (
     (max(folded, default=0) > 0 or hidden > 0)
     and recall_n >= 1
-    and max_id_repeats <= 1
+    and max_id_repeats <= 2
     and not paged
 )
 payload = {

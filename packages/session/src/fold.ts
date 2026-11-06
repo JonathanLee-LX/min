@@ -1,4 +1,5 @@
 import type { ContentPart, Message, ToolResultPart } from "@min-agent/core";
+import { outlineDigest } from "./outline.js";
 import {
   hiddenMarker,
   type ContextStash,
@@ -188,7 +189,7 @@ export function shrinkToolResultsToFit(
       });
       stashId = entry.id;
       stashedIds.push(entry.id);
-      marker = hiddenMarker(entry.id);
+      marker = hiddenMarker(entry.id, outlineDigest(entry));
     }
 
     const folded = foldText(
@@ -251,7 +252,7 @@ function foldToolResultPart(
       id: `tool_${part.toolCallId}`,
     });
     stashId = entry.id;
-    marker = hiddenMarker(entry.id);
+    marker = hiddenMarker(entry.id, outlineDigest(entry));
   }
 
   const folded = foldText(

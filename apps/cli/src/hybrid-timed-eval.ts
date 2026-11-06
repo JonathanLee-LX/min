@@ -17,10 +17,9 @@ const prompt = [
   "then run python3 clean_disk.py --dry-run, then ls -la, then pwd.",
   "Do not cat, sed, head, or tail those two files via bash.",
   "TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first or last 120 characters",
-  "of either file; they ARE in the first 12000.",
+  "of either file.",
   "If a tool result contains [hidden:<id> · recall_context], call",
-  "recall_context once with that id (default limit 12000, offset 0).",
-  "Do not recall the same id again unless the hidden marker returns.",
+  "recall_context for that id to recover the token.",
   "Quote both exact token values in the final answer.",
   "Do not write or delete files.",
 ].join(" ");
@@ -71,6 +70,13 @@ async function main(): Promise<void> {
   const tools: string[] = [];
   const recallOffsets: number[] = [];
   const recallIds: string[] = [];
+  const recallNeeds: Array<string | null> = [];
+  const recallModes: string[] = [];
+  const recallResultChars: number[] = [];
+  const pendingRecall = new Map<
+    string,
+    { offset: number; need: string | null }
+  >();
   let text = "";
 
   const provider = wrapUsage(
@@ -97,10 +103,27 @@ async function main(): Promise<void> {
       tools.push(event.name);
       if (event.name === "recall_context") {
         const off = event.args?.offset;
-        recallOffsets.push(typeof off === "number" ? off : 0);
+        const offset = typeof off === "number" ? off : 0;
+        recallOffsets.push(offset);
         const id = event.args?.id;
         if (typeof id === "string") recallIds.push(id);
+        const need = event.args?.need;
+        let needLabel: string | null = null;
+        if (need && typeof need === "object") {
+          const record = need as { kind?: unknown; query?: unknown };
+          needLabel = `${String(record.kind ?? "")}:${String(record.query ?? "")}`;
+        }
+        recallNeeds.push(needLabel);
+        pendingRecall.set(event.toolCallId, { offset, need: needLabel });
       }
+    }
+    if (event.type === "tool_end") {
+      const pending = pendingRecall.get(event.toolCallId);
+      if (!pending) return;
+      pendingRecall.delete(event.toolCallId);
+      recallResultChars.push(event.content.length);
+      const mode = /(?:^|\s)mode=(\w+)/.exec(event.content);
+      recallModes.push(mode?.[1] ?? "page");
     }
     if (event.type === "assistant_delta") text += event.text;
     if (event.type === "assistant_done" && event.text) {
@@ -134,6 +157,10 @@ async function main(): Promise<void> {
     toolCalls: counts,
     recallContextCount: counts.recall_context ?? 0,
     recallOffsets,
+    recallNeeds,
+    recallModes,
+    recallResultChars,
+    recallResultCharsTotal: recallResultChars.reduce((sum, n) => sum + n, 0),
     maxSameRecallId,
     oneRecallPass,
     inputTokens: acc.inputTokens,
