@@ -14,11 +14,13 @@ if (!cwd) {
   process.exit(2);
 }
 
-const recovery = process.env.HYBRID_EVAL_RECOVERY === "recall" ? "recall" : "rg";
+const recovery = process.env.HYBRID_EVAL_RECOVERY ?? "either";
 const recoveryLine =
   recovery === "recall"
     ? "If a tool result contains [hidden:<id> · recall_context], call recall_context for that id to recover the token."
-    : "If a tool result contains [hidden:<id> · recall_context · file=<path>], search that spilled file with rg -n -C 2 -F <NAME> <path>. Do not read_file the spilled file. Do not cat, sed, head, or tail it.";
+    : recovery === "rg"
+      ? "If a tool result contains [hidden:<id> · recall_context · file=<path>], search that spilled file with rg -n -C 2 -F <NAME> <path>. Do not read_file the spilled file. Do not cat, sed, head, or tail it."
+      : "If a tool result contains [hidden:<id> · recall_context], recover the token with either recall_context need={kind,query} or, when file= is present, rg -n -C 2 -F <NAME> <path>. Use one. Do not read_file the spilled file.";
 const prompt = [
   "Read SKILL.md with read_file, then read clean_disk.py with read_file,",
   "then run python3 clean_disk.py --dry-run, then ls -la, then pwd.",

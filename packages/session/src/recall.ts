@@ -52,9 +52,10 @@ export function createRecallTool(
     name: "recall_context",
     description: [
       "Retrieve one fact that was folded out of the model view.",
-      "Pass `id` from a `[hidden:<id> · recall_context · key=NAME@offset]` marker.",
+      "Pass `id` from a `[hidden:<id> · recall_context · file=<path> · key=NAME@offset]` marker.",
       "Pass `need` ({kind, query}) to return only the matching lines, not the whole text.",
       "kind is heading, key, symbol, error, or text. For a key, query is the name (TOKEN_SKILL), not its value.",
+      "When the marker has file=, you can instead search that file with rg. Use one, not both.",
       "Omit `need` to list the outline. Omit `id` to list hidden entries.",
       "Use offset/limit only to page the raw original.",
     ].join(" "),
@@ -191,9 +192,10 @@ export const RECALL_SYSTEM = [
   "Some older tool outputs may be folded for context budget.",
   "Folded spans look like …[hidden:<id> · recall_context · file=<path> · key=NAME@offset]…",
   "The marker names headings, keys, symbols, and errors, but not their values.",
-  "When file= is present, search that file with `rg -n -C 2 -F <NAME> <path>`. Do not read_file it.",
-  "Otherwise call recall_context with that id and need={kind, query}. For a key, query is the name, not the value.",
-  "A recalled span stays in the view. Do not search or recall the same id again unless the hidden marker comes back.",
+  "Choose one way to recover a fact.",
+  "recall_context with that id and need={kind, query} returns a short, capped window. For a key, query is the name, not the value.",
+  "When file= is present, `rg -n -C 2 -F <NAME> <path>` searches the spilled file. Use rg for a regex, a case-insensitive match, or every hit. Do not read_file that path.",
+  "Do not both recall and rg the same id. Do not repeat that search unless the hidden marker comes back.",
 ].join(" ");
 
 /**
