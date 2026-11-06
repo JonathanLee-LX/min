@@ -2,14 +2,12 @@
 # Live hybrid fold + recall check against DeepSeek.
 # Requires DEEPSEEK_API_KEY. Does not print the key.
 #
-# Default budget is tight so fat reads fold; needles sit past the fold head
-# so the model must recall_context to quote them.
+# Fat reads fold even at the 256k product default. Needles sit past the
+# 120-char fold head but inside the default 12k recall page, so one
+# offset-0 recall_context per hidden id is enough.
 #
 # 256k product-default comparison: set
 #   HYBRID_LIVE_EVAL_MAX_CONTEXT_TOKENS=256000
-# Needles are planted past the default 12k recall page (offset 20000 / 15000)
-# so one offset-0 recall cannot expose them. Eager hybrid must page;
-# restrained hybrid at 256k keeps the full bodies and needs no recall.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,14 +22,13 @@ mkdir -p "$OUT_DIR" "$WORKDIR"
 TOKEN_SKILL="min-eval-skill-7f3c"
 TOKEN_SCRIPT="min-eval-script-9a2b"
 
-python3 - "$WORKDIR" "$TOKEN_SKILL" "$TOKEN_SCRIPT" "$MAX_CONTEXT" <<'PY'
+python3 - "$WORKDIR" "$TOKEN_SKILL" "$TOKEN_SCRIPT" <<'PY'
 import pathlib, sys
 root = pathlib.Path(sys.argv[1])
 token_skill, token_script = sys.argv[2], sys.argv[3]
-max_context = int(sys.argv[4])
-# 256k: past default 12k recall page. Tight budgets: past 120-char fold head.
-needle_at_skill = 20_000 if max_context >= 256_000 else 5_000
-needle_at_script = 15_000 if max_context >= 256_000 else 5_000
+# Past the 120-char fold head, inside the default 12k recall page.
+needle_at_skill = 5_000
+needle_at_script = 5_000
 
 def grow_then_plant(header: str, needle: str, size: int, pad: str, at: int) -> str:
     body = header
@@ -79,17 +76,14 @@ script = grow_then_plant(
     needle_at_script,
 )
 (root / "clean_disk.py").write_text(script)
-head_window = 12_000 if max_context >= 256_000 else 120
-assert token_skill not in skill[:head_window] and token_skill not in skill[-120:]
-assert token_script not in script[:head_window] and token_script not in script[-120:]
+assert token_skill not in skill[:120] and token_skill not in skill[-120:]
+assert token_script not in script[:120] and token_script not in script[-120:]
+assert token_skill in skill[:12_000]
+assert token_script in script[:12_000]
 print(f"wrote {len(skill)} {len(script)} needle_skill={needle_at_skill} needle_script={needle_at_script}")
 PY
 
-if [ "$MAX_CONTEXT" -ge 256000 ]; then
-  PROMPT="Read SKILL.md with read_file, then read clean_disk.py with read_file, then run python3 clean_disk.py --dry-run, then ls -la, then pwd. Do not cat, sed, head, or tail those two files via bash. TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first 12000 characters of either file. recall_context default limit is 12000 from offset 0; if a page does not contain the token, call recall_context again with the same id and offset=12000. Quote both token values in the final answer. Do not write or delete files."
-else
-  PROMPT="Read SKILL.md with read_file, then read clean_disk.py with read_file, then run python3 clean_disk.py --dry-run, then ls -la, then pwd. Do not cat, sed, head, or tail those two files via bash. Each file has a unique token in the middle of its body. If a tool result contains [hidden:<id> · recall_context], call recall_context with that id to recover the original. Quote both token values in the final answer. Do not write or delete files."
-fi
+PROMPT="Read SKILL.md with read_file, then read clean_disk.py with read_file, then run python3 clean_disk.py --dry-run, then ls -la, then pwd. Do not cat, sed, head, or tail those two files via bash. TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first or last 120 characters of either file; they ARE in the first 12000. If a tool result contains [hidden:<id> · recall_context], call recall_context once with that id (default limit 12000, offset 0). Do not recall the same id again unless the hidden marker returns. Quote both token values in the final answer. Do not write or delete files."
 
 export MIN_REASONING_EFFORT="${MIN_REASONING_EFFORT:-none}"
 export MIN_AUTO=1
@@ -146,20 +140,16 @@ id_counts = Counter(id_hits)
 max_id_repeats = max(id_counts.values()) if id_counts else 0
 recall_n = counts.get("recall_context", 0)
 quoted = has_skill and has_script and counts.get("read_file", 0) >= 2
-if max_context >= 256000:
-    # Deep needle past the default 12k page: restrained hybrid quotes
-    # with 0 recall; eager hybrid must page (offset 0 then 12000).
-    ok_path = recall_n == 0 or recall_n >= 2
-else:
-    ok_path = (
-        (max(folded, default=0) == 0 and recall_n == 0)
-        or (
-            (max(folded, default=0) > 0 or hidden > 0)
-            and recall_n >= 1
-            and max_id_repeats <= 2
-        )
-    )
+paged = any(off != 0 for off in recall_offsets)
+# Fold hid the needle; one offset-0 recall per id recovers it.
+ok_path = (
+    (max(folded, default=0) > 0 or hidden > 0)
+    and recall_n >= 1
+    and max_id_repeats <= 1
+    and not paged
+)
 payload = {
+    "maxContextTokens": max_context,
     "exitCode": int(status),
     "toolCalls": dict(counts),
     "toolCallTotal": len(tools),

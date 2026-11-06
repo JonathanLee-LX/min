@@ -15,13 +15,14 @@ import { createContextStash, parseHiddenIds } from "./stash.js";
 import { estimateMessagesTokens } from "./tokens.js";
 
 /**
- * Product hybrid is restrained: fold/age only when the view exceeds the
- * token budget. Keep `false` only to lock the old eager 900-char scoreboard.
+ * Product hybrid folds fat bodies even under the 256k default, then keeps
+ * a recalled page usable. Keep `false` only to lock the old scoreboard
+ * (eager fold + aging the recall page out of last-2).
  *
  * Mapped from ses_mw4bvjcw: one user turn, roomy budget, fat skill read,
- * then recall, then two small tools that hide the recall page.
+ * then recall, then two small tools that must not hide the recall page.
  */
-const RESTRAINED_HYBRID = true;
+const FOLD_AND_KEEP_RECALL = true;
 
 /** Sizes from that session's real tool_results (chars). */
 const SKILL_MD = "S".repeat(45_252);
@@ -48,12 +49,14 @@ const CURRENT_HYBRID: Omit<EfficiencyScoreboard, "strategy" | "underBudget"> = {
   middleFatVisibleUnderBudget: false,
 };
 
-const RESTRAINED_TARGET: Omit<EfficiencyScoreboard, "strategy" | "underBudget"> =
-  {
-    skillVisibleAfterThirdTool: true,
-    recallVisibleAfterTwoSmallTools: true,
-    middleFatVisibleUnderBudget: true,
-  };
+const FOLD_AND_RECALL_TARGET: Omit<
+  EfficiencyScoreboard,
+  "strategy" | "underBudget"
+> = {
+  skillVisibleAfterThirdTool: false,
+  recallVisibleAfterTwoSmallTools: true,
+  middleFatVisibleUnderBudget: false,
+};
 
 function toolBody(messages: Message[], callId: string): string | undefined {
   for (const message of messages) {
@@ -168,9 +171,11 @@ describe("hybrid efficiency eval (disk-cleaner-like loop)", () => {
     expect(score.estimatedTokens).toBeLessThan(score.messageBudget);
   });
 
-  it("scoreboard vs current hybrid / restrained target", () => {
+  it("scoreboard vs current hybrid / fold-and-keep-recall target", () => {
     const score = scoreDiskCleanerLike();
-    const expected = RESTRAINED_HYBRID ? RESTRAINED_TARGET : CURRENT_HYBRID;
+    const expected = FOLD_AND_KEEP_RECALL
+      ? FOLD_AND_RECALL_TARGET
+      : CURRENT_HYBRID;
     expect({
       skillVisibleAfterThirdTool: score.skillVisibleAfterThirdTool,
       recallVisibleAfterTwoSmallTools: score.recallVisibleAfterTwoSmallTools,
@@ -266,6 +271,16 @@ describe("hybrid fold + recall (over budget)", () => {
     expect(isFull(afterSmall.view, "skill", skillWithNeedle)).toBe(false);
   });
 
+  it("same fold + one-recall contract at the 256k product default", async () => {
+    const { folded, justRecalled, afterSmall } =
+      await foldThenRecallThenTwoSmall(DEFAULT_MAX_CONTEXT_TOKENS);
+    expect(folded.foldedParts ?? 0).toBeGreaterThan(0);
+    expect(toolBody(justRecalled.view, "recall")).toContain(NEEDLE);
+    const recalled = toolBody(afterSmall.view, "recall") ?? "";
+    expect(recalled).toContain(NEEDLE);
+    expect(parseHiddenIds(recalled)).toHaveLength(0);
+  });
+
   it("still emergency-folds a recall page when even that page cannot fit", async () => {
     const { afterSmall, hiddenIds } = await foldThenRecallThenTwoSmall(2_000);
     const recalled = toolBody(afterSmall.view, "recall") ?? "";
@@ -279,38 +294,40 @@ describe("hybrid fold + recall (over budget)", () => {
 });
 
 /**
- * 256k product-default case: the needle sits past the default 12k recall
- * page. Eager hybrid (fold at 900, protect-last-2) therefore cannot expose
- * it with a single offset-0 recall; restrained hybrid at 256k never folds
- * the 45k body, so the needle stays in the view with no recall.
+ * 256k product-default case: fold still hides the needle (past the 120-char
+ * head), but the needle sits inside the default 12k recall page, so one
+ * offset-0 recall is enough. The recalled page stays after later small tools.
  */
-describe("256k deep needle (default recall page misses)", () => {
-  const NEEDLE = "NEEDLE_DEEP_7f3c";
-  const NEEDLE_AT = 20_000;
-  const deepSkill =
+describe("256k fold + one recall (default page hits)", () => {
+  const NEEDLE = "NEEDLE_SKILL_7f3c";
+  const NEEDLE_AT = 5_000;
+  const skillWithNeedle =
     "H".repeat(NEEDLE_AT) + NEEDLE + "T".repeat(45_252 - NEEDLE_AT - NEEDLE.length);
 
-  it("restrained hybrid at 256k keeps the needle after five in-turn tools", () => {
+  it("folds the fat skill at 256k so the needle leaves the view", () => {
     let messages: Message[] = [userMessage("follow the skill")];
-    messages = plus(messages, "skill", "read_file", deepSkill);
+    messages = plus(messages, "skill", "read_file", skillWithNeedle);
     messages = plus(messages, "script", "read_file", CLEAN_PY);
     messages = plus(messages, "dry", "bash", DRY_RUN);
     messages = plus(messages, "ls", "bash", "total 2");
     messages = plus(messages, "pwd", "bash", "/tmp");
     const { result } = assemble(messages, DEFAULT_MAX_CONTEXT_TOKENS);
-    expect(result.foldedParts ?? 0).toBe(0);
-    expect(toolBody(result.view, "skill")).toContain(NEEDLE);
+    expect(result.foldedParts ?? 0).toBeGreaterThan(0);
+    expect(toolBody(result.view, "skill")).not.toContain(NEEDLE);
+    expect(parseHiddenIds(toolBody(result.view, "skill") ?? "").length).toBeGreaterThan(
+      0,
+    );
   });
 
-  it("default 12k recall of a folded body misses; offset 12000 hits", async () => {
+  it("one default 12k recall of the folded body contains the needle", async () => {
     const stash = createContextStash();
     let messages: Message[] = [userMessage("follow the skill")];
-    messages = plus(messages, "skill", "read_file", deepSkill);
+    messages = plus(messages, "skill", "read_file", skillWithNeedle);
     messages = plus(messages, "script", "read_file", CLEAN_PY);
     messages = plus(messages, "dry", "bash", DRY_RUN);
     const folded = assembleHybridContext({
       messages,
-      budget: { maxContextTokens: 8_000, stash },
+      budget: { maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS, stash },
     });
     const ids = parseHiddenIds(toolBody(folded.view, "skill") ?? "");
     expect(ids.length).toBeGreaterThan(0);
@@ -319,11 +336,7 @@ describe("256k deep needle (default recall page misses)", () => {
     const recallTool = createRecallTool(stash);
     const page0 = await recallTool.execute({ id: ids[0] }, {});
     expect(page0.isError).toBeFalsy();
-    expect(page0.content).not.toContain(NEEDLE);
-
-    const page1 = await recallTool.execute({ id: ids[0], offset: 12_000 }, {});
-    expect(page1.isError).toBeFalsy();
-    expect(page1.content).toContain(NEEDLE);
+    expect(page0.content).toContain(NEEDLE);
   });
 });
 
@@ -368,16 +381,17 @@ describe("hybrid efficiency timeline (under default budget)", () => {
     messages = plus(messages, "grep", "bash", GREP);
     snap("grep");
 
-    expect(timeline[0]?.skillFull).toBe(true);
-    expect(timeline[1]?.skillFull).toBe(true);
-
-    if (RESTRAINED_HYBRID) {
-      expect(timeline.every((row) => row.skillFull)).toBe(true);
+    if (FOLD_AND_KEEP_RECALL) {
+      // Default protectRecent=0: the first fat read already folds. Recall
+      // stays after two more small tools because recall_context is protected.
+      expect(timeline.every((row) => !row.skillFull)).toBe(true);
       expect(
         timeline.filter((row) => row.recallFull !== null).every((row) => row.recallFull),
       ).toBe(true);
-      expect(timeline.at(-1)?.hidden).toBe(0);
     } else {
+      expect(timeline[0]?.skillFull).toBe(true);
+      expect(timeline[1]?.skillFull).toBe(true);
+
       // Eager intra-turn aging: the 3rd result pushes SKILL.md out of the
       // last-2 window. Two small tools after recall hide the recall page.
       expect(timeline[2]?.skillFull).toBe(false);

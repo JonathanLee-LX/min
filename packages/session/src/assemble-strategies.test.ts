@@ -217,7 +217,7 @@ describe("assembleHybridContext", () => {
     expect(lengths[2]!).toBe(blob.length);
   });
 
-  it("does not age the active turn while the view still fits", () => {
+  it("folds every oversized tool_result under a 256k budget", () => {
     const stash = createContextStash();
     const blob = "Q".repeat(6_000);
     const messages = [
@@ -233,14 +233,16 @@ describe("assembleHybridContext", () => {
       messages,
       budget: { maxContextTokens: 256_000, stash },
     });
-    expect(result.foldedParts ?? 0).toBe(0);
-    expect(stash.size).toBe(0);
+    expect(result.foldedParts ?? 0).toBeGreaterThan(0);
+    expect(stash.size).toBeGreaterThan(0);
     const viewTools = result.view.filter((m) => m.role === "tool");
     expect(viewTools).toHaveLength(3);
     for (const message of viewTools) {
       const part = message.content[0];
       expect(part?.type).toBe("tool_result");
-      if (part?.type === "tool_result") expect(part.content).toBe(blob);
+      if (part?.type === "tool_result") {
+        expect(part.content.length).toBeLessThan(blob.length);
+      }
     }
   });
 });

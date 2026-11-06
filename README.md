@@ -267,7 +267,7 @@ Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, 
 
 | Strategy | How to enable | Behavior |
 |----------|---------------|----------|
-| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + **budget-triggered** middle offload and intra-turn aging (fold only when the view exceeds the token budget; keep last N verbatim in the active turn) + middle collapse; + `recall_context`. Recalled pages stay in the view until a last-resort fold. |
+| **`hybrid`** (default w/ tools) | default when tools on | Sticky head + middle offload and intra-turn aging (fold oversized `tool_result`s even under the 256k default) + budget-gated middle collapse; + `recall_context`. Recalled pages stay in the view until a last-resort fold, so one default 12k page is enough when the needle sits past the fold head. |
 | **`trim`** (default w/o tools) | `--no-tools` / `contextStrategy: "trim"` | Drop oldest user-turns under budget. Eval baseline. |
 | **`sticky-trim`** | `contextStrategy: "sticky-trim"` | Freeze leading turns; only trim after them (cache-friendlier). |
 | **`tool-offload`** | `contextStrategy: "tool-offload"` | Fold large `tool_result`s into stash (protect last turn); + `recall_context`. |

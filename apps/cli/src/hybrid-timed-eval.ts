@@ -16,10 +16,11 @@ const prompt = [
   "Read SKILL.md with read_file, then read clean_disk.py with read_file,",
   "then run python3 clean_disk.py --dry-run, then ls -la, then pwd.",
   "Do not cat, sed, head, or tail those two files via bash.",
-  "TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first 12000 characters of either file.",
-  "recall_context default limit is 12000 from offset 0.",
-  "If a recalled page does not contain the token, call recall_context again",
-  "with the same id and offset=12000.",
+  "TOKEN_SKILL and TOKEN_SCRIPT are NOT in the first or last 120 characters",
+  "of either file; they ARE in the first 12000.",
+  "If a tool result contains [hidden:<id> · recall_context], call",
+  "recall_context once with that id (default limit 12000, offset 0).",
+  "Do not recall the same id again unless the hidden marker returns.",
   "Quote both exact token values in the final answer.",
   "Do not write or delete files.",
 ].join(" ");
@@ -69,6 +70,7 @@ async function main(): Promise<void> {
   const acc: Acc = { inputTokens: 0, outputTokens: 0, modelCalls: 0 };
   const tools: string[] = [];
   const recallOffsets: number[] = [];
+  const recallIds: string[] = [];
   let text = "";
 
   const provider = wrapUsage(
@@ -96,6 +98,8 @@ async function main(): Promise<void> {
       if (event.name === "recall_context") {
         const off = event.args?.offset;
         recallOffsets.push(typeof off === "number" ? off : 0);
+        const id = event.args?.id;
+        if (typeof id === "string") recallIds.push(id);
       }
     }
     if (event.type === "assistant_delta") text += event.text;
@@ -114,6 +118,15 @@ async function main(): Promise<void> {
 
   const quotedSkillToken = text.includes(tokenSkill);
   const quotedScriptToken = text.includes(tokenScript);
+  const idCounts: Record<string, number> = {};
+  for (const id of recallIds) idCounts[id] = (idCounts[id] ?? 0) + 1;
+  const maxSameRecallId = Object.values(idCounts).reduce((a, b) => Math.max(a, b), 0);
+  const oneRecallPass =
+    quotedSkillToken &&
+    quotedScriptToken &&
+    (counts.recall_context ?? 0) >= 1 &&
+    recallOffsets.every((off) => off === 0) &&
+    maxSameRecallId <= 1;
   const payload = {
     elapsedMs,
     modelCalls: acc.modelCalls,
@@ -121,6 +134,8 @@ async function main(): Promise<void> {
     toolCalls: counts,
     recallContextCount: counts.recall_context ?? 0,
     recallOffsets,
+    maxSameRecallId,
+    oneRecallPass,
     inputTokens: acc.inputTokens,
     outputTokens: acc.outputTokens,
     costUsdPeak: Number(costUsd(acc.inputTokens, acc.outputTokens, true).toFixed(6)),

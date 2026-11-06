@@ -22,12 +22,13 @@ export interface HybridAssembleOptions {
   /**
    * Inside the active turn (sole sticky turn, or protected tail), keep the
    * last N `tool_result` messages verbatim and fold older oversized ones.
-   * Only runs when the view is over the token budget. Default: 2.
-   * Pass `0` to fold every tool_result in that span once aging starts.
+   * Default: 0 (fold every oversized body, including the most recent).
+   * Fat reads then compress even under the 256k default; `recall_context`
+   * recovers a hidden span. Pass a positive N to keep the last N full.
    */
   protectRecentToolResults?: number;
   /**
-   * Fold knobs used **after** the view exceeds the token budget.
+   * Fold knobs for middle offload and intra-turn aging (always on).
    * Smaller than plain tool-offload so overflow still offloads tightly.
    */
   fold?: ContextFoldOptions | false;
@@ -36,16 +37,16 @@ export interface HybridAssembleOptions {
 /**
  * Hybrid strategy:
  * 1. Freeze sticky head (prefix-cache)
- * 2. Keep middle + active-turn tool bodies verbatim while they fit the budget
- * 3. If over budget, fold oversized middle tool_results into stash
- * 4. If still over, drop oldest middle turns
- * 5. If still over, age older tool_results in the active turn (keep last N;
+ * 2. Fold oversized middle tool_results into stash (even under budget)
+ * 3. If over budget, drop oldest middle turns
+ * 4. Age tool_results in the active turn (default: every oversized body;
  *    `recall_context` results are not aged)
- * 6. If still over, emergency-fold after sticky (recall pages last)
+ * 5. If still over, emergency-fold after sticky (recall pages last)
  *
- * Folding compresses; `recall_context` brings a hidden span back. Recalled
- * pages stay verbatim until a true last-resort fold, so the model can use
- * the details it just asked for.
+ * Folding compresses; one default `recall_context` page (12k from offset 0)
+ * should expose a needle that sits past the 120-char fold head. Recalled
+ * pages stay verbatim until a true last-resort fold, so a second recall of
+ * the same id is not required.
  */
 export function assembleHybridContext(
   input: AssembleInput,
@@ -62,7 +63,7 @@ export function assembleHybridContext(
 
   const stickyN = Math.max(0, opts.stickyTurns ?? 1);
   const protectTail = Math.max(0, opts.protectTailTurns ?? 1);
-  const protectRecent = Math.max(0, opts.protectRecentToolResults ?? 2);
+  const protectRecent = Math.max(0, opts.protectRecentToolResults ?? 0);
   const foldOpts =
     opts.fold === false
       ? false
@@ -108,8 +109,9 @@ export function assembleHybridContext(
 
   let view = [...viewSticky, ...viewMiddle, ...viewTail];
 
-  // Prefer shrinking middle tool bodies over dropping turns.
-  if (!fits(view) && foldOpts && viewMiddle.length > 0) {
+  // Always shrink oversized middle tool bodies, including under the 256k
+  // default. Collapse of whole turns stays budget-gated.
+  if (foldOpts && viewMiddle.length > 0) {
     const folded = foldMessagesForView(view, {
       fold: foldOpts,
       stash: input.budget.stash,
@@ -143,10 +145,12 @@ export function assembleHybridContext(
   viewMiddle = middleTurns.flat();
   view = [...viewSticky, ...viewMiddle, ...viewTail];
 
-  // Intra-turn aging only when still over budget.
+  // Intra-turn aging even under budget so a 256k single-turn loop still
+  // compresses fat bodies. Default protectRecent=0 folds every oversized
+  // result, including the most recent; recall_context pages are skipped.
   // - Single user-turn (no middle/tail): age inside sticky.
   // - Multi-turn: age inside protected tail (where the tool loop grows).
-  if (!fits(view) && foldOpts) {
+  if (foldOpts) {
     const ageStart =
       middle.length === 0 && tailCount === 0
         ? 0
@@ -233,6 +237,7 @@ export function assembleHybridContext(
 /**
  * Fold oversized tool_results in [start, end) except the last
  * `protectRecent` tool_result-bearing messages (kept verbatim).
+ * `protectRecent === 0` folds the whole span.
  */
 export function ageOlderToolResults(
   messages: Message[],

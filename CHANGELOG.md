@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Hybrid context projection folds only when the model view exceeds the token budget. Oversized bodies go into stash; `recall_context` brings a page back and that page stays in the view (including after later small tools). A last-resort shrink of a recall page does not mint a nested `hidden:` id, so the original stash entry remains the one to recall.
+- Hybrid context projection folds oversized `tool_result`s even under the 256k default (middle offload + intra-turn aging of every oversized body). `recall_context` brings a 12k page back and that page stays in the view (including after later small tools), so one offset-0 recall is enough when the needle sits past the 120-char fold head. A last-resort shrink of a recall page does not mint a nested `hidden:` id, so the original stash entry remains the one to recall. Turn collapse and emergency fold still wait until the view exceeds the token budget.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
 ## 0.1.0-alpha.8
