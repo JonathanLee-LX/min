@@ -1,0 +1,260 @@
+import {
+  assistantMessage,
+  textPart,
+  toolCallPart,
+  toolMessage,
+  toolResultPart,
+  userMessage,
+  type Message,
+} from "@min-agent/core";
+import { describe, expect, it } from "vitest";
+import { assembleHybridContext } from "./assemble-hybrid.js";
+import { DEFAULT_MAX_CONTEXT_TOKENS } from "./defaults.js";
+import { createContextStash, parseHiddenIds } from "./stash.js";
+import { estimateMessagesTokens } from "./tokens.js";
+
+/**
+ * Flip to `true` when hybrid only folds under token budget and does not age
+ * the active turn while the view still fits. Until then this file locks the
+ * current (eager 900-char / protect-last-2) scoreboard so the delta is a
+ * test change, not a guess.
+ *
+ * Mapped from ses_mw4bvjcw: one user turn, roomy budget, fat skill read,
+ * then recall, then two small tools that hide the recall page.
+ */
+const RESTRAINED_HYBRID = false;
+
+/** Sizes from that session's real tool_results (chars). */
+const SKILL_MD = "S".repeat(45_252);
+const CLEAN_PY = "P".repeat(24_861);
+const DRY_RUN = "D".repeat(457);
+const RECALL_PAGE = "R".repeat(12_000);
+const ANALYZE = "A".repeat(1_337);
+const GREP = "G".repeat(3_781);
+
+type EfficiencyScoreboard = {
+  strategy: "hybrid";
+  underBudget: boolean;
+  /** First fat body still equal to the original after the 3rd in-turn result. */
+  skillVisibleAfterThirdTool: boolean;
+  /** Simulated recall page still full after two more small tools. */
+  recallVisibleAfterTwoSmallTools: boolean;
+  /** Middle-turn 10k body still full under a roomy budget. */
+  middleFatVisibleUnderBudget: boolean;
+};
+
+const CURRENT_HYBRID: Omit<EfficiencyScoreboard, "strategy" | "underBudget"> = {
+  skillVisibleAfterThirdTool: false,
+  recallVisibleAfterTwoSmallTools: false,
+  middleFatVisibleUnderBudget: false,
+};
+
+const RESTRAINED_TARGET: Omit<EfficiencyScoreboard, "strategy" | "underBudget"> =
+  {
+    skillVisibleAfterThirdTool: true,
+    recallVisibleAfterTwoSmallTools: true,
+    middleFatVisibleUnderBudget: true,
+  };
+
+function toolBody(messages: Message[], callId: string): string | undefined {
+  for (const message of messages) {
+    for (const part of message.content) {
+      if (part.type === "tool_result" && part.toolCallId === callId) {
+        return part.content;
+      }
+    }
+  }
+}
+
+function isFull(messages: Message[], callId: string, original: string): boolean {
+  const body = toolBody(messages, callId);
+  return body === original && parseHiddenIds(body ?? "").length === 0;
+}
+
+function hiddenCount(messages: Message[]): number {
+  let n = 0;
+  for (const message of messages) {
+    for (const part of message.content) {
+      if (part.type === "tool_result") n += parseHiddenIds(part.content).length;
+    }
+  }
+  return n;
+}
+
+function plus(
+  messages: Message[],
+  callId: string,
+  tool: string,
+  body: string,
+): Message[] {
+  return [
+    ...messages,
+    assistantMessage([toolCallPart(callId, tool, { id: callId })]),
+    toolMessage([toolResultPart(callId, body)]),
+  ];
+}
+
+function assemble(messages: Message[], maxContextTokens: number) {
+  const stash = createContextStash();
+  const result = assembleHybridContext({
+    messages,
+    budget: { maxContextTokens, stash },
+  });
+  return { result, stash };
+}
+
+/**
+ * Single-turn loop shaped like the disk-cleaner session:
+ * read skill → read script → dry-run → recall skill → analyze → grep.
+ */
+function diskCleanerLikeMessages(): Message[] {
+  let messages: Message[] = [userMessage("find disk-cleaner skill and follow it")];
+  messages = plus(messages, "skill", "read_file", SKILL_MD);
+  messages = plus(messages, "script", "read_file", CLEAN_PY);
+  messages = plus(messages, "dry", "bash", DRY_RUN);
+  messages = plus(messages, "recall", "recall_context", RECALL_PAGE);
+  messages = plus(messages, "analyze", "bash", ANALYZE);
+  messages = plus(messages, "grep", "bash", GREP);
+  return messages;
+}
+
+function scoreDiskCleanerLike(): EfficiencyScoreboard & {
+  estimatedTokens: number;
+  messageBudget: number;
+  foldedParts: number;
+  hiddenMarkers: number;
+} {
+  const full = diskCleanerLikeMessages();
+  const afterThird = full.slice(0, 1 + 3 * 2);
+  const afterRecallPlusTwo = full;
+
+  const third = assemble(afterThird, DEFAULT_MAX_CONTEXT_TOKENS);
+  const end = assemble(afterRecallPlusTwo, DEFAULT_MAX_CONTEXT_TOKENS);
+
+  const middleBlob = "M".repeat(10_000);
+  const middleMessages: Message[] = [
+    userMessage("sticky constraint"),
+    assistantMessage([textPart("ok")]),
+    userMessage("middle work"),
+    assistantMessage([toolCallPart("mid", "bash", { command: "scan" })]),
+    toolMessage([toolResultPart("mid", middleBlob)]),
+    userMessage("tail"),
+    assistantMessage([textPart("done")]),
+  ];
+  const middle = assemble(middleMessages, DEFAULT_MAX_CONTEXT_TOKENS);
+
+  return {
+    strategy: "hybrid",
+    underBudget: end.result.estimatedTokens <= end.result.messageBudget,
+    skillVisibleAfterThirdTool: isFull(third.result.view, "skill", SKILL_MD),
+    recallVisibleAfterTwoSmallTools: isFull(
+      end.result.view,
+      "recall",
+      RECALL_PAGE,
+    ),
+    middleFatVisibleUnderBudget: isFull(middle.result.view, "mid", middleBlob),
+    estimatedTokens: end.result.estimatedTokens,
+    messageBudget: end.result.messageBudget,
+    foldedParts: end.result.foldedParts ?? 0,
+    hiddenMarkers: hiddenCount(end.result.view),
+  };
+}
+
+describe("hybrid efficiency eval (disk-cleaner-like loop)", () => {
+  it("keeps strategy=hybrid and stays under the default token budget", () => {
+    const score = scoreDiskCleanerLike();
+    expect(score.strategy).toBe("hybrid");
+    expect(score.underBudget).toBe(true);
+    expect(score.messageBudget).toBeGreaterThan(100_000);
+    expect(score.estimatedTokens).toBeLessThan(score.messageBudget);
+  });
+
+  it("scoreboard vs current hybrid / restrained target", () => {
+    const score = scoreDiskCleanerLike();
+    const expected = RESTRAINED_HYBRID ? RESTRAINED_TARGET : CURRENT_HYBRID;
+    expect({
+      skillVisibleAfterThirdTool: score.skillVisibleAfterThirdTool,
+      recallVisibleAfterTwoSmallTools: score.recallVisibleAfterTwoSmallTools,
+      middleFatVisibleUnderBudget: score.middleFatVisibleUnderBudget,
+    }).toEqual(expected);
+  });
+
+  it("canonical history still holds the full skill body", () => {
+    const messages = diskCleanerLikeMessages();
+    const { result } = assemble(messages, DEFAULT_MAX_CONTEXT_TOKENS);
+    expect(result.kept).toBe(messages);
+    expect(toolBody(result.kept ?? [], "skill")).toBe(SKILL_MD);
+  });
+
+  it("still folds and stashes when the loop is over token budget", () => {
+    const messages = diskCleanerLikeMessages();
+    const { result, stash } = assemble(messages, 2_000);
+    expect(result.strategy).toBe("hybrid");
+    expect(estimateMessagesTokens(messages)).toBeGreaterThan(result.messageBudget);
+    expect(result.foldedParts ?? 0).toBeGreaterThan(0);
+    expect(stash.size).toBeGreaterThan(0);
+    expect(hiddenCount(result.view)).toBeGreaterThan(0);
+    expect(isFull(result.view, "skill", SKILL_MD)).toBe(false);
+  });
+});
+
+describe("hybrid efficiency timeline (under default budget)", () => {
+  it("records when the skill body and recall page disappear from the view", () => {
+    const stash = createContextStash();
+    let messages: Message[] = [userMessage("find disk-cleaner skill and follow it")];
+    const timeline: Array<{
+      step: string;
+      skillFull: boolean;
+      recallFull: boolean | null;
+      hidden: number;
+      foldedParts: number;
+    }> = [];
+
+    const snap = (step: string) => {
+      const result = assembleHybridContext({
+        messages,
+        budget: { maxContextTokens: DEFAULT_MAX_CONTEXT_TOKENS, stash },
+      });
+      timeline.push({
+        step,
+        skillFull: isFull(result.view, "skill", SKILL_MD),
+        recallFull: toolBody(result.view, "recall")
+          ? isFull(result.view, "recall", RECALL_PAGE)
+          : null,
+        hidden: hiddenCount(result.view),
+        foldedParts: result.foldedParts ?? 0,
+      });
+    };
+
+    messages = plus(messages, "skill", "read_file", SKILL_MD);
+    snap("read SKILL.md");
+    messages = plus(messages, "script", "read_file", CLEAN_PY);
+    snap("read clean_disk.py");
+    messages = plus(messages, "dry", "bash", DRY_RUN);
+    snap("dry-run JSON");
+    messages = plus(messages, "recall", "recall_context", RECALL_PAGE);
+    snap("recall SKILL.md page");
+    messages = plus(messages, "analyze", "bash", ANALYZE);
+    snap("analyze");
+    messages = plus(messages, "grep", "bash", GREP);
+    snap("grep");
+
+    expect(timeline[0]?.skillFull).toBe(true);
+    expect(timeline[1]?.skillFull).toBe(true);
+
+    if (RESTRAINED_HYBRID) {
+      expect(timeline.every((row) => row.skillFull)).toBe(true);
+      expect(
+        timeline.filter((row) => row.recallFull !== null).every((row) => row.recallFull),
+      ).toBe(true);
+      expect(timeline.at(-1)?.hidden).toBe(0);
+    } else {
+      // Eager intra-turn aging: the 3rd result pushes SKILL.md out of the
+      // last-2 window. Two small tools after recall hide the recall page.
+      expect(timeline[2]?.skillFull).toBe(false);
+      expect(timeline[3]?.recallFull).toBe(true);
+      expect(timeline[5]?.recallFull).toBe(false);
+      expect(timeline[5]?.hidden).toBeGreaterThan(0);
+    }
+  });
+});
