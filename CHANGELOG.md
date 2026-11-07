@@ -4,6 +4,16 @@
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
+## 0.1.0-alpha.10
+
+Web UI matches the terminal and fits a phone.
+
+- The browser has the same slash commands as the TUI: `/resume`, `/model` (with a thinking-intensity step when the model accepts it), `/effort`, `/context`, `/compact`, `/name`, `/queue`, `/dense`, and the rest of the command list.
+- Sessions, the model list, collapsed tool output and thinking, the permission prompt, and the footer (directory, git branch, model, context usage) are on the page.
+- Wide windows keep the session list in a sidebar. Narrow windows use sheets. On a phone, Return inserts a newline and Send submits. Closed mermaid fences render as diagrams.
+
+Install: `npm install -g @min-agent/min@alpha`
+
 ## 0.1.0-alpha.9
 
 Hybrid context folds oversized tool output, and the model can search it.
