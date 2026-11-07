@@ -5,6 +5,8 @@ import {
   type SpanTone,
   type TableAlign,
 } from "@min-agent/render";
+import { MermaidBlock } from "@/components/MermaidBlock";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 export function MarkdownView({
@@ -18,7 +20,7 @@ export function MarkdownView({
 }) {
   const blocks = renderContent({ role: "assistant", text, streaming });
   return (
-    <div className={cn("space-y-2 text-sm leading-relaxed", className)}>
+    <div className={cn("flex flex-col gap-2 text-sm leading-relaxed", className)}>
       {blocks.map((block, index) => (
         <BlockView key={`${block.kind}-${index}`} block={block} />
       ))}
@@ -63,15 +65,19 @@ function BlockView({ block }: { block: RenderBlock }) {
       );
     case "list":
       return (
-        <ul className="space-y-1">
+        <ul className="flex flex-col gap-1">
           {block.lines.map((line, i) => (
-            <li key={i} className="whitespace-pre-wrap font-mono text-[0.95em]">
+            <li key={i} className="whitespace-pre-wrap">
               <Spans spans={line} />
             </li>
           ))}
         </ul>
       );
-    case "code":
+    case "code": {
+      const source = block.lines.map((line) => line.map((span) => span.text).join("")).join("\n");
+      if (block.lang?.toLowerCase() === "mermaid" && block.closed) {
+        return <MermaidBlock source={source} />;
+      }
       return (
         <pre className="overflow-x-auto rounded-md bg-muted/80 p-3 font-mono text-xs">
           {block.lang ? (
@@ -79,13 +85,12 @@ function BlockView({ block }: { block: RenderBlock }) {
               {block.lang}
             </div>
           ) : null}
-          <code>
-            {block.lines.map((line) => line.map((span) => span.text).join("")).join("\n")}
-          </code>
+          <code>{source}</code>
         </pre>
       );
+    }
     case "rule":
-      return <hr className="border-border" />;
+      return <Separator />;
     case "table":
       return <TableView cells={block.cells ?? []} aligns={block.aligns} />;
     default:

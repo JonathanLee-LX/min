@@ -49,5 +49,11 @@ pnpm --filter=@min-agent/webui start   # serves API + dist/web on MIN_WEB_PORT
 
 ## UI notes
 
-Chat layout mirrors TUI: brand **min**, user bubbles (primary), assistant
-(secondary), muted tool lines, permission bar. Intentionally minimal — iterate later.
+The page is a shadcn-style shell (sidebar, dialogs, sheets, status line) and follows the terminal experience:
+
+- User turns use a mint bar. Assistant text is Markdown from `@min-agent/render`, including tables and closed `mermaid` fences.
+- Tool output and thinking start collapsed. Tap a row, or use the command sheet, to expand them.
+- Slash commands match the terminal: `/resume`, `/model` (with a thinking-intensity step when the model supports it), `/effort`, `/context`, `/compact`, `/name`, `/queue`, `/dense`, and the rest of the command list.
+- While a run is in progress the line under the transcript says Thinking, Tool calling, or Working. Enter queues a follow-up. Esc or Stop aborts.
+- The footer shows the working directory, git branch, model, thinking intensity, and context usage.
+- Below the `md` breakpoint the session list becomes a sheet. On a phone, Return inserts a newline and Send submits. Safe-area padding keeps the composer above the home indicator.

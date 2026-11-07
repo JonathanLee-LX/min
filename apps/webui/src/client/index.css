@@ -2,38 +2,65 @@
 
 @theme {
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --color-background: oklch(0.99 0.005 95);
-  --color-foreground: oklch(0.22 0.02 260);
+  --font-mono: ui-monospace, "SFMono-Regular", menlo, monospace;
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0 0);
   --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.22 0.02 260);
-  --color-primary: oklch(0.4 0.12 250);
-  --color-primary-foreground: oklch(0.99 0 0);
-  --color-secondary: oklch(0.95 0.01 250);
-  --color-secondary-foreground: oklch(0.3 0.04 250);
-  --color-muted: oklch(0.96 0.005 95);
-  --color-muted-foreground: oklch(0.5 0.02 260);
-  --color-accent: oklch(0.95 0.02 250);
-  --color-accent-foreground: oklch(0.25 0.04 250);
-  --color-destructive: oklch(0.55 0.2 25);
-  --color-destructive-foreground: oklch(0.99 0 0);
-  --color-border: oklch(0.9 0.01 260);
-  --color-input: oklch(0.9 0.01 260);
-  --color-ring: oklch(0.55 0.12 250);
-  --color-user: oklch(0.45 0.12 155);
-  --color-user-foreground: oklch(0.99 0 0);
-  --radius-lg: 0.75rem;
+  --color-card-foreground: oklch(0.145 0 0);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.145 0 0);
+  --color-primary: oklch(0.205 0 0);
+  --color-primary-foreground: oklch(0.985 0 0);
+  --color-secondary: oklch(0.97 0 0);
+  --color-secondary-foreground: oklch(0.205 0 0);
+  --color-muted: oklch(0.97 0 0);
+  --color-muted-foreground: oklch(0.45 0 0);
+  --color-accent: oklch(0.97 0 0);
+  --color-accent-foreground: oklch(0.205 0 0);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-border: oklch(0.922 0 0);
+  --color-input: oklch(0.922 0 0);
+  --color-ring: oklch(0.708 0 0);
+  --color-user: oklch(0.62 0.13 155);
+  --color-tool: oklch(0.5 0.09 230);
+  --radius-lg: 0.625rem;
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
-    min-height: 100dvh;
+    overflow: hidden;
   }
-  #root {
-    min-height: 100dvh;
+}
+
+@keyframes min-shine {
+  from {
+    background-position: 100% 0;
   }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.activity-label {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-muted-foreground),
+    var(--color-foreground),
+    var(--color-muted-foreground)
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: min-shine 1.4s linear infinite;
 }

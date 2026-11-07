@@ -1,22 +1,29 @@
-import {
-  createAutoPermissionApprover,
-  createClient,
-  type ClientEvent,
-  type MinClient,
-} from "@min-agent/client";
-import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
-import { loadProviderExtensions, resolveProvider } from "@min-agent/runtime";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  chooseModel,
+  connectionEvents,
+  disposeClient,
+  getClient,
+  listModelRows,
+  listSessionRows,
+  openSessionById,
+  setEmitter,
+  snapshot,
+  startSession,
+  submitText,
+  type ChromeEvent,
+  type ViewNotice,
+} from "./host.js";
 import { loadEnvFiles } from "./load-env.js";
+import type { ClientEvent } from "@min-agent/client";
 
 /**
- * B/S MVP process model:
+ * B/S process model:
  * - Browser is isolated (no MinClient, no API keys).
  * - This Node process holds MinClient + serves HTTP/SSE (+ static UI in prod).
- * - Future: optional worker/child process for Client crash isolation; same HTTP contract.
  */
 
 loadEnvFiles();
@@ -28,77 +35,13 @@ const CWD = process.env.MIN_CWD ?? process.env.INIT_CWD ?? process.cwd();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(__dirname, "web");
 
-let clientPromise: Promise<MinClient> | undefined;
 const sseClients = new Set<ServerResponse>();
 
-async function getClient(): Promise<MinClient> {
-  if (!clientPromise) {
-    clientPromise = (async () => {
-      await loadProviderExtensions();
-      const { config } = resolveMinConfig({ cwd: CWD });
-      applyAuthToEnv(config.auth);
-      const c = await createClient({
-        cwd: CWD,
-        provider: resolveProvider({
-          provider: process.env.PROVIDER ?? config.provider,
-          model: process.env.MODEL ?? config.model,
-          reasoningEffort: config.reasoningEffort,
-        }),
-        sessionDir: config.runtime.sessionDir,
-        maxContextTokens: config.runtime.maxContextTokens,
-        maxTurns: config.runtime.maxTurns,
-        contextStrategy: contextStrategyFrom(config.runtime.contextStrategy),
-        noTools: process.env.MIN_NO_TOOLS === "1",
-        allowBash:
-          process.env.MIN_AUTO === "1" ||
-          process.env.MIN_YES === "1" ||
-          config.settings.permissions?.bash === "allow",
-        askWrite: config.settings.permissions?.write === "ask",
-        applyRootGrant: true,
-        persistPermissionGrants: process.env.MIN_AUTO !== "1",
-        autoApprovePermission:
-          process.env.MIN_AUTO === "1"
-            ? createAutoPermissionApprover({ mode: "auto" })
-            : process.env.MIN_YES === "1"
-              ? createAutoPermissionApprover({ mode: "yes" })
-              : undefined /* interactive via /api/permission */,
-      });
-      c.subscribe((event) => broadcast(event));
-      c.notices.subscribe((notice) => broadcast(noticeEvent(notice)));
-      return c;
-    })();
-  }
-  return clientPromise;
-}
+setEmitter((event) => broadcast(event));
 
-type ViewNotice = {
-  type: "notice";
-  id: number;
-  level: "info" | "warning";
-  source: string;
-  message: string;
-};
-
-function noticeEvent(notice: {
-  id: number;
-  level: "info" | "warning";
-  source: string;
-  message: string;
-}): ViewNotice {
-  return {
-    type: "notice",
-    id: notice.id,
-    level: notice.level,
-    source: notice.source,
-    message: notice.message,
-  };
-}
-
-function broadcast(event: ClientEvent | ViewNotice): void {
+function broadcast(event: ClientEvent | ViewNotice | ChromeEvent): void {
   const payload = `data: ${JSON.stringify(event)}\n\n`;
-  for (const res of sseClients) {
-    res.write(payload);
-  }
+  for (const res of sseClients) res.write(payload);
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -119,10 +62,15 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(data);
 }
 
-async function serveStatic(
-  res: ServerResponse,
-  urlPath: string,
-): Promise<boolean> {
+function statusFor(body: { ok: boolean; route?: string }): number {
+  if (body.ok && body.route === "send") return 202;
+  if (!body.ok && body.route === "blocked") return 409;
+  if (!body.ok && body.route === "empty") return 400;
+  if (!body.ok) return 400;
+  return 200;
+}
+
+async function serveStatic(res: ServerResponse, urlPath: string): Promise<boolean> {
   const rel = urlPath === "/" ? "/index.html" : urlPath;
   const file = path.normalize(path.join(webRoot, rel));
   if (!file.startsWith(webRoot)) {
@@ -160,10 +108,7 @@ async function serveStatic(
   }
 }
 
-async function handler(
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
+async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "local"}`);
   const { pathname } = url;
   const method = req.method ?? "GET";
@@ -184,8 +129,27 @@ async function handler(
     }
 
     if (method === "GET" && pathname === "/api/status") {
+      sendJson(res, 200, await snapshot());
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/state") {
       const client = await getClient();
-      sendJson(res, 200, client.getStatus());
+      sendJson(res, 200, {
+        snapshot: await snapshot(),
+        messages: client.getSession().messages,
+      });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/sessions") {
+      sendJson(res, 200, { sessions: await listSessionRows() });
+      return;
+    }
+
+    if (method === "GET" && pathname === "/api/models") {
+      const snap = await snapshot();
+      sendJson(res, 200, { models: await listModelRows(), model: snap.model ?? null });
       return;
     }
 
@@ -196,19 +160,22 @@ async function handler(
         Connection: "keep-alive",
       });
       res.write(": ok\n\n");
-      const client = await getClient();
-      const seen = client.notices.list();
+      const events = await connectionEvents();
+      if (res.writableEnded) return;
       sseClients.add(res);
-      for (const notice of seen) {
-        res.write(`data: ${JSON.stringify(noticeEvent(notice))}\n\n`);
+      for (const event of events) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
-      const status = client.getStatus();
-      res.write(
-        `data: ${JSON.stringify({ type: "session", id: status.sessionId, messageCount: 0 })}\n\n`,
-      );
       req.on("close", () => {
         sseClients.delete(res);
       });
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/submit") {
+      const body = (await readJson(req)) as { text?: string };
+      const result = await submitText(body.text ?? "");
+      sendJson(res, statusFor(result), result);
       return;
     }
 
@@ -220,7 +187,6 @@ async function handler(
         return;
       }
       const client = await getClient();
-      // Respond immediately; progress goes over SSE.
       sendJson(res, 202, { ok: true });
       void client.send(text).catch((err) => {
         broadcast({
@@ -247,6 +213,36 @@ async function handler(
       return;
     }
 
+    if (method === "POST" && pathname === "/api/sessions/open") {
+      const body = (await readJson(req)) as { id?: string };
+      const id = body.id?.trim() ?? "";
+      if (!id) {
+        sendJson(res, 400, { error: "id required" });
+        return;
+      }
+      const result = await openSessionById(id);
+      sendJson(res, statusFor(result), result);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/sessions/new") {
+      const result = await startSession();
+      sendJson(res, statusFor(result), result);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/model") {
+      const body = (await readJson(req)) as { key?: string; effort?: string };
+      const key = body.key?.trim() ?? "";
+      if (!key) {
+        sendJson(res, 400, { error: "key required" });
+        return;
+      }
+      const result = await chooseModel(key, body.effort);
+      sendJson(res, statusFor(result), result);
+      return;
+    }
+
     if (method === "POST" && pathname === "/api/permission") {
       const body = (await readJson(req)) as {
         id?: string;
@@ -270,9 +266,8 @@ async function handler(
     }
 
     if (method === "POST" && pathname === "/api/reset") {
-      const client = await getClient();
-      client.reset();
-      sendJson(res, 200, { ok: true });
+      const result = await submitText("/reset");
+      sendJson(res, statusFor(result), result);
       return;
     }
 
@@ -303,28 +298,10 @@ server.listen(PORT, HOST, () => {
   console.error(`cwd=${CWD}  (browser is isolated; MinClient lives in this process)`);
 });
 
-function contextStrategyFrom(
-  value: string | undefined,
-): "trim" | "hmt" | "tool-offload" | "sticky-trim" | "hybrid" | undefined {
-  if (
-    value === "trim" ||
-    value === "hmt" ||
-    value === "tool-offload" ||
-    value === "sticky-trim" ||
-    value === "hybrid"
-  ) {
-    return value;
-  }
-  return undefined;
-}
-
 async function shutdown(): Promise<void> {
   for (const res of sseClients) res.end();
   sseClients.clear();
-  if (clientPromise) {
-    const c = await clientPromise;
-    await c.dispose();
-  }
+  await disposeClient();
   server.close();
 }
 
