@@ -31,8 +31,12 @@ export type {
   ContextUsagePart,
 } from "@min-agent/session";
 export {
+  classifyAttachment,
+  decideTurnSubmit,
   formatContextUsageBreakdown,
   formatContextUsageReport,
   formatContextUsageShort,
   formatTokenCount,
+  readTurnFiles,
 } from "@min-agent/session";
+export type { TurnAttachment, TurnSubmitDecision } from "@min-agent/session";

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createAgent } from "./agent.js";
+import { imagePart, userMessageWithParts } from "./messages.js";
 import { mockProvider } from "./provider.js";
 import { defineTool } from "./tools.js";
 
@@ -133,6 +134,38 @@ describe("Runner / createAgent", () => {
       },
     });
     expect(thinking).toEqual(["plan"]);
+    await agent.dispose();
+  });
+
+  it("forwards hydrated image parts to the provider unchanged", async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47]);
+    const blobId = "a".repeat(64);
+    const provider = mockProvider([{ text: "ok" }]);
+    const agent = await createAgent({ provider });
+    const user = userMessageWithParts([
+      imagePart({
+        mediaType: "image/png",
+        blobId,
+        filename: "shot.png",
+        data: png,
+      }),
+    ]);
+    const events: string[] = [];
+    await agent.run({
+      input: [user],
+      onEvent(event) {
+        events.push(event.type);
+      },
+    });
+    const seen = provider.calls[0]?.messages[0]?.content[0];
+    expect(seen).toMatchObject({
+      type: "image",
+      blobId,
+      filename: "shot.png",
+    });
+    expect(seen && "data" in seen ? seen.data : undefined).toEqual(png);
+    expect(events).not.toContain("attachment");
+    expect(new Set(events)).toEqual(new Set(["turn_start", "text_delta", "turn_end", "done"]));
     await agent.dispose();
   });
 

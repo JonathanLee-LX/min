@@ -10,6 +10,37 @@ export interface TextPart {
   text: string;
 }
 
+export type ImageMediaType =
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp";
+
+/**
+ * User image. Canonical / persisted messages store `blobId` only.
+ * Adapters receive a copy with `data` filled in (hydrated).
+ */
+export interface ImagePart {
+  type: "image";
+  mediaType: ImageMediaType;
+  blobId: string;
+  filename?: string;
+  /** Hydrated bytes for provider adapters. Never persist this field. */
+  data?: Uint8Array;
+}
+
+/**
+ * User PDF. Same persistence rule as {@link ImagePart}.
+ */
+export interface DocumentPart {
+  type: "document";
+  mediaType: "application/pdf";
+  blobId: string;
+  filename?: string;
+  /** Hydrated bytes for provider adapters. Never persist this field. */
+  data?: Uint8Array;
+}
+
 export interface ToolCallPart {
   type: "tool_call";
   id: string;
@@ -24,7 +55,12 @@ export interface ToolResultPart {
   isError?: boolean;
 }
 
-export type ContentPart = TextPart | ToolCallPart | ToolResultPart;
+export type ContentPart =
+  | TextPart
+  | ImagePart
+  | DocumentPart
+  | ToolCallPart
+  | ToolResultPart;
 
 export interface Message {
   role: Role;

@@ -1,4 +1,5 @@
 import type { Message, ToolDefinition } from "@min-agent/core";
+import { IMAGE_TOKEN_ESTIMATE, PDF_TOKEN_ESTIMATE } from "./media.js";
 
 /**
  * Pluggable token estimator for context budgeting.
@@ -33,6 +34,13 @@ export function estimateMessageTokens(message: Message): number {
     } else if (part.type === "tool_result") {
       n += estimateTextTokens(part.content);
       n += 8;
+    } else if (part.type === "image") {
+      n += IMAGE_TOKEN_ESTIMATE;
+    } else if (part.type === "document") {
+      n += PDF_TOKEN_ESTIMATE;
+    } else {
+      const unknown = part as { type: string };
+      throw new Error(`unknown content part: ${unknown.type}`);
     }
   }
   return n;

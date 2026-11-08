@@ -97,6 +97,30 @@ export {
   type ToolOffloadExtensionOptions,
 } from "./strategies.js";
 export {
+  createFsBlobStore,
+  createMemoryBlobStore,
+  hydrateMediaParts,
+  sha256Hex,
+  stripMediaData,
+  userMessageFromAttachments,
+  type BlobStore,
+} from "./blobs.js";
+export {
+  classifyAttachment,
+  classifyAttachments,
+  decideTurnSubmit,
+  readTurnFiles,
+  IMAGE_TOKEN_ESTIMATE,
+  MAX_ATTACHMENTS,
+  MAX_IMAGE_BYTES,
+  MAX_PDF_BYTES,
+  MAX_TEXT_BYTES,
+  PDF_TOKEN_ESTIMATE,
+  type ClassifiedAttachment,
+  type TurnAttachment,
+  type TurnSubmitDecision,
+} from "./media.js";
+export {
   createFsStore,
   createMemoryStore,
   newSessionId,

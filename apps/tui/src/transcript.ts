@@ -7,6 +7,8 @@ export interface TranscriptMessage {
 
 export type TranscriptPart =
   | { type: "text"; text: string }
+  | { type: "image"; filename?: string; blobId?: string }
+  | { type: "document"; filename?: string; blobId?: string }
   | { type: "tool_call"; name: string; arguments: unknown }
   | { type: "tool_result"; content: string; isError?: boolean };
 
@@ -43,6 +45,14 @@ export function linesFromMessages(
         const kind: LogKind =
           message.role === "user" ? "user" : message.role === "assistant" ? "assistant" : "tool";
         lines.push({ kind, text });
+        continue;
+      }
+      if (part.type === "image" || part.type === "document") {
+        const name = part.filename?.trim() || (part.type === "image" ? "image" : "document.pdf");
+        lines.push({
+          kind: message.role === "user" ? "user" : "sys",
+          text: `${part.type} ${name}`,
+        });
         continue;
       }
       if (part.type === "tool_call") {

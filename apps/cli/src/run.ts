@@ -1,8 +1,10 @@
 import {
   createAutoPermissionApprover,
   createClient,
+  readTurnFiles,
   type MinClient,
   type PermissionAnswer,
+  type TurnAttachment,
 } from "@min-agent/client";
 import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
 import {
@@ -20,6 +22,7 @@ import { formatCliSessionLines } from "./session-line.js";
 export type CliClient = {
   client: MinClient;
   args: CliArgs;
+  pendingAttachments: TurnAttachment[];
 };
 
 export function sessionDirFor(args: CliArgs): string {
@@ -74,7 +77,7 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   });
   for (const notice of client.notices.list()) console.error(notice.message);
   client.notices.subscribe((notice) => console.error(notice.message));
-  return { client, args: resolved };
+  return { client, args: resolved, pendingAttachments: [] };
 }
 
 /** List sessions through @min-agent/client (same store Runtime would use). */
@@ -165,7 +168,14 @@ export async function runTurn(
 
   try {
     await withSigintAbort(async (signal) => {
-      await client.send(prompt, { signal });
+      const fromFlags = args.files.length ? await readTurnFiles(args.files) : [];
+      const attachments = [...cli.pendingAttachments, ...fromFlags];
+      cli.pendingAttachments = [];
+      args.files = [];
+      await client.send(prompt, {
+        signal,
+        ...(attachments.length ? { attachments } : {}),
+      });
       printer.endTextLine();
       if (!printer.didStreamText()) {
         // assistant_done already streamed via deltas usually; nothing else

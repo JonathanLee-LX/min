@@ -1,4 +1,13 @@
-import type { ContentPart, Message, TextPart, ToolCallPart, ToolResultPart } from "./types.js";
+import type {
+  ContentPart,
+  DocumentPart,
+  ImageMediaType,
+  ImagePart,
+  Message,
+  TextPart,
+  ToolCallPart,
+  ToolResultPart,
+} from "./types.js";
 
 export function textPart(text: string): TextPart {
   return { type: "text", text };
@@ -22,6 +31,39 @@ export function toolResultPart(
 
 export function userMessage(text: string): Message {
   return { role: "user", content: [textPart(text)] };
+}
+
+export function imagePart(input: {
+  mediaType: ImageMediaType;
+  blobId: string;
+  filename?: string;
+  data?: Uint8Array;
+}): ImagePart {
+  return {
+    type: "image",
+    mediaType: input.mediaType,
+    blobId: input.blobId,
+    ...(input.filename ? { filename: input.filename } : {}),
+    ...(input.data ? { data: input.data } : {}),
+  };
+}
+
+export function documentPart(input: {
+  blobId: string;
+  filename?: string;
+  data?: Uint8Array;
+}): DocumentPart {
+  return {
+    type: "document",
+    mediaType: "application/pdf",
+    blobId: input.blobId,
+    ...(input.filename ? { filename: input.filename } : {}),
+    ...(input.data ? { data: input.data } : {}),
+  };
+}
+
+export function userMessageWithParts(parts: ContentPart[]): Message {
+  return { role: "user", content: parts };
 }
 
 export function systemMessage(text: string): Message {

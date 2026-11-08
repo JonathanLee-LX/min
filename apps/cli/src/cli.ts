@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { helpText, parseArgs, type CliArgs } from "./args.js";
 import { loadEnvFiles } from "./load-env.js";
 import { formatVersionLine } from "./version.js";
+import { readTurnFiles } from "@min-agent/client";
 import { handleReplCommand, listSessionsViaClient } from "./repl.js";
 import { createCliClient, listSessions, runTurn } from "./run.js";
 
@@ -13,7 +14,7 @@ export async function runCli(args: CliArgs): Promise<void> {
     return;
   }
 
-  if (!args.repl && !args.prompt) {
+  if (!args.repl && !args.prompt && args.files.length === 0) {
     console.log(helpText());
     process.exitCode = 1;
     return;
@@ -146,6 +147,17 @@ export async function runCli(args: CliArgs): Promise<void> {
               console.log(preview);
             }
           }
+        } catch (err) {
+          console.error(err instanceof Error ? err.message : err);
+        }
+        continue;
+      }
+      if (cmd?.type === "attach") {
+        try {
+          const items = await readTurnFiles([cmd.path]);
+          cli.pendingAttachments.push(...items);
+          const name = items[0]?.filename ?? cmd.path;
+          console.log(`attached ${name} (tray=${cli.pendingAttachments.length})`);
         } catch (err) {
           console.error(err instanceof Error ? err.message : err);
         }

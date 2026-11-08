@@ -260,4 +260,62 @@ describe("openaiProvider", () => {
       arguments: { message: "hi" },
     });
   });
+
+  it("maps mixed user parts to input_text input_image input_file", async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
+    const pdf = new TextEncoder().encode("%PDF-1.4\n%%EOF\n");
+    const create = vi.fn().mockResolvedValue({
+      output: [
+        { type: "message", content: [{ type: "output_text", text: "ok" }] },
+      ],
+      status: "completed",
+      usage: { input_tokens: 1, output_tokens: 1 },
+      output_text: "ok",
+    });
+    const provider = openaiProvider({
+      model: "gpt-test",
+      client: { responses: { create } } as never,
+    });
+    await provider.complete({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "look" },
+            {
+              type: "image",
+              mediaType: "image/png",
+              blobId: "a".repeat(64),
+              filename: "shot.png",
+              data: png,
+            },
+            {
+              type: "document",
+              mediaType: "application/pdf",
+              blobId: "b".repeat(64),
+              filename: "spec.pdf",
+              data: pdf,
+            },
+          ],
+        },
+      ],
+    });
+    const user = create.mock.calls[0]![0].input[0];
+    expect(typeof user.content).not.toBe("string");
+    expect(user.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "input_text", text: "look" }),
+        expect.objectContaining({
+          type: "input_image",
+          image_url: expect.stringMatching(/^data:image\/png;base64,/),
+        }),
+        expect.objectContaining({
+          type: "input_file",
+          filename: "spec.pdf",
+          file_data: expect.stringMatching(/^data:application\/pdf;base64,/),
+        }),
+      ]),
+    );
+    expect(create.mock.calls[0]![0].store).toBe(false);
+  });
 });

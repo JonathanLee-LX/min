@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { modelLikelyReasons, modelSupportsEffort, modelsFor } from "./catalog.js";
+import {
+  modelLikelyReasons,
+  modelSupportsEffort,
+  modelSupportsImage,
+  modelSupportsPdf,
+  modelsFor,
+} from "./catalog.js";
 
 describe("catalog", () => {
   it("puts the current model first when it is not already suggested", () => {
@@ -22,5 +28,20 @@ describe("catalog", () => {
     expect(modelSupportsEffort("openai-chat", "gpt-4.1-mini")).toBe(false);
     expect(modelSupportsEffort("mock", "mock")).toBe(false);
     expect(modelLikelyReasons("gpt-5")).toBe(true);
+  });
+
+  it("reports vision and pdf support next to effort", () => {
+    expect(modelSupportsImage("anthropic")).toBe(true);
+    expect(modelSupportsImage("openai")).toBe(true);
+    expect(modelSupportsImage("openai-chat")).toBe(true);
+    expect(modelSupportsImage("deepseek")).toBe(false);
+    expect(modelSupportsImage("mock")).toBe(false);
+    expect(modelSupportsImage("custom-byok")).toBe(true);
+    expect(modelSupportsPdf("anthropic")).toBe(true);
+    expect(modelSupportsPdf("openai")).toBe(true);
+    expect(modelSupportsPdf("openai-chat")).toBe(false);
+    expect(modelSupportsPdf("deepseek")).toBe(false);
+    expect(modelSupportsPdf("mock")).toBe(false);
+    expect(modelSupportsPdf("custom-byok")).toBe(true);
   });
 });

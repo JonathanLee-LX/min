@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- User turns can attach images (jpeg/png/gif/webp), PDFs, and text files. Bytes are stored as session blobs; messages keep `blobId`. Web has a paperclip / drag / paste tray; CLI takes repeatable `--file`; TUI and REPL use `/attach <path>`. OpenAI Chat Completions rejects PDFs; DeepSeek rejects both.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
 ## 0.1.0-alpha.10

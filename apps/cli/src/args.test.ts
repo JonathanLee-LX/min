@@ -76,6 +76,21 @@ describe("parseArgs", () => {
     expect(helpText()).toContain("--version");
   });
 
+  it("parses repeated --file into an attachment path list", () => {
+    expect(parseArgs(["-p", "describe", "--file", "a.png", "--file", "b.pdf"])).toMatchObject({
+      prompt: "describe",
+      files: ["a.png", "b.pdf"],
+    });
+  });
+
+  it("documents --file in help", () => {
+    expect(helpText()).toContain("--file");
+  });
+
+  it("rejects --file without a path", () => {
+    expect(() => parseArgs(["--file"])).toThrow(/--file requires a path/);
+  });
+
   it("parses --version", () => {
     expect(parseArgs(["--version"])).toMatchObject({ version: true });
     expect(parseArgs(["-V"])).toMatchObject({ version: true });

@@ -17,6 +17,13 @@ export function messageTextApprox(messages: Message[]): string {
             ? `${part.content.slice(0, 400)}…(${part.content.length} chars)…${part.content.slice(-200)}`
             : part.content;
         bits.push(`tool_result ${part.toolCallId}: ${body}`);
+      } else if (part.type === "image") {
+        bits.push(`image ${part.filename ?? part.blobId.slice(0, 8)}`);
+      } else if (part.type === "document") {
+        bits.push(`document ${part.filename ?? "file.pdf"}`);
+      } else {
+        const unknown = part as { type: string };
+        throw new Error(`unknown content part: ${unknown.type}`);
       }
     }
     lines.push(`${msg.role}: ${bits.join(" | ")}`);

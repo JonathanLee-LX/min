@@ -57,4 +57,40 @@ describe("provider message shape contract", () => {
       },
     ]);
   });
+
+  it("keeps adapter output free of image parts when the user sent one", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output: [
+        {
+          type: "message",
+          content: [{ type: "output_text", text: "saw it" }],
+        },
+      ],
+      status: "completed",
+      output_text: "saw it",
+    });
+    const provider = openaiProvider({
+      model: "gpt-test",
+      client: { responses: { create } } as never,
+    });
+    const result = await provider.complete({
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              mediaType: "image/png",
+              blobId: "a".repeat(64),
+              data: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+            },
+          ],
+        },
+      ],
+    });
+    for (const part of result.message.content) {
+      expect(CORE_PART_TYPES.has(part.type)).toBe(true);
+      expect(part.type).not.toBe("image");
+    }
+  });
 });

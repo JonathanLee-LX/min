@@ -34,9 +34,18 @@ export function sessionTitleExcerpt(messages: readonly Message[]): string {
   const lines: string[] = [];
   for (const message of messages) {
     if (message.role !== "user" && message.role !== "assistant") continue;
+    const bits: string[] = [];
     const text = messageText(message).replace(/\s+/g, " ").trim();
-    if (!text) continue;
-    lines.push(`${message.role}: ${text.slice(0, 240)}`);
+    if (text) bits.push(text);
+    for (const part of message.content) {
+      if (part.type === "image") {
+        bits.push(`[image ${part.filename ?? "image"}]`);
+      } else if (part.type === "document") {
+        bits.push(`[document ${part.filename ?? "file.pdf"}]`);
+      }
+    }
+    if (!bits.length) continue;
+    lines.push(`${message.role}: ${bits.join(" ").slice(0, 240)}`);
   }
   const picked =
     lines.length <= 8 ? lines : [...lines.slice(0, 2), "…", ...lines.slice(-4)];

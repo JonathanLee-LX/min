@@ -24,6 +24,7 @@ import {
   newSession,
   openSession,
   submitText,
+  uploadAttachment,
 } from "@/lib/api";
 import { useCoarsePointer } from "@/lib/pointer";
 import { cn } from "@/lib/utils";
@@ -128,6 +129,9 @@ export default function App() {
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [overrides, setOverrides] = useState<Set<string>>(() => new Set());
   const [focusSignal, setFocusSignal] = useState(0);
+  const [attachments, setAttachments] = useState<
+    Array<{ id: string; filename: string; mediaType: string; byteLength: number }>
+  >([]);
 
   const seq = useRef(0);
   const thinkingExpandedRef = useRef(false);
@@ -361,13 +365,29 @@ export default function App() {
   async function runLine(text: string) {
     if (pending) return;
     const route = routeSubmit(text, busy);
-    if (route.type === "empty") return;
+    const ids = attachments.map((item) => item.id);
+    if (route.type === "empty" && ids.length === 0) return;
+    if (busy && ids.length > 0) {
+      setError("cannot queue attachments while busy");
+      return;
+    }
     setError(null);
-    if (route.type === "send" || route.type === "queue") push("user", route.text);
+    if (route.type === "send" || route.type === "queue" || (route.type === "empty" && ids.length)) {
+      const label = [
+        route.type === "empty" ? "" : route.text,
+        ...attachments.map((item) => item.filename),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      push("user", label || "(attachment)");
+    }
     setPending(true);
     try {
-      const result = await submitText(text);
+      const result = await submitText(text, ids);
       applyResult(result);
+      if (result.ok && (route.type === "send" || route.type === "empty")) {
+        setAttachments([]);
+      }
       if (!result.ok && !result.message && result.route !== "blocked") setInput(text);
     } catch (err) {
       setInput(text);
@@ -378,7 +398,7 @@ export default function App() {
   }
 
   function onSubmit() {
-    if (!input.trim()) return;
+    if (!input.trim() && attachments.length === 0) return;
     const matches = commandSuggestions(input);
     if (matches.length > 0) {
       const command = matches[((completeIndex % matches.length) + matches.length) % matches.length];
@@ -621,10 +641,39 @@ export default function App() {
               busy={busy}
               disabled={pending}
               coarse={coarse}
+              attachments={attachments}
               focusSignal={focusSignal}
               onChange={setInput}
               onSubmit={onSubmit}
               onKeyDown={onComposerKey}
+              onAttach={(files) => {
+                void (async () => {
+                  try {
+                    const next: Array<{
+                      id: string;
+                      filename: string;
+                      mediaType: string;
+                      byteLength: number;
+                    }> = [];
+                    for (const file of files) {
+                      next.push(await uploadAttachment(file));
+                    }
+                    setAttachments((current) => {
+                      const merged = [...current, ...next];
+                      if (merged.length > 8) {
+                        setError("at most 8 attachments per turn");
+                        return merged.slice(0, 8);
+                      }
+                      return merged;
+                    });
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : String(err));
+                  }
+                })();
+              }}
+              onRemoveAttachment={(id) => {
+                setAttachments((current) => current.filter((item) => item.id !== id));
+              }}
             />
             <StatusBar
               snapshot={snapshot}

@@ -1,3 +1,4 @@
+import { decideTurnSubmit } from "@min-agent/client";
 import { describe, expect, it } from "vitest";
 import { displayWidth } from "./text.js";
 import {
@@ -96,6 +97,33 @@ describe("routeSubmit", () => {
     });
   });
 
+  it("does not treat @path in the composer as an attachment", () => {
+    expect(routeSubmit("see @README", false)).toEqual({
+      type: "send",
+      text: "see @README",
+    });
+  });
+
+  it("keeps /attach available while busy and refuses to queue a tray", () => {
+    expect(routeSubmit("/attach ./shot.png", true)).toEqual({
+      type: "command",
+      command: { type: "attach", path: "./shot.png" },
+    });
+    expect(TUI_COMMANDS.some((command) => command.name === "attach")).toBe(true);
+    expect(decideTurnSubmit({ text: "hi", attachmentCount: 1, busy: false })).toEqual({
+      type: "send",
+      text: "hi",
+    });
+    expect(decideTurnSubmit({ text: "hi", attachmentCount: 1, busy: true })).toEqual({
+      type: "reject",
+      reason: "attachments-while-busy",
+    });
+    expect(decideTurnSubmit({ text: "hi", attachmentCount: 0, busy: true })).toEqual({
+      type: "queue",
+      text: "hi",
+    });
+  });
+
   it("treats an unknown slash line as a prompt", () => {
     expect(parseTuiCommand("/nope")).toEqual({ type: "prompt", text: "/nope" });
     expect(parseTuiCommand("/resume")).toEqual({ type: "resume-pick" });
@@ -122,6 +150,12 @@ describe("routeSubmit", () => {
     });
     expect(parseTuiCommand("/effort")).toEqual({ type: "effort" });
     expect(parseTuiCommand("/effort high")).toEqual({ type: "effort-set", value: "high" });
+    expect(parseTuiCommand("/attach ./shot.png")).toEqual({
+      type: "attach",
+      path: "./shot.png",
+    });
+    expect(parseTuiCommand("/attach")).toEqual({ type: "attach-usage" });
+    expect(commandSuggestions("/att").map((command) => command.name)).toEqual(["attach"]);
     expect(parseTuiCommand("/name")).toEqual({ type: "name" });
     expect(parseTuiCommand("/name Notice colors")).toEqual({
       type: "name-set",

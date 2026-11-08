@@ -13,7 +13,8 @@ export type ReplAction =
   | { type: "new" }
   | { type: "compact" }
   | { type: "name" }
-  | { type: "name-set"; title: string };
+  | { type: "name-set"; title: string }
+  | { type: "attach"; path: string };
 
 /** Handle slash commands. Returns null if `line` is not a command. */
 export function handleReplCommand(
@@ -44,6 +45,7 @@ export function handleReplCommand(
   /reset             clear in-memory conversation history
   /queue             show follow-up queue size
   /dense             push next line as dense-latest (or: /dense <text>)
+  /attach <path>     attach an image, PDF, or text file to the next send
   /exit              quit (also /quit)
 
 Follow-ups: client.queue (or /dense). After the current agent pass finishes,
@@ -71,6 +73,15 @@ to dense-latest. Anything else is sent as a user message.`);
       console.log(`  [${i}] ${clipped}`);
     }
     return { type: "handled" };
+  }
+
+  if (name === "attach") {
+    const file = rest.join(" ").trim();
+    if (!file) {
+      console.log("usage: /attach <path>  — attach a file to the next send");
+      return { type: "handled" };
+    }
+    return { type: "attach", path: file };
   }
 
   if (name === "dense") {

@@ -14,13 +14,16 @@ const PUBLIC_EXPORTS = [
   "createAutoPermissionApprover",
   "createClient",
   "createEventTranslator",
+  "classifyAttachment",
   "createPermissionBridge",
+  "decideTurnSubmit",
   "formatContextUsageBreakdown",
   "formatContextUsageReport",
   "formatContextUsageShort",
   "formatTokenCount",
   "isAbortError",
   "previewArgs",
+  "readTurnFiles",
 ].sort();
 
 const CLIENT_EVENT_TYPES = [

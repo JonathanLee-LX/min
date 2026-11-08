@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type {
+  ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
@@ -14,6 +15,7 @@ import type {
   Message,
   ToolDefinition,
 } from "@min-agent/core";
+import { requireMediaData, toDataUrl } from "./media.js";
 
 export interface OpenAIChatProviderOptions {
   apiKey?: string;
@@ -222,6 +224,35 @@ function chatStreamParams(
   return { ...chatParams(opts, req, messages), stream: true };
 }
 
+function toChatUserContent(
+  parts: Message["content"],
+): string | ChatCompletionContentPart[] {
+  const hasImage = parts.some((part) => part.type === "image");
+  const hasPdf = parts.some((part) => part.type === "document");
+  if (hasPdf) {
+    throw new Error("openai-chat does not accept pdf / document parts");
+  }
+  if (!hasImage) {
+    return parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+  }
+  const content: ChatCompletionContentPart[] = [];
+  for (const part of parts) {
+    if (part.type === "text") {
+      content.push({ type: "text", text: part.text });
+    } else if (part.type === "image") {
+      const data = requireMediaData(part);
+      content.push({
+        type: "image_url",
+        image_url: { url: toDataUrl(part.mediaType, data) },
+      });
+    }
+  }
+  return content;
+}
+
 function toChatMessages(req: CompletionRequest): ChatCompletionMessageParam[] {
   const out: ChatCompletionMessageParam[] = [];
 
@@ -250,11 +281,7 @@ function appendMessage(
   }
 
   if (msg.role === "user") {
-    const text = msg.content
-      .filter((p) => p.type === "text")
-      .map((p) => (p as { text: string }).text)
-      .join("");
-    out.push({ role: "user", content: text });
+    out.push({ role: "user", content: toChatUserContent(msg.content) });
     return;
   }
 

@@ -1,6 +1,8 @@
 export { createAgent, type Agent, type CreateAgentOptions } from "./agent.js";
 export {
   assistantMessage,
+  documentPart,
+  imagePart,
   lastAssistantText,
   messageText,
   messageToolCalls,
@@ -10,6 +12,7 @@ export {
   toolMessage,
   toolResultPart,
   userMessage,
+  userMessageWithParts,
 } from "./messages.js";
 export {
   mockProvider,
@@ -42,6 +45,9 @@ export type {
   CompletionRequest,
   CompletionResult,
   ContentPart,
+  DocumentPart,
+  ImageMediaType,
+  ImagePart,
   JsonSchema,
   Message,
   Role,

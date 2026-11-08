@@ -118,4 +118,71 @@ describe("openaiChatProvider", () => {
     expect(create.mock.calls[1]![0].stream).toBe(true);
     expect(kinds).toContain("done");
   });
+
+  it("maps images to chat image_url content parts", async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
+    const create = vi.fn().mockResolvedValue({
+      choices: [{ finish_reason: "stop", message: { content: "ok" } }],
+    });
+    const provider = openaiChatProvider({
+      model: "gpt-4.1",
+      client: { chat: { completions: { create } } } as never,
+    });
+    await provider.complete({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "look" },
+            {
+              type: "image",
+              mediaType: "image/png",
+              blobId: "a".repeat(64),
+              data: png,
+            },
+          ],
+        },
+      ],
+    });
+    const content = create.mock.calls[0]![0].messages.find(
+      (message: { role: string }) => message.role === "user",
+    ).content;
+    expect(content).toEqual(
+      expect.arrayContaining([
+        { type: "text", text: "look" },
+        {
+          type: "image_url",
+          image_url: {
+            url: expect.stringMatching(/^data:image\/png;base64,/),
+          },
+        },
+      ]),
+    );
+  });
+
+  it("rejects pdf parts on chat completions", async () => {
+    const create = vi.fn();
+    const provider = openaiChatProvider({
+      model: "gpt-4.1",
+      client: { chat: { completions: { create } } } as never,
+    });
+    await expect(
+      provider.complete({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                mediaType: "application/pdf",
+                blobId: "b".repeat(64),
+                data: new TextEncoder().encode("%PDF-1.4\n"),
+              },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/pdf|document/i);
+    expect(create).not.toHaveBeenCalled();
+  });
 });
