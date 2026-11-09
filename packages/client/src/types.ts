@@ -241,6 +241,9 @@ export interface MinClient {
     messageCount: number;
   }>;
 
+  /** Apply a per-model context limit; refreshes the context meter when known. */
+  setMaxContextTokens(tokens: number): void;
+
   /**
    * Escape hatch for advanced hosts. Prefer not to use from ordinary UI code.
    */

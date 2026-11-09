@@ -5,6 +5,11 @@ import {
   type ModelControls,
 } from "@min-agent/runtime";
 import {
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+  type ProviderSpec,
+} from "@min-agent/config";
+import {
   buildModelPickerItems,
   formatCompact,
   formatHelp,
@@ -43,7 +48,12 @@ export interface CommandHost {
     | "renameSession"
     | "generateSessionTitle"
     | "compact"
+    | "setMaxContextTokens"
   >;
+  runtime: {
+    maxContextTokens?: number;
+    modelContextTokens?: Record<string, number>;
+  };
 }
 
 export async function executeCommand(host: CommandHost, command: Command): Promise<CommandResult> {
@@ -154,7 +164,13 @@ export function selectModel(
       message: "effort must be none, low, medium, high, max, or default",
     };
   }
-  applyModelChange(controls, item.change, parsed);
+  applyModelChange(
+    host,
+    controls,
+    item.change,
+    parsed,
+    item.key.startsWith("saved:") ? toProviderSpec(host.providers[item.name]) : undefined,
+  );
   return { level: "sys", message: modelStatus(host) };
 }
 
@@ -193,14 +209,33 @@ function applyModelCommand(
   }
   const change = resolveModelArgs(command.args, host.providers);
   if (change.type === "error") return { level: "error", message: change.message };
-  if (change.type !== "show") applyModelChange(controls, change);
+  if (change.type !== "show") {
+    const saved =
+      command.type === "model-set" && command.args.length === 1
+        ? toProviderSpec(host.providers[command.args[0] ?? ""])
+        : undefined;
+    applyModelChange(host, controls, change, undefined, saved);
+  }
   return { level: "sys", message: modelStatus(host) };
 }
 
+function toProviderSpec(spec: NamedProviderSpec | undefined): ProviderSpec | undefined {
+  if (!spec) return undefined;
+  return {
+    kind: spec.kind,
+    ...(spec.model ? { model: spec.model } : {}),
+    ...(spec.baseUrl ? { baseUrl: spec.baseUrl } : {}),
+    ...(spec.apiKeyEnv ? { apiKeyEnv: spec.apiKeyEnv } : {}),
+    ...(spec.maxContextTokens ? { maxContextTokens: spec.maxContextTokens } : {}),
+  };
+}
+
 function applyModelChange(
+  host: CommandHost,
   controls: ModelControls,
   change: ModelPickItem["change"],
   effort?: EffortPickValue,
+  providerSpec?: ProviderSpec,
 ): void {
   if (change.type === "model") controls.setModel(change.model);
   if (change.type === "provider") {
@@ -213,12 +248,19 @@ function applyModelChange(
   }
   if (effort === "default") {
     controls.setEffort(undefined);
-    return;
-  }
-  if (effort) {
+  } else if (effort) {
     const parsed = parseReasoningEffort(effort);
     if (parsed) controls.setEffort(parsed);
   }
+  const model =
+    controls.selection().model || modelIdFromProviderId(host.client.getStatus().provider);
+  const tokens = effectiveMaxContextTokens({
+    model,
+    modelContextTokens: host.runtime.modelContextTokens,
+    providerSpec,
+    global: host.runtime.maxContextTokens,
+  });
+  host.client.setMaxContextTokens(tokens);
 }
 
 function parseEffort(value: string): EffortPickValue | undefined {

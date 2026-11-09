@@ -4,7 +4,12 @@ import {
   type ClientEvent,
   type MinClient,
 } from "@min-agent/client";
-import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
+import {
+  applyAuthToEnv,
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+  resolveMinConfig,
+} from "@min-agent/config";
 import {
   loadProviderExtensions,
   modelControls,
@@ -42,6 +47,10 @@ let emit: Emit = () => {};
 let clientPromise: Promise<MinClient> | undefined;
 let controls: ModelControls | null = null;
 let providers: Record<string, NamedProviderSpec> = {};
+let runtimeConfig: {
+  maxContextTokens?: number;
+  modelContextTokens?: Record<string, number>;
+} = {};
 let branchCache: { at: number; cwd: string; value?: string } | undefined;
 
 export function setEmitter(fn: Emit): void {
@@ -55,6 +64,10 @@ export async function getClient(): Promise<MinClient> {
       const { config } = resolveMinConfig({ cwd: CWD });
       applyAuthToEnv(config.auth);
       providers = config.providers;
+      runtimeConfig = {
+        maxContextTokens: config.runtime.maxContextTokens,
+        modelContextTokens: config.runtime.modelContextTokens,
+      };
       const provider = resolveProvider({
         provider: process.env.PROVIDER ?? config.provider,
         model: process.env.MODEL ?? config.model,
@@ -65,7 +78,11 @@ export async function getClient(): Promise<MinClient> {
         cwd: CWD,
         provider,
         sessionDir: config.runtime.sessionDir,
-        maxContextTokens: config.runtime.maxContextTokens,
+        maxContextTokens: effectiveMaxContextTokens({
+          model: config.model ?? modelIdFromProviderId(provider.id),
+          modelContextTokens: config.runtime.modelContextTokens,
+          global: config.runtime.maxContextTokens,
+        }),
         maxTurns: config.runtime.maxTurns,
         contextStrategy: contextStrategyFrom(config.runtime.contextStrategy),
         noTools: process.env.MIN_NO_TOOLS === "1",
@@ -298,6 +315,7 @@ function commandHost(client: MinClient) {
     providers,
     controls,
     client,
+    runtime: runtimeConfig,
   };
 }
 

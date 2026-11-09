@@ -86,6 +86,13 @@ export function parseProvidersFile(value: unknown): FileParse<Record<string, Pro
     if (typeof spec.apiKeyEnv === "string" && spec.apiKeyEnv.trim()) {
       next.apiKeyEnv = spec.apiKeyEnv.trim();
     }
+    if (
+      typeof spec.maxContextTokens === "number" &&
+      Number.isInteger(spec.maxContextTokens) &&
+      spec.maxContextTokens > 0
+    ) {
+      next.maxContextTokens = spec.maxContextTokens;
+    }
     providers[id] = next;
   }
   return { value: providers, warnings };

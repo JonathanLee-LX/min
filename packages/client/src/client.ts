@@ -424,6 +424,23 @@ export async function createClient(
       };
     },
 
+    setMaxContextTokens(tokens) {
+      runtime.setMaxContextTokens(tokens);
+      const usage = runtime.session.lastAssemble?.usage;
+      if (usage) {
+        const used = usage.used;
+        const limit = tokens;
+        emit({
+          type: "context",
+          usage: {
+            ...usage,
+            limit,
+            ratio: limit > 0 ? used / limit : 0,
+          },
+        });
+      }
+    },
+
     advanced: {
       get runtime() {
         return runtime;

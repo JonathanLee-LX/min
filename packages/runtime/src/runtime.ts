@@ -15,6 +15,7 @@ import {
   resolveContextStrategy,
   type ContextPartId,
   type ContextPartsSnapshot,
+  type ContextBudget,
   type ContextStrategyId,
   type ContextSystemPart,
   type ContextToolGroup,
@@ -85,6 +86,9 @@ export interface Runtime {
   cwd: string;
   contextStrategy: ContextStrategyId;
   maxTurns: number;
+  /** Shared assembler budget; kept in sync with the session. */
+  readonly contextBudget: ContextBudget;
+  setMaxContextTokens(tokens: number): void;
 }
 
 export function sessionDirFor(cwd: string, sessionDir?: string): string {
@@ -100,7 +104,7 @@ export async function createRuntime(
   const contextStrategy: ContextStrategyId =
     opts.contextStrategy ?? (opts.noTools ? "trim" : "hybrid");
 
-  const budget = {
+  const contextBudget: ContextBudget = {
     maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
     maxUserTurns: opts.maxUserTurns,
     reservedOutputTokens: 1024,
@@ -110,7 +114,7 @@ export async function createRuntime(
   const spillFolded = process.env.MIN_SPILL_FOLDED !== "0";
   const resolved = resolveContextStrategy({
     strategy: contextStrategy,
-    budget,
+    budget: contextBudget,
     provider: opts.provider,
     ...(spillFolded
       ? {
@@ -225,6 +229,10 @@ export async function createRuntime(
     ? undefined
     : createFsStore(sessionDirFor(opts.cwd, opts.sessionDir));
 
+  if (resolved.stash && !contextBudget.stash) {
+    contextBudget.stash = resolved.stash;
+  }
+
   const sessionExtensions = [
     ...(resolved.extension ? [resolved.extension] : []),
     ...(opts.sessionExtensions ?? []),
@@ -237,13 +245,15 @@ export async function createRuntime(
     stash: resolved.stash,
     systemForBudget: liveSystem,
     contextParts,
-    budget: {
-      ...budget,
-      stash: resolved.stash,
-    },
+    budget: contextBudget,
     extensions: sessionExtensions,
     bindPermissionAsk: (ask) => permissionGate.setAsk(ask),
   });
+
+  const setMaxContextTokens = (tokens: number) => {
+    contextBudget.maxContextTokens = tokens;
+    session.setMaxContextTokens(tokens);
+  };
 
   return {
     agent,
@@ -254,6 +264,8 @@ export async function createRuntime(
     cwd: opts.cwd,
     contextStrategy,
     maxTurns,
+    contextBudget,
+    setMaxContextTokens,
   };
 }
 

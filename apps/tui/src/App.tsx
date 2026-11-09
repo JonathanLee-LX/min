@@ -81,7 +81,14 @@ import {
   visibleSessions,
 } from "./picker-filter.js";
 import { readGitBranch } from "./status-bar.js";
-import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
+import {
+  applyAuthToEnv,
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+  resolveMinConfig,
+  type ProviderSpec,
+} from "@min-agent/config";
+import { syncModelContextBudget } from "./sync-model-context.js";
 import { themeFromConfig } from "./theme.js";
 import {
   linesFromMessages,
@@ -352,7 +359,11 @@ export function App({ args }: { args: TuiArgs }) {
           noTools: args.noTools,
           allowBash: args.yes || args.auto || config.settings.permissions?.bash === "allow",
           askWrite: config.settings.permissions?.write === "ask",
-          maxContextTokens: config.runtime.maxContextTokens,
+          maxContextTokens: effectiveMaxContextTokens({
+            model: config.model ?? modelIdFromProviderId(provider.id),
+            modelContextTokens: config.runtime.modelContextTokens,
+            global: config.runtime.maxContextTokens,
+          }),
           maxTurns: config.runtime.maxTurns,
           contextStrategy: contextStrategyFrom(config.runtime.contextStrategy),
           applyRootGrant: true,
@@ -564,7 +575,11 @@ export function App({ args }: { args: TuiArgs }) {
           return;
         }
         try {
-          if (change.type !== "show") applyModelChange(controls, change);
+          if (change.type !== "show") {
+            const saved =
+              command.args.length === 1 ? config.providers[command.args[0] ?? ""] : undefined;
+            applyModelChange(controls, change, undefined, clientRef.current, config, saved);
+          }
           reportModelStatus(controls, config.providers, pushLine);
         } catch (err) {
           pushLine("error", messageOf(err));
@@ -940,7 +955,14 @@ export function App({ args }: { args: TuiArgs }) {
           if (!pending || !effort) return;
           setModelPicker(null);
           try {
-            applyModelChange(controls, pending.change, effort.value);
+            applyModelChange(
+              controls,
+              pending.change,
+              effort.value,
+              clientRef.current,
+              config,
+              pending.key.startsWith("saved:") ? config.providers[pending.name] : undefined,
+            );
             reportModelStatus(controls, config.providers, pushLine);
           } catch (err) {
             pushLine("error", messageOf(err));
@@ -969,7 +991,14 @@ export function App({ args }: { args: TuiArgs }) {
         }
         setModelPicker(null);
         try {
-          applyModelChange(controls, pick.change);
+          applyModelChange(
+            controls,
+            pick.change,
+            undefined,
+            clientRef.current,
+            config,
+            pick.key.startsWith("saved:") ? config.providers[pick.name] : undefined,
+          );
           reportModelStatus(controls, config.providers, pushLine);
         } catch (err) {
           pushLine("error", messageOf(err));
@@ -1599,6 +1628,9 @@ function applyModelChange(
   controls: ModelControls,
   change: ModelPickItem["change"],
   effort?: EffortPickValue,
+  client?: MinClient | null,
+  config?: ReturnType<typeof resolveMinConfig>["config"],
+  providerSpec?: ProviderSpec,
 ): void {
   if (change.type === "model") controls.setModel(change.model);
   if (change.type === "provider") {
@@ -1611,11 +1643,12 @@ function applyModelChange(
   }
   if (effort === "default") {
     controls.setEffort(undefined);
-    return;
-  }
-  if (effort) {
+  } else if (effort) {
     const parsed = parseReasoningEffort(effort);
     if (parsed) controls.setEffort(parsed);
+  }
+  if (client && config) {
+    syncModelContextBudget(client, config, controls, providerSpec);
   }
 }
 

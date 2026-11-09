@@ -50,3 +50,9 @@ export {
 
 export { applyAuthToEnv, legacyConfigNotice, loadMinConfig, resolveMinConfig } from "./load.js";
 export type { LoadMinConfigResult } from "./load.js";
+
+export {
+  DEFAULT_MODEL_CONTEXT_TOKENS,
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+} from "./model-context.js";

@@ -71,7 +71,7 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 |---|---|---|---|
 | `provider`, `model` | yes, flags win | yes, flags win; `/model` opens a list (or takes an id) and switches them for this process | yes, `PROVIDER` / `MODEL` win |
 | `reasoningEffort` | yes, the next model call | yes; `/effort` changes it for this process | yes, the next model call |
-| `runtime.maxTurns`, `maxContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
+| `runtime.maxTurns`, `maxContextTokens`, `modelContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
 | `ui.keybindings` | — | yes, merged onto the built-in chords | — |
 | `settings.permissions.bash` set to `allow` | turns bash on | turns bash on, unless `-y` / `--auto` already did | turns bash on, unless `MIN_AUTO` / `MIN_YES` |
@@ -98,6 +98,10 @@ User preferences, and the per-project state file under `~/.min/projects/{project
   "runtime": {
     "maxTurns": 40,
     "maxContextTokens": 256000,
+    "modelContextTokens": {
+      "gpt-4.1": 128000,
+      "o3": 200000
+    },
     "contextStrategy": "hybrid",
     "sessionDir": ".min/sessions"
   },
@@ -109,7 +113,7 @@ User preferences, and the per-project state file under `~/.min/projects/{project
 }
 ```
 
-Blank strings are dropped. `maxTurns` and `maxContextTokens` must be positive integers. `contextStrategy` is one of `trim`, `hmt`, `tool-offload`, `sticky-trim`, `hybrid`. `reasoningEffort` is one of `none`, `low`, `medium`, `high`, `max`; anything else is dropped with a warning. Omit it to keep the provider default (DeepSeek responses uses `high`). `ui.keybindings` here is the same sparse chord map as `keybindings.json`; the dedicated file is the one to edit.
+Blank strings are dropped. `maxTurns`, `maxContextTokens`, and each value in `modelContextTokens` must be positive integers. Per-model limits override `runtime.maxContextTokens` when that model is selected; CLI `--max-context-tokens` still wins overall. `contextStrategy` is one of `trim`, `hmt`, `tool-offload`, `sticky-trim`, `hybrid`. `reasoningEffort` is one of `none`, `low`, `medium`, `high`, `max`; anything else is dropped with a warning. Omit it to keep the provider default (DeepSeek responses uses `high`). `ui.keybindings` here is the same sparse chord map as `keybindings.json`; the dedicated file is the one to edit.
 
 ## `settings.json`
 
@@ -149,13 +153,14 @@ Only string values under `keys` are kept. `applyAuthToEnv` copies a key into the
       "kind": "openai",
       "model": "gpt",
       "baseUrl": "https://example.test/v1",
-      "apiKeyEnv": "ACME_API_KEY"
+      "apiKeyEnv": "ACME_API_KEY",
+      "maxContextTokens": 64000
     }
   }
 }
 ```
 
-`kind` is required. `model`, `baseUrl`, and `apiKeyEnv` are optional and trimmed. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, the `/model` list includes these names, and `/model <name>` selects one of them for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
+`kind` is required. `model`, `baseUrl`, `apiKeyEnv`, and `maxContextTokens` are optional and trimmed. `maxContextTokens` applies when `/model <name>` selects that entry. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, the `/model` list includes these names, and `/model <name>` selects one of them for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
 
 ## `keybindings.json`
 

@@ -11,6 +11,7 @@ import {
 } from "@min-agent/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import type { ContextBudget } from "./assemble.js";
 import { createInputQueue } from "./input-queue.js";
 import { createSession } from "./session.js";
 import { hmtContextExtension, hybridContextExtension } from "./strategies.js";
@@ -283,6 +284,21 @@ describe("createSession", () => {
       expect(viewTool.content[0].content.length).toBeLessThan(blob.length);
     }
     expect(session.stash?.size).toBeGreaterThan(0);
+    await agent.dispose();
+  });
+
+  it("updates maxContextTokens for later assembles", async () => {
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "ok" }]),
+    });
+    const shared: ContextBudget = {
+      maxContextTokens: 4000,
+      reservedOutputTokens: 1024,
+    };
+    const session = await createSession({ agent, budget: shared });
+    expect(shared.maxContextTokens).toBe(4000);
+    session.setMaxContextTokens(8000);
+    expect(shared.maxContextTokens).toBe(8000);
     await agent.dispose();
   });
 
