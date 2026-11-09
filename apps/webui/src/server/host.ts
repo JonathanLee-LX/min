@@ -8,6 +8,7 @@ import {
   applyAuthToEnv,
   effectiveMaxContextTokens,
   modelIdFromProviderId,
+  providerLaunchSpec,
   resolveMinConfig,
 } from "@min-agent/config";
 import {
@@ -68,10 +69,13 @@ export async function getClient(): Promise<MinClient> {
         maxContextTokens: config.runtime.maxContextTokens,
         modelContextTokens: config.runtime.modelContextTokens,
       };
+      const launch = providerLaunchSpec(config);
       const provider = resolveProvider({
-        provider: process.env.PROVIDER ?? config.provider,
-        model: process.env.MODEL ?? config.model,
+        provider: process.env.PROVIDER ?? launch.kind ?? config.provider,
+        model: process.env.MODEL ?? launch.model ?? config.model,
         reasoningEffort: config.reasoningEffort,
+        baseURL: process.env.PROVIDER ? undefined : launch.baseUrl,
+        apiKey: launch.apiKeyEnv ? process.env[launch.apiKeyEnv] : undefined,
       });
       controls = modelControls(provider) ?? null;
       const client = await createClient({

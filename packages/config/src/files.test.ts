@@ -151,6 +151,8 @@ describe("parseMcpFile", () => {
         remote: { url: " https://example.test/sse " },
         both: { transport: "sse", url: "https://example.test/mcp", command: "ignored" },
         stdioWins: { transport: "stdio", command: "local", url: "https://example.test/nope" },
+        http: { type: "http", url: "https://example.test/mcp" },
+        off: { command: "nope", enabled: false },
       },
     });
     expect(parsed.value).toEqual([
@@ -164,6 +166,7 @@ describe("parseMcpFile", () => {
       { name: "remote", transport: "sse", url: "https://example.test/sse" },
       { name: "both", transport: "sse", url: "https://example.test/mcp" },
       { name: "stdioWins", transport: "stdio", command: "local" },
+      { name: "http", transport: "sse", url: "https://example.test/mcp" },
     ]);
   });
 

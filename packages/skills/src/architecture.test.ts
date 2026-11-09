@@ -3,10 +3,19 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createAllowedToolsGate } from "./allowed-tools.js";
+import { skillDirCandidates } from "./discover.js";
 import { filesystemSkillSource } from "./filesystem.js";
 import { skills } from "./index.js";
 
 describe("skills architecture contracts", () => {
+  it("pins foreign skill dirs before min dirs", () => {
+    const dirs = skillDirCandidates({ cwd: "/work/app", home: "/home/me", env: {} });
+    expect(dirs.indexOf("/home/me/.claude/skills")).toBeLessThan(
+      dirs.indexOf("/home/me/.min/skills"),
+    );
+    expect(dirs.at(-1)).toBe("/work/app/skills");
+  });
+
   it("discovers SKILL.md outside the core runner", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "min-skill-arch-"));
     const dir = path.join(root, "demo");

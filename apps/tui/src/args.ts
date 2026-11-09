@@ -59,6 +59,7 @@ Options:
   --theme <id>        theme id from config / registry (MIN_THEME also works)
 
 Config (later layers win):
+  Claude Code / Codex / Cursor files, then min
   ~/.min/config.json            preferences
   ~/.min/keybindings.json       key overrides
   ~/.min/settings.json          hooks, permission policy, MCP

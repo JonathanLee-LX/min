@@ -113,7 +113,9 @@ export interface ClientOptions {
   sessionDir?: string;
   noSessionStore?: boolean;
   noTools?: boolean;
+  home?: string;
   skillsDir?: string;
+  skillsDirs?: string[];
   addRoots?: string[];
   askWrite?: boolean;
   allowBash?: boolean;

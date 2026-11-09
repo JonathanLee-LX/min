@@ -1,5 +1,5 @@
 import { mockProvider, type RunEvent } from "@min-agent/core";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -34,8 +34,10 @@ describe("runtime architecture contracts", () => {
   });
 
   it("does not connect MCP by default; ships workspace tools plus recall", async () => {
+    const home = await mkdtemp(path.join(tmpdir(), "min-rt-arch-home-"));
     const rt = await createRuntime({
       cwd: process.cwd(),
+      home,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
     });
@@ -49,8 +51,10 @@ describe("runtime architecture contracts", () => {
   });
 
   it("keeps permissions outside core: policy lives on the runtime, not the agent", async () => {
+    const home = await mkdtemp(path.join(tmpdir(), "min-rt-arch-home-"));
     const rt = await createRuntime({
       cwd: process.cwd(),
+      home,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
     });
@@ -65,6 +69,7 @@ describe("runtime architecture contracts", () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "min-rt-deny-"));
     const rt = await createRuntime({
       cwd,
+      home: cwd,
       provider: mockProvider([
         {
           toolCalls: [{ name: "bash", arguments: { command: "curl evil" } }],
@@ -96,6 +101,36 @@ describe("runtime architecture contracts", () => {
     expect(results[0]?.isError).toBe(true);
     expect(results[0]?.content.toLowerCase()).toMatch(/den/);
     expect(sawDone).toBe(true);
+    await rt.session.dispose();
+    await rt.agent.dispose();
+  });
+
+  it("loads Claude skills and lets a min skill of the same name win", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "min-rt-skill-compat-"));
+    const home = path.join(root, "home");
+    const cwd = path.join(root, "repo");
+    await mkdir(path.join(home, ".claude", "skills", "greeter"), { recursive: true });
+    await mkdir(path.join(cwd, ".min", "skills", "greeter"), { recursive: true });
+    await writeFile(
+      path.join(home, ".claude", "skills", "greeter", "SKILL.md"),
+      "---\nname: greeter\ndescription: Claude greeter\n---\n\nfrom claude\n",
+    );
+    await writeFile(
+      path.join(cwd, ".min", "skills", "greeter", "SKILL.md"),
+      "---\nname: greeter\ndescription: min greeter\n---\n\nfrom min\n",
+    );
+    const rt = await createRuntime({
+      cwd,
+      home,
+      provider: mockProvider([
+        { toolCalls: [{ name: "load_skill", arguments: { name: "greeter" } }] },
+        { text: "ok" },
+      ]),
+      noTools: true,
+      noSessionStore: true,
+    });
+    expect(rt.agent.tools.list().some((tool) => tool.name === "load_skill")).toBe(true);
+    await rt.session.run("load it");
     await rt.session.dispose();
     await rt.agent.dispose();
   });

@@ -34,6 +34,23 @@ description: bad
 `),
     ).toThrow(/Invalid skill name/);
   });
+
+  it("fills name from the directory and allowed-tools from a list", () => {
+    const parsed = parseSkillMarkdown(
+      `---
+description: Extract text.
+allowed-tools:
+  - read_file
+  - write_file
+---
+
+Do the thing.
+`,
+      { fallbackName: "PDF Processing" },
+    );
+    expect(parsed.meta.name).toBe("pdf-processing");
+    expect(parsed.meta.allowedTools).toEqual(["read_file", "write_file"]);
+  });
 });
 
 describe("filesystemSkillSource", () => {

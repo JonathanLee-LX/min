@@ -10,6 +10,8 @@ import type { Skill, SkillMeta, SkillSource } from "./types.js";
 export type { Skill, SkillMeta, SkillSource } from "./types.js";
 export { parseSkillMarkdown, toSkill } from "./parse.js";
 export { filesystemSkillSource } from "./filesystem.js";
+export { discoverSkillDirs, skillDirCandidates } from "./discover.js";
+export type { DiscoverSkillDirsOptions } from "./discover.js";
 export {
   createAllowedToolsGate,
   type AllowedToolsGate,

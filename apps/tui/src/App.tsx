@@ -85,6 +85,7 @@ import {
   applyAuthToEnv,
   effectiveMaxContextTokens,
   modelIdFromProviderId,
+  providerLaunchSpec,
   resolveMinConfig,
   type ProviderSpec,
 } from "@min-agent/config";
@@ -347,10 +348,13 @@ export function App({ args }: { args: TuiArgs }) {
         await loadProviderExtensions();
         applyAuthToEnv(config.auth);
         const autoMode = args.auto ? "auto" : args.yes ? "yes" : undefined;
+        const launch = providerLaunchSpec(config);
         const provider = resolveProvider({
-          provider: config.provider,
-          model: config.model,
+          provider: launch.kind ?? config.provider,
+          model: launch.model ?? config.model,
           reasoningEffort: config.reasoningEffort,
+          baseURL: launch.baseUrl,
+          apiKey: launch.apiKeyEnv ? process.env[launch.apiKeyEnv] : undefined,
         });
         modelRef.current = modelControls(provider) ?? null;
         const created = await createClient({

@@ -7,8 +7,10 @@ import { createRuntime } from "./runtime.js";
 
 describe("createRuntime", () => {
   it("boots with mock provider and no tools", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "min-rt-home-"));
     const rt = await createRuntime({
       cwd: process.cwd(),
+      home,
       provider: mockProvider([{ text: "ok" }]),
       noTools: true,
       noSessionStore: true,
@@ -21,8 +23,10 @@ describe("createRuntime", () => {
   });
 
   it("defaults to hybrid when tools are enabled", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "min-rt-home-"));
     const rt = await createRuntime({
       cwd: process.cwd(),
+      home,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
     });
@@ -34,8 +38,10 @@ describe("createRuntime", () => {
   });
 
   it("honors maxTurns override", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "min-rt-home-"));
     const rt = await createRuntime({
       cwd: process.cwd(),
+      home,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
       noTools: true,
@@ -47,8 +53,10 @@ describe("createRuntime", () => {
   });
 
   it("honors an explicit contextStrategy override", async () => {
+    const home = await mkdtemp(path.join(os.tmpdir(), "min-rt-home-"));
     const rt = await createRuntime({
       cwd: process.cwd(),
+      home,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
       contextStrategy: "trim",
@@ -79,6 +87,7 @@ describe("createRuntime", () => {
     const outside = path.join(cwd, "..", "min-skill-outside.txt");
     const rt = await createRuntime({
       cwd,
+      home: cwd,
       provider: mockProvider([
         { toolCalls: [{ name: "load_skill", arguments: { name: "writer" } }] },
         {
@@ -142,6 +151,7 @@ describe("createRuntime", () => {
 
     const plain = await createRuntime({
       cwd,
+      home: cwd,
       provider: mockProvider([
         {
           toolCalls: [
@@ -176,6 +186,7 @@ describe("createRuntime", () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "min-rules-"));
     const rt = await createRuntime({
       cwd,
+      home: cwd,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
     });
@@ -203,6 +214,7 @@ describe("createRuntime", () => {
 
     const again = await createRuntime({
       cwd,
+      home: cwd,
       provider: mockProvider([{ text: "ok" }]),
       noSessionStore: true,
     });

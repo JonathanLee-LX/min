@@ -247,6 +247,7 @@ Context:
   Assistant text streams as it arrives; tool traces print on stderr-friendly lines.
 
 Config (later layers win):
+  Claude Code / Codex / Cursor files, then min:
   ~/.min/config.json
   ~/.min/keybindings.json
   ~/.min/settings.json

@@ -6,6 +6,8 @@ export function resolveProvider(opts: {
   model?: string;
   /** `none` | `low` | `medium` | `high` | `max`. Unknown strings are ignored. */
   reasoningEffort?: ReasoningEffort | string;
+  baseURL?: string;
+  apiKey?: string;
 }): ModelProvider {
   const kind =
     opts.provider ??
@@ -27,6 +29,8 @@ export function resolveProvider(opts: {
     kind,
     model: opts.model,
     reasoningEffort: effort,
+    baseURL: opts.baseURL,
+    apiKey: opts.apiKey,
   });
 }
 
