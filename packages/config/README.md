@@ -71,7 +71,7 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 |---|---|---|---|
 | `provider`, `model` | yes, flags win | yes, flags win; `/model` opens a list (or takes an id) and switches them for this process | yes, `PROVIDER` / `MODEL` win |
 | `reasoningEffort` | yes, the next model call | yes; `/effort` changes it for this process | yes, the next model call |
-| `runtime.maxTurns`, `maxContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
+| `runtime.maxTurns`, `maxContextTokens`, `modelContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
 | `ui.keybindings` | — | yes, merged onto the built-in chords | — |
 | `settings.permissions.bash` set to `allow` | turns bash on | turns bash on, unless `-y` / `--auto` already did | turns bash on, unless `MIN_AUTO` / `MIN_YES` |
