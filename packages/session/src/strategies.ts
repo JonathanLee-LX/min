@@ -342,10 +342,24 @@ function stashWithSpill(opts: ResolveContextStrategyOptions): ContextStash {
   );
 }
 
+function isSharedContextBudget(
+  value: Partial<ContextBudget> & { maxContextTokens?: number } | undefined,
+): value is ContextBudget {
+  return (
+    !!value &&
+    typeof value.maxContextTokens === "number" &&
+    typeof value.reservedOutputTokens === "number"
+  );
+}
+
 function budgetFromPartial(
   partial?: Partial<ContextBudget> & { maxContextTokens?: number },
   stash?: ContextStash,
 ): ContextBudget {
+  if (isSharedContextBudget(partial)) {
+    if (stash && !partial.stash) partial.stash = stash;
+    return partial;
+  }
   return {
     maxContextTokens: partial?.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
     reservedOutputTokens: partial?.reservedOutputTokens ?? 1024,

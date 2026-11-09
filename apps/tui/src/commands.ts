@@ -278,6 +278,7 @@ export interface NamedProviderSpec {
   model?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  maxContextTokens?: number;
 }
 
 export type ModelChange =

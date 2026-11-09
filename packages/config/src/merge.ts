@@ -124,7 +124,14 @@ function mergeRuntime(
   overlay?: RuntimeConfig,
 ): RuntimeConfig | undefined {
   if (!base && !overlay) return undefined;
-  return { ...(base ?? {}), ...(overlay ?? {}) };
+  const out: RuntimeConfig = { ...(base ?? {}), ...(overlay ?? {}) };
+  if (base?.modelContextTokens || overlay?.modelContextTokens) {
+    out.modelContextTokens = {
+      ...(base?.modelContextTokens ?? {}),
+      ...(overlay?.modelContextTokens ?? {}),
+    };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function mergeUi(base?: UiConfig, overlay?: UiConfig): UiConfig | undefined {

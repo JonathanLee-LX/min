@@ -4,7 +4,12 @@ import {
   type MinClient,
   type PermissionAnswer,
 } from "@min-agent/client";
-import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
+import {
+  applyAuthToEnv,
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+  resolveMinConfig,
+} from "@min-agent/config";
 import {
   loadProviderExtensions,
   resolveProvider,
@@ -42,13 +47,14 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   };
   await loadProviderExtensions();
   const autoMode = resolved.auto ? "auto" : resolved.yes ? "yes" : undefined;
+  const provider = resolveProvider({
+    provider: resolved.provider,
+    model: resolved.model,
+    reasoningEffort: config.reasoningEffort,
+  });
   const client = await createClient({
     cwd: resolved.cwd,
-    provider: resolveProvider({
-      provider: resolved.provider,
-      model: resolved.model,
-      reasoningEffort: config.reasoningEffort,
-    }),
+    provider,
     sessionId: resolved.sessionId,
     sessionDir: resolved.sessionDir,
     noSessionStore: resolved.noSessionStore,
@@ -57,7 +63,18 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     addRoots: resolved.addRoots,
     askWrite: resolved.askWrite,
     allowBash: resolved.allowBash || resolved.yes || resolved.auto,
-    maxContextTokens: resolved.maxContextTokens,
+    maxContextTokens: effectiveMaxContextTokens({
+      model: resolved.model ?? modelIdFromProviderId(provider.id),
+      modelContextTokens: config.runtime.modelContextTokens,
+      providerSpec:
+        resolved.provider && config.providers[resolved.provider]
+          ? config.providers[resolved.provider]
+          : undefined,
+      global: config.runtime.maxContextTokens ?? resolved.maxContextTokens,
+      ...(args.flags.maxContextTokens !== undefined
+        ? { flag: args.flags.maxContextTokens }
+        : {}),
+    }),
     maxUserTurns: resolved.maxUserTurns,
     maxTurns: resolved.maxTurns,
     contextStrategy: resolved.contextStrategy,

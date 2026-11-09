@@ -121,6 +121,7 @@ describe("client architecture contracts", () => {
         "reset",
         "respondPermission",
         "send",
+        "setMaxContextTokens",
         "subscribe",
       ].sort(),
     );

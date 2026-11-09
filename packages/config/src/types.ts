@@ -18,6 +18,8 @@ export type ConfigVersion = typeof CONFIG_VERSION;
 export interface RuntimeConfig {
   maxTurns?: number;
   maxContextTokens?: number;
+  /** Per-model context window overrides (model id → token limit). */
+  modelContextTokens?: Record<string, number>;
   /** trim | hmt | tool-offload | sticky-trim | hybrid */
   contextStrategy?: string;
   /** Absolute or cwd-relative session store. */
@@ -98,6 +100,8 @@ export interface ProviderSpec {
   model?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  /** Context window when this named entry is selected via `/model <name>`. */
+  maxContextTokens?: number;
 }
 
 /** One MCP server after `mcp.json` / `.mcp.json` files are merged by name. */

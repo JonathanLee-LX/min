@@ -68,6 +68,7 @@ function host(overrides?: {
     subscribe: () => () => undefined,
     respondPermission: () => undefined,
     notices: { list: () => [], subscribe: () => () => undefined },
+    setMaxContextTokens: () => undefined,
     advanced: {},
   } as unknown as MinClient;
   return {
@@ -77,6 +78,7 @@ function host(overrides?: {
       providers: {},
       controls,
       client,
+      runtime: { maxContextTokens: 256000, modelContextTokens: { "mock-large": 8000 } },
     },
   };
 }
