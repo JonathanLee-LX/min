@@ -4,6 +4,17 @@
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
+## 0.1.0-alpha.11
+
+TUI loop polish and per-model context windows.
+
+- Composer `Home` / `End` jump to line start/end (alongside `Ctrl+A` / `Ctrl+E`).
+- `/model` can switch the model while a run is in progress.
+- Tool and thinking blocks expand/collapse together. The status line is `Working... (duration)` while running and `Worked for …` after the turn.
+- `runtime.modelContextTokens` and `providers.json` `maxContextTokens` set a context window per model. Switching models applies the cap without restarting.
+
+Install: `npm install -g @min-agent/min@alpha`
+
 ## 0.1.0-alpha.10
 
 Web UI matches the terminal and fits a phone.
