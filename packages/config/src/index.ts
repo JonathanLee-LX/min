@@ -38,6 +38,28 @@ export {
   userSettingsPath,
 } from "./paths.js";
 
+export {
+  claudeJsonPath,
+  claudeProjectSettingsLocalPath,
+  claudeProjectSettingsPath,
+  claudeUserSettingsPath,
+  claudeConfigDir,
+  codexHomeDir,
+  codexProjectConfigPath,
+  codexUserConfigPath,
+  cursorConfigDir,
+  cursorProjectCliConfigPath,
+  cursorProjectMcpPath,
+  cursorUserCliConfigPath,
+  cursorUserMcpPath,
+} from "./compat-paths.js";
+
+export { inferProviderKind, loadCompatLayers, mergeAuth, mergeProviders } from "./compat.js";
+export type { CompatLayer, LoadCompatOptions } from "./compat.js";
+export { providerLaunchSpec } from "./launch.js";
+export type { ProviderLaunchSpec } from "./launch.js";
+export { parseToml } from "./toml.js";
+
 export { emptyDocument, parseConfigDocument } from "./parse.js";
 export type { ParseResult } from "./parse.js";
 

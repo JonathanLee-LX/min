@@ -46,18 +46,32 @@ Suggested gitignore. `.min/*` hides local settings, the grant ledger, and sessio
 ## Layers (low → high)
 
 1. Built-in defaults
-2. `~/.min/config.json`
-3. `~/.min/keybindings.json` (merged onto `ui.keybindings` from the preference files)
-4. `~/.min/settings.json`, then `providers.json`, `auth.json`, `cron/jobs.json`, and `mcp.json`
-5. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
-6. `~/.min/projects/{project}/config.json` and `mcp.json`
-7. `<cwd>/.min/settings.local.json`
-8. Environment (`MIN_*`)
-9. CLI / host flags
+2. Claude Code / Codex / Cursor user files, then their project files
+3. `~/.min/config.json`
+4. `~/.min/keybindings.json` (merged onto `ui.keybindings` from the preference files)
+5. `~/.min/settings.json`, then `providers.json`, `auth.json`, `cron/jobs.json`, and `mcp.json`
+6. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
+7. `~/.min/projects/{project}/config.json` and `mcp.json`
+8. `<cwd>/.min/settings.local.json`
+9. Environment (`MIN_*`)
+10. CLI / host flags
 
 `~/.config/min/config.json` and `<cwd>/.min/config.json` are not layers. A non-empty file produces one notice and leaves the resolved config unchanged.
 
-Settings merge field by field. A later `permissions.bash` replaces an earlier one and leaves `permissions.read` in place. Hooks merge the same way. MCP servers merge by name: a later file replaces the whole entry for that name and leaves the other names in place.
+Settings merge field by field. A later `permissions.bash` replaces an earlier one and leaves `permissions.read` in place. Hooks merge the same way. MCP servers merge by name: a later file replaces the whole entry for that name and leaves the other names in place. Named providers merge the same way. Foreign agent files are loaded on purpose, then min files overwrite the same names.
+
+## Claude Code, Codex, and Cursor
+
+min reads the usual files from those agents when they exist. They sit below min's own files, so `~/.min/*`, `<cwd>/.min/*`, and `<cwd>/.mcp.json` win on a matching key. A missing file is skipped.
+
+| Kind | Claude Code | Codex | Cursor |
+|---|---|---|---|
+| User MCP | `~/.claude.json` `mcpServers` | `~/.codex/config.toml` `[mcp_servers]` | `~/.cursor/mcp.json` |
+| Project MCP | `~/.claude.json` `projects.<cwd>.mcpServers`; `<cwd>/.claude/settings.json` | `<cwd>/.codex/config.toml` `[mcp_servers]` | `<cwd>/.cursor/mcp.json` |
+| Providers | `~/.claude/settings.json` `model` / `env` | `[model_providers.*]`, `model`, `model_provider` | `~/.cursor/cli-config.json` `model` |
+| Skills | `~/.claude/skills`, `<cwd>/.claude/skills` | `~/.agents/skills`, `~/.codex/skills`, `<cwd>/.agents/skills`, `<cwd>/.codex/skills` | `~/.cursor/skills`, `<cwd>/.cursor/skills` |
+
+`<cwd>/.mcp.json` is the Claude Code project MCP file and a min layer, so it is not imported a second time. Codex `wire_api = "chat"` becomes `openai-chat`; HTTP MCP `type`/`url` becomes min's SSE remote entry. Skills also load from `~/.min/skills`, `<cwd>/.min/skills`, and `<cwd>/skills`, after the foreign dirs, so a min skill of the same name wins. `--skills` is appended last.
 
 `auth.json` and `cron/jobs.json` are attached to the resolved config. They do not change provider, theme, or permissions. An empty keybindings, providers, auth, or cron file does not count as a source. An `mcp.json` that parses, even with no servers, does.
 

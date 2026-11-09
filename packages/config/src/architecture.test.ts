@@ -4,10 +4,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CONFIG_VERSION,
+  claudeJsonPath,
+  cursorUserMcpPath,
   loadMinConfig,
   parseConfigDocument,
   projectSettingsPath,
   userConfigPath,
+  userMcpPath,
   userProjectConfigPath,
 } from "./index.js";
 
@@ -20,6 +23,11 @@ describe("config architecture contracts", () => {
     expect(projectSettingsPath("/repo")).toBe(
       path.join("/repo", ".min", "settings.json"),
     );
+    expect(claudeJsonPath("/home/me")).toBe(path.join("/home/me", ".claude.json"));
+    expect(cursorUserMcpPath("/home/me")).toBe(
+      path.join("/home/me", ".cursor", "mcp.json"),
+    );
+    expect(userMcpPath("/home/me")).toBe(path.join("/home/me", ".min", "mcp.json"));
   });
 
   it("loads a project file without rejecting future extension keys", () => {

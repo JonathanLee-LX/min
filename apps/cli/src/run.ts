@@ -8,6 +8,7 @@ import {
   applyAuthToEnv,
   effectiveMaxContextTokens,
   modelIdFromProviderId,
+  providerLaunchSpec,
   resolveMinConfig,
 } from "@min-agent/config";
 import {
@@ -34,10 +35,11 @@ export function sessionDirFor(args: CliArgs): string {
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
   const { config } = resolveMinConfig({ cwd: args.cwd }, args.flags);
   applyAuthToEnv(config.auth);
+  const launch = providerLaunchSpec(config);
   const resolved: CliArgs = {
     ...args,
-    provider: config.provider ?? args.provider,
-    model: config.model ?? args.model,
+    provider: launch.kind ?? config.provider ?? args.provider,
+    model: launch.model ?? config.model ?? args.model,
     sessionDir: config.runtime.sessionDir ?? args.sessionDir,
     maxTurns: config.runtime.maxTurns ?? args.maxTurns,
     maxContextTokens: config.runtime.maxContextTokens ?? args.maxContextTokens,
@@ -51,6 +53,8 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     provider: resolved.provider,
     model: resolved.model,
     reasoningEffort: config.reasoningEffort,
+    baseURL: launch.baseUrl,
+    apiKey: launch.apiKeyEnv ? process.env[launch.apiKeyEnv] : undefined,
   });
   const client = await createClient({
     cwd: resolved.cwd,
@@ -67,9 +71,9 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
       model: resolved.model ?? modelIdFromProviderId(provider.id),
       modelContextTokens: config.runtime.modelContextTokens,
       providerSpec:
-        resolved.provider && config.providers[resolved.provider]
-          ? config.providers[resolved.provider]
-          : undefined,
+        (config.provider && config.providers[config.provider]) ||
+        (resolved.provider && config.providers[resolved.provider]) ||
+        undefined,
       global: config.runtime.maxContextTokens ?? resolved.maxContextTokens,
       ...(args.flags.maxContextTokens !== undefined
         ? { flag: args.flags.maxContextTokens }

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
+- Load skills, MCP servers, and provider settings from Claude Code, Codex, and Cursor. min's own files win on the same name.
 
 ## 0.1.0-alpha.11
 

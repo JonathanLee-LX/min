@@ -478,12 +478,14 @@ function resolveFactory(options: ClientOptions): FactoryOpts {
 
   const runtimeOpts: RuntimeOptions = {
     cwd: options.cwd ?? process.cwd(),
+    home: options.home,
     provider: options.provider!,
     sessionId: options.sessionId,
     sessionDir: options.sessionDir,
     noSessionStore: options.noSessionStore,
     noTools: options.noTools,
     skillsDir: options.skillsDir,
+    skillsDirs: options.skillsDirs,
     addRoots: options.addRoots,
     askWrite: options.askWrite,
     allowBash: options.allowBash,

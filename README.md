@@ -85,7 +85,7 @@ User files live under `~/.min/`. A project commits `.min/settings.json` and `.mc
 
 `{project}` is the absolute working directory with separators turned into `--` (`/work/app` → `work--app`).
 
-Low → high: defaults, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags. A non-empty `~/.config/min/config.json` or `<cwd>/.min/config.json` prints a notice and does not change settings.
+Low → high: defaults, Claude Code / Codex / Cursor user then project files, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags. A non-empty `~/.config/min/config.json` or `<cwd>/.min/config.json` prints a notice and does not change settings. min overwrites a matching skill, MCP server, or provider name from those other agents. Paths are in [`packages/config/README.md`](packages/config/README.md).
 
 `MIN_PROVIDER`, `MIN_MODEL`, `MIN_THEME`, `MIN_MAX_TURNS`, `MIN_MAX_CONTEXT_TOKENS`, and `MIN_CONTEXT_STRATEGY` override the files. A flag such as `--provider` or `--max-turns` overrides those variables. `auth.json` fills an environment variable only when it is still unset, so `.env` wins.
 
@@ -405,12 +405,12 @@ export function withLogging(inner: ModelProvider): ModelProvider {
 ### Skills layout
 
 ```text
-skills/
+skills/                 # also ~/.min/skills and <cwd>/.min/skills
   greeter/
     SKILL.md    # YAML frontmatter: name + description
 ```
 
-Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via the `load_skill` tool (progressive disclosure).
+Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via the `load_skill` tool (progressive disclosure). Claude Code, Codex, and Cursor skill dirs are loaded first; a min skill of the same name wins.
 
 `allowed-tools` follows the Agent Skills spec: a space-separated list of tools pre-approved to run after the skill loads. Other tools stay available under the normal permission policy. Sandbox root grants are unchanged.
 
