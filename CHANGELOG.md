@@ -3,7 +3,16 @@
 ## Unreleased
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
-- Load skills, MCP servers, and provider settings from Claude Code, Codex, and Cursor. min's own files win on the same name.
+
+## 0.1.0-alpha.12
+
+Load Claude Code, Codex, and Cursor skills, MCP, and providers.
+
+- min reads those agents' files below its own layers. A matching skill, MCP server, or named provider in `~/.min` or the project wins.
+- Skill dirs include `~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`, `~/.agents/skills`, and the same paths under the project, then `~/.min/skills` and `<cwd>/skills`.
+- MCP comes from `~/.claude.json`, Codex `config.toml` `[mcp_servers]`, and Cursor `mcp.json`. HTTP `url` entries map to min's SSE remote servers.
+
+Install: `npm install -g @min-agent/min@alpha`
 
 ## 0.1.0-alpha.11
 

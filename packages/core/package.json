@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/core",
-  "version": "0.1.0-alpha.11",
+  "version": "0.1.0-alpha.12",
   "license": "MIT",
   "description": "Minimal TypeScript agent loop — messages, tools, and the ModelProvider contract",
   "type": "module",

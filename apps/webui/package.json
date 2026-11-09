@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/webui",
-  "version": "0.1.0-alpha.11",
+  "version": "0.1.0-alpha.12",
   "license": "MIT",
   "description": "B/S Web UI for min — Node server (MinClient) + Vite/React/shadcn",
   "type": "module",

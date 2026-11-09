@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/config",
-  "version": "0.1.0-alpha.11",
+  "version": "0.1.0-alpha.12",
   "license": "MIT",
   "description": "Layered, versioned min configuration — user / project / env / CLI",
   "type": "module",
