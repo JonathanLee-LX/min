@@ -115,11 +115,11 @@ Keys:
   Drag               select transcript text (copies on release)
   Mouse wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
-  Ctrl+O             expand / collapse tool output
-  Ctrl+T             expand / collapse thinking
+  Ctrl+O / Ctrl+T    expand / collapse tool and thinking blocks
   Esc                abort the run while it is busy
   Ctrl+C             abort the run, or quit when idle
-  Ctrl+A / Ctrl+E    start / end of line
+  Home / End         start / end of line
+  Ctrl+A / Ctrl+E    also start / end of line
   Ctrl+B / Ctrl+F    move cursor left / right
   Ctrl+W / Ctrl+U    delete previous word / to line start`;
 
@@ -205,8 +205,6 @@ const BUSY_BLOCKED = new Set([
   "new",
   "reset",
   "compact",
-  "model-pick",
-  "model-set",
   "effort-set",
   "name",
   "name-set",

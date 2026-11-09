@@ -15,6 +15,8 @@ function key(partial: Partial<InputKey> = {}): InputKey {
     downArrow: false,
     leftArrow: false,
     rightArrow: false,
+    homeKey: false,
+    endKey: false,
     pageDown: false,
     pageUp: false,
     return: false,
@@ -169,5 +171,7 @@ describe("inputAction", () => {
     });
     expect(inputAction("a", key({ ctrl: true }))).toEqual({ type: "edit", op: { op: "home" } });
     expect(inputAction("e", key({ ctrl: true }))).toEqual({ type: "edit", op: { op: "end" } });
+    expect(inputAction("", key({ homeKey: true }))).toEqual({ type: "edit", op: { op: "home" } });
+    expect(inputAction("", key({ endKey: true }))).toEqual({ type: "edit", op: { op: "end" } });
   });
 });

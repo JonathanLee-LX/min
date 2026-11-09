@@ -117,8 +117,6 @@ const BUSY_BLOCKED = new Set([
   "new",
   "reset",
   "compact",
-  "model-pick",
-  "model-set",
   "effort-set",
   "name",
   "name-set",

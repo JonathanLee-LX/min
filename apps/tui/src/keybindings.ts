@@ -59,6 +59,8 @@ export const DEFAULT_KEYBINDINGS: KeybindingTable = {
   "ctrl+f": "right",
   "ctrl+w": "backspace-word",
   "ctrl+u": "kill-line-start",
+  home: "home",
+  end: "end",
   left: "left",
   right: "right",
   up: "up",
@@ -123,6 +125,8 @@ export function chordFromKey(input: string, key: InputKey): string | null {
   if (key.pageDown) return withMods(key, "pagedown");
   if (key.leftArrow) return withMods(key, "left");
   if (key.rightArrow) return withMods(key, "right");
+  if (key.homeKey) return withMods(key, "home");
+  if (key.endKey) return withMods(key, "end");
   if (key.upArrow) return withMods(key, "up");
   if (key.downArrow) return withMods(key, "down");
   if (key.backspace) return withMods(key, "backspace");

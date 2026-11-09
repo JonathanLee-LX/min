@@ -7,6 +7,7 @@ import {
   type SpanTone,
   type TableAlign,
 } from "./render.js";
+import { formatRunDuration } from "./duration.js";
 import { defaultTheme, type TuiTheme } from "./theme.js";
 import { foldThinking, foldToolOutput } from "./tool-fold.js";
 import type { LogKind } from "./transcript.js";
@@ -16,10 +17,8 @@ export type { LineTone } from "./theme.js";
 export { toneFor } from "./theme.js";
 
 export interface PaintOptions {
-  /** When false (default), multi-line tool output collapses to one summary line. */
-  toolOutputExpanded?: boolean;
-  /** When false (default), multi-line thinking collapses to one summary line. */
-  thinkingExpanded?: boolean;
+  /** When false (default), tool and thinking bodies collapse to summary lines. */
+  detailsExpanded?: boolean;
 }
 
 const CHROME_LABELS: Partial<Record<Exclude<LogKind, "gap">, string>> = {
@@ -164,13 +163,12 @@ export function createPaintCache(theme: TuiTheme = defaultTheme): {
   const cache = new Map<string, { sig: string; rows: PaintedRow[] }>();
   return {
     paint(lines, columns, options = {}) {
-      const toolExpanded = options.toolOutputExpanded === true ? "1" : "0";
-      const thinkExpanded = options.thinkingExpanded === true ? "1" : "0";
+      const detailsExpanded = options.detailsExpanded === true ? "1" : "0";
       const seen = new Set<string>();
       const rows: PaintedRow[] = [];
       for (const line of separateTurns(lines)) {
         seen.add(line.key);
-        const sig = `${theme.id}\0${columns}\0${toolExpanded}\0${thinkExpanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const sig = `${theme.id}\0${columns}\0${detailsExpanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
         const cached = cache.get(line.key);
         if (cached?.sig === sig) {
           rows.push(...cached.rows);
@@ -208,11 +206,12 @@ function paintOne(
     ];
   }
   const { gutter, blank, bodyWidth } = frameFor(line.kind, columns, theme);
+  const expanded = options.detailsExpanded === true;
   const sourceText =
     line.kind === "tool-result" || line.kind === "tool-error"
-      ? foldToolOutput(line.text, options.toolOutputExpanded === true)
+      ? foldToolOutput(line.text, expanded)
       : line.kind === "thinking"
-        ? foldThinking(line.text, options.thinkingExpanded === true)
+        ? foldThinking(line.text, expanded)
         : line.text;
   const blocks = renderContent({
     role: roleFor(line.kind),
@@ -603,25 +602,35 @@ export interface Activity {
   color: string;
 }
 
-const ACTIVITY_LABEL: Record<ActivityPhase, string> = {
-  thinking: "Thinking...",
-  tool: "Tool calling...",
-  working: "Working...",
-};
-
 export function activityFor(
   input: {
     status: "idle" | "running" | "asking";
     streaming: boolean;
     toolName: string | null;
     continuing: boolean;
+    nowMs?: number;
+    runStartedAtMs?: number | null;
+    workedDurationMs?: number | null;
+    workedVisible?: boolean;
   },
   theme: TuiTheme = defaultTheme,
 ): Activity | null {
-  if (input.status !== "running") return null;
-  if (input.toolName) return spec("tool", theme.activity.tool);
-  if (input.streaming || input.continuing) return spec("working", theme.activity.writing);
-  return spec("thinking", theme.activity.thinking);
+  const now = input.nowMs ?? Date.now();
+  if (input.workedVisible && input.workedDurationMs != null && input.workedDurationMs >= 0) {
+    const dur = formatRunDuration(input.workedDurationMs);
+    return spec("working", `Worked for ${dur}`, theme.activity.writing);
+  }
+  if (input.status !== "running" && input.status !== "asking") return null;
+  let label = "Working...";
+  if (input.runStartedAtMs != null) {
+    const dur = formatRunDuration(Math.max(0, now - input.runStartedAtMs));
+    label = `Working... (${dur})`;
+  }
+  return spec("working", label, theme.activity.writing);
+}
+
+function spec(phase: ActivityPhase, label: string, color: string): Activity {
+  return { phase, label, color };
 }
 
 export interface ShineCell {
@@ -661,6 +670,3 @@ export function shineRuns(text: string, tick: number, width = SHINE_WIDTH): Shin
   return runs;
 }
 
-function spec(phase: ActivityPhase, color: string): Activity {
-  return { phase, label: ACTIVITY_LABEL[phase], color };
-}

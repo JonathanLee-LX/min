@@ -55,7 +55,7 @@ describe("paintTranscript", () => {
     expect(rows.map((row) => row.text).join("")).not.toMatch(/think/i);
   });
 
-  it("collapses multi-line thinking by default and expands with thinkingExpanded", () => {
+  it("collapses multi-line thinking by default and expands with detailsExpanded", () => {
     const text = "first understand requirements\nthen check files\nfinally write the solution";
     const collapsed = paintTranscript(
       [{ key: "th", kind: "thinking", text }],
@@ -70,7 +70,7 @@ describe("paintTranscript", () => {
       [{ key: "th", kind: "thinking", text }],
       80,
       undefined,
-      { thinkingExpanded: true },
+      { detailsExpanded: true },
     );
     expect(expanded).toHaveLength(3);
     expect(expanded.map((r) => r.body.trimEnd())).toEqual([
@@ -97,7 +97,7 @@ describe("paintTranscript", () => {
     expect(output[0]?.gutter).toBe("  │ ");
   });
 
-  it("expands tool output when toolOutputExpanded is set", () => {
+  it("expands tool output when detailsExpanded is set", () => {
     const rows = paintTranscript(
       [
         { key: "t", kind: "tool", text: "bash  ls" },
@@ -105,7 +105,7 @@ describe("paintTranscript", () => {
       ],
       40,
       undefined,
-      { toolOutputExpanded: true },
+      { detailsExpanded: true },
     );
     const output = rows.filter((row) => row.kind === "tool-result");
     expect(output.map((row) => row.body.trimEnd())).toEqual(["apps", "packages", "README.md"]);
@@ -231,22 +231,28 @@ describe("createPaintCache", () => {
 });
 
 describe("activityFor", () => {
-  it("uses thinking, tool calling, or working", () => {
+  it("shows Working with elapsed time and a brief Worked summary", () => {
+    const t0 = 1_000_000;
     expect(
-      activityFor({ status: "running", streaming: false, toolName: null, continuing: false }),
-    ).toMatchObject({ phase: "thinking", label: "Thinking..." });
+      activityFor({
+        status: "running",
+        streaming: true,
+        toolName: "bash",
+        continuing: false,
+        nowMs: t0 + 12_000,
+        runStartedAtMs: t0,
+      }),
+    ).toMatchObject({ phase: "working", label: "Working... (12s)" });
     expect(
-      activityFor({ status: "running", streaming: true, toolName: null, continuing: false }),
-    ).toMatchObject({ phase: "working", label: "Working..." });
-    expect(
-      activityFor({ status: "running", streaming: false, toolName: null, continuing: true }),
-    ).toMatchObject({ phase: "working", label: "Working..." });
-    expect(
-      activityFor({ status: "running", streaming: true, toolName: "bash", continuing: false }),
-    ).toMatchObject({ phase: "tool", label: "Tool calling..." });
-    expect(
-      activityFor({ status: "asking", streaming: false, toolName: "bash", continuing: false }),
-    ).toBeNull();
+      activityFor({
+        status: "idle",
+        streaming: false,
+        toolName: null,
+        continuing: false,
+        workedDurationMs: 3400,
+        workedVisible: true,
+      }),
+    ).toMatchObject({ label: "Worked for 3s" });
     expect(
       activityFor({ status: "idle", streaming: false, toolName: null, continuing: false }),
     ).toBeNull();

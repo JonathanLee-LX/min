@@ -186,10 +186,12 @@ export function App({ args }: { args: TuiArgs }) {
   const [toolName, setToolName] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
   const [scroll, setScroll] = useState(0);
-  /** Tool results start collapsed; Ctrl+O toggles. */
-  const [toolOutputExpanded, setToolOutputExpanded] = useState(false);
-  /** Thinking content starts collapsed; Ctrl+T toggles. */
-  const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  /** Tool and thinking blocks start collapsed; Ctrl+O / Ctrl+T toggle together. */
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [workedMs, setWorkedMs] = useState<number | null>(null);
+  const [workedUntil, setWorkedUntil] = useState(0);
+  const [activityClock, setActivityClock] = useState(() => Date.now());
   const [selection, setSelection] = useState<{
     anchor: SelCell;
     focus: SelCell;
@@ -385,6 +387,11 @@ export function App({ args }: { args: TuiArgs }) {
             setStatusLabel(event.status);
             setBusy(event.status !== "idle");
             if (event.status !== "asking") setPendingPerm(null);
+            if (event.status === "running" || event.status === "asking") {
+              setRunStartedAt((start) => start ?? Date.now());
+              setWorkedUntil(0);
+              setWorkedMs(null);
+            }
             if (event.status === "idle") {
               inflightTools.current.clear();
               setToolName(null);
@@ -392,6 +399,14 @@ export function App({ args }: { args: TuiArgs }) {
               thinkingPumpRef.current?.reset();
               pendingThinkingRef.current = null;
               setThinking("");
+              setRunStartedAt((start) => {
+                if (start != null) {
+                  const ms = Date.now() - start;
+                  setWorkedMs(ms);
+                  setWorkedUntil(Date.now() + 2500);
+                }
+                return null;
+              });
             }
             if (event.status === "asking") setContinuing(false);
             syncQueue();
@@ -609,9 +624,9 @@ export function App({ args }: { args: TuiArgs }) {
         return;
       }
       if (command.type === "thinking") {
-        setThinkingExpanded((current) => {
+        setDetailsExpanded((current) => {
           const next = !current;
-          pushLine("sys", next ? "thinking expanded" : "thinking collapsed");
+          pushLine("sys", next ? "details expanded" : "details collapsed");
           return next;
         });
         return;
@@ -1048,12 +1063,8 @@ export function App({ args }: { args: TuiArgs }) {
       exit();
       return;
     }
-    if (action.type === "toggle-tool-output") {
-      setToolOutputExpanded((current) => !current);
-      return;
-    }
-    if (action.type === "toggle-thinking") {
-      setThinkingExpanded((current) => !current);
+    if (action.type === "toggle-tool-output" || action.type === "toggle-thinking") {
+      setDetailsExpanded((current) => !current);
       return;
     }
     if (pendingPerm) {
@@ -1157,12 +1168,23 @@ export function App({ args }: { args: TuiArgs }) {
     };
   }, [stdin, setRawMode]);
 
+  useEffect(() => {
+    if (statusLabel !== "running" && statusLabel !== "asking" && workedUntil <= 0) return;
+    const timer = setInterval(() => setActivityClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [statusLabel, workedUntil]);
+
+  const workedVisible = workedMs != null && activityClock < workedUntil;
   const activity = activityFor(
     {
       status: statusLabel,
       streaming: stream.length > 0,
       toolName,
       continuing,
+      nowMs: activityClock,
+      runStartedAtMs: runStartedAt,
+      workedDurationMs: workedMs,
+      workedVisible,
     },
     theme,
   );
@@ -1225,10 +1247,13 @@ export function App({ args }: { args: TuiArgs }) {
       : null;
   imeAnchorRef.current = imeAnchor;
   termColumnsRef.current = columns;
-  const painted = paintCache.current.paint(toDisplayLines(logs, stream, thinking), innerWidth, {
-    toolOutputExpanded,
-    thinkingExpanded,
-  });
+  const painted = paintCache.current.paint(
+    toDisplayLines(logs, stream, thinking, detailsExpanded),
+    innerWidth,
+    {
+      detailsExpanded,
+    },
+  );
 
   const bannerLines = minBannerLines(innerWidth);
   const bannerRows: PaintedRow[] = bannerLines.map((line, index) => ({
@@ -1566,13 +1591,14 @@ function toDisplayLines(
   logs: readonly LogLine[],
   stream: string,
   thinking: string,
+  detailsExpanded: boolean,
 ): TranscriptSource[] {
   const lines: TranscriptSource[] = logs.map((line) => ({
     key: String(line.id),
     kind: line.kind,
     text: line.text,
   }));
-  if (thinking) {
+  if (thinking && detailsExpanded) {
     lines.push({ key: "thinking", kind: "thinking", text: thinking, streaming: true });
   }
   if (stream) lines.push({ key: "stream", kind: "assistant", text: stream, streaming: true });

@@ -29,15 +29,27 @@ describe("transcript", () => {
   });
 
   it("names the activity the same way as the terminal", () => {
+    const t0 = 1_000_000;
     expect(
-      activityLabel({ status: "running", streaming: false, toolName: null, continuing: false }),
-    ).toBe("Thinking...");
+      activityLabel({
+        status: "running",
+        streaming: true,
+        toolName: "bash",
+        continuing: false,
+        nowMs: t0 + 5000,
+        runStartedAtMs: t0,
+      }),
+    ).toBe("Working... (5s)");
     expect(
-      activityLabel({ status: "running", streaming: false, toolName: "bash", continuing: false }),
-    ).toBe("Tool calling...");
-    expect(
-      activityLabel({ status: "running", streaming: true, toolName: null, continuing: false }),
-    ).toBe("Working...");
+      activityLabel({
+        status: "idle",
+        streaming: false,
+        toolName: null,
+        continuing: false,
+        workedDurationMs: 2000,
+        workedVisible: true,
+      }),
+    ).toBe("Worked for 2s");
     expect(
       activityLabel({ status: "idle", streaming: false, toolName: null, continuing: false }),
     ).toBeNull();
