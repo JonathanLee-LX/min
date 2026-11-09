@@ -29,7 +29,10 @@ describe("routeSubmit", () => {
       type: "command",
       command: { type: "model-pick" },
     });
-    expect(routeSubmit("/model", true)).toEqual({ type: "busy-blocked", name: "model" });
+    expect(routeSubmit("/model", true)).toEqual({
+      type: "command",
+      command: { type: "model-pick" },
+    });
     expect(routeSubmit("/effort high", true)).toEqual({ type: "busy-blocked", name: "effort" });
     expect(routeSubmit("/name Notice colors", true)).toEqual({
       type: "busy-blocked",

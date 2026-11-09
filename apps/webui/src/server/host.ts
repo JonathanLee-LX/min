@@ -268,15 +268,6 @@ export async function startSession(): Promise<SubmitResponse> {
 
 export async function chooseModel(key: string, effort?: string): Promise<SubmitResponse> {
   const client = await getClient();
-  if (client.getStatus().busy) {
-    return {
-      ok: false,
-      route: "blocked",
-      level: "error",
-      message: "/model is unavailable while the agent is running",
-      snapshot: await snapshot(),
-    };
-  }
   const result = selectModel(commandHost(client), key, effort);
   const body = responseFrom(result, "command");
   body.snapshot = await snapshot();

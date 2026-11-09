@@ -14,6 +14,8 @@ function key(partial: Partial<InputKey> = {}): InputKey {
     downArrow: false,
     leftArrow: false,
     rightArrow: false,
+    homeKey: false,
+    endKey: false,
     pageDown: false,
     pageUp: false,
     return: false,

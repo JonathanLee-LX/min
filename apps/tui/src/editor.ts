@@ -34,6 +34,8 @@ export interface InputKey {
   downArrow: boolean;
   leftArrow: boolean;
   rightArrow: boolean;
+  homeKey: boolean;
+  endKey: boolean;
   pageDown: boolean;
   pageUp: boolean;
   return: boolean;

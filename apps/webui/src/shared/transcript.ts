@@ -102,14 +102,31 @@ function brief(value: unknown, max: number): string {
   return `${flat.slice(0, max - 3)}...`;
 }
 
+function formatRunDuration(ms: number): string {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rem = sec % 60;
+  return rem > 0 ? `${min}m ${rem}s` : `${min}m`;
+}
+
 export function activityLabel(input: {
   status: "idle" | "running" | "asking";
   streaming: boolean;
   toolName: string | null;
   continuing: boolean;
+  nowMs?: number;
+  runStartedAtMs?: number | null;
+  workedDurationMs?: number | null;
+  workedVisible?: boolean;
 }): string | null {
-  if (input.status !== "running") return null;
-  if (input.toolName) return "Tool calling...";
-  if (input.streaming || input.continuing) return "Working...";
-  return "Thinking...";
+  if (input.workedVisible && input.workedDurationMs != null && input.workedDurationMs >= 0) {
+    return `Worked for ${formatRunDuration(input.workedDurationMs)}`;
+  }
+  if (input.status !== "running" && input.status !== "asking") return null;
+  const now = input.nowMs ?? Date.now();
+  if (input.runStartedAtMs != null) {
+    return `Working... (${formatRunDuration(Math.max(0, now - input.runStartedAtMs))})`;
+  }
+  return "Working...";
 }

@@ -20,6 +20,10 @@ describe("actionFromChunk", () => {
     expect(actionFromChunk("\x1b\r")).toEqual({ type: "edit", op: { op: "newline" } });
     expect(actionFromChunk("\x1b[A")).toEqual({ type: "edit", op: { op: "up" } });
     expect(actionFromChunk("\x1b[D")).toEqual({ type: "edit", op: { op: "left" } });
+    expect(actionFromChunk("\x1b[H")).toEqual({ type: "edit", op: { op: "home" } });
+    expect(actionFromChunk("\x1b[F")).toEqual({ type: "edit", op: { op: "end" } });
+    expect(actionFromChunk("\x1bOH")).toEqual({ type: "edit", op: { op: "home" } });
+    expect(actionFromChunk("\x1bOF")).toEqual({ type: "edit", op: { op: "end" } });
     expect(actionFromChunk("\x1b[5~")).toEqual({ type: "scroll", direction: "up" });
     expect(actionFromChunk("\x1b[6~")).toEqual({ type: "scroll", direction: "down" });
     expect(actionFromChunk("\x1b[<64;12;8M")).toEqual({

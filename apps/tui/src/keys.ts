@@ -194,6 +194,13 @@ function navigation(chunk: string): { input: string; key: InputKey } | null {
     return { input: "", key: flagged(flags).key };
   }
 
+  if (chunk === "\x1b[H" || chunk === "\x1bOH" || chunk === "\x1b[1~" || chunk === "\x1b[1;1H") {
+    return flagged({ homeKey: true });
+  }
+  if (chunk === "\x1b[F" || chunk === "\x1bOF" || chunk === "\x1b[4~") {
+    return flagged({ endKey: true });
+  }
+
   if (chunk === "\x1b[5~" || chunk === "\x1b[[5~") return flagged({ pageUp: true });
   if (chunk === "\x1b[6~" || chunk === "\x1b[[6~") return flagged({ pageDown: true });
   const page = /^\x1b\[([56]);(\d+)~$/.exec(chunk);
@@ -251,6 +258,8 @@ function flagged(partial: Partial<InputKey>): { input: string; key: InputKey } {
       downArrow: false,
       leftArrow: false,
       rightArrow: false,
+      homeKey: false,
+      endKey: false,
       pageDown: false,
       pageUp: false,
       return: false,
