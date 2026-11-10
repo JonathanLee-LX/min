@@ -220,6 +220,24 @@ describe("createWorkspacePermissionPolicy", () => {
     expect(decision.reason).toContain("+ beta");
     expect(decision.reason.length).toBeLessThan(500);
 
+    const multi = await asking.handler(
+      ctx("edit_file", {
+        path: "a.ts",
+        edits: [
+          { old_string: "alpha", new_string: "beta" },
+          { old_string: "one", new_string: "two", replace_all: true },
+        ],
+      }),
+    );
+    expect(multi).toMatchObject({ action: "ask" });
+    if (multi.action !== "ask") throw new Error("expected ask");
+    expect(multi.reason).toContain("1. replace");
+    expect(multi.reason).toContain("- alpha");
+    expect(multi.reason).toContain("+ beta");
+    expect(multi.reason).toContain("2. replace all");
+    expect(multi.reason).toContain("- one");
+    expect(multi.reason).toContain("+ two");
+
     const denied = createWorkspacePermissionPolicy(createSandbox(root), {
       write: "deny",
     });

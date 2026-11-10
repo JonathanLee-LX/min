@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from "node:fs";
-import { mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -123,6 +123,46 @@ describe("edit_file", () => {
     expect(both.isError).toBe(true);
     expect(both.content).toMatch(/not both/);
     expect(await readFile(file, "utf8")).toBe("alpha\n");
+  });
+
+  it("rejects an empty edits array and a call missing old_string or new_string", async () => {
+    const root = await realTemp("min-edit-");
+    const file = path.join(root, "a.txt");
+    await writeFile(file, "alpha\n", "utf8");
+    const { tools } = createWorkspaceTools({ root });
+    const edit = byName(tools).edit_file!;
+
+    const emptyEdits = await edit.execute({ path: "a.txt", edits: [] }, {});
+    expect(emptyEdits.isError).toBe(true);
+    expect(emptyEdits.content).toMatch(/edits is empty/);
+
+    const neither = await edit.execute({ path: "a.txt" }, {});
+    expect(neither.isError).toBe(true);
+    expect(neither.content).toMatch(/old_string and new_string/);
+
+    const missingNew = await edit.execute({ path: "a.txt", old_string: "alpha" }, {});
+    expect(missingNew.isError).toBe(true);
+    expect(missingNew.content).toMatch(/old_string and new_string/);
+
+    const missingOld = await edit.execute({ path: "a.txt", new_string: "beta" }, {});
+    expect(missingOld.isError).toBe(true);
+    expect(missingOld.content).toMatch(/old_string and new_string/);
+
+    expect(await readFile(file, "utf8")).toBe("alpha\n");
+  });
+
+  it("rejects a directory without writing", async () => {
+    const root = await realTemp("min-edit-");
+    const dir = path.join(root, "subdir");
+    await mkdir(dir);
+    const { tools } = createWorkspaceTools({ root });
+    const result = await byName(tools).edit_file!.execute(
+      { path: "subdir", old_string: "alpha", new_string: "beta" },
+      {},
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content).toBe("subdir is not a file.");
+    expect((await readdir(dir)).length).toBe(0);
   });
 
   it("replace_all changes every match", async () => {
