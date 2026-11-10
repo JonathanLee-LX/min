@@ -1,6 +1,6 @@
 {
   "name": "@min-agent/tools",
-  "version": "0.1.0-alpha.12",
+  "version": "0.1.0-alpha.13",
   "license": "MIT",
   "description": "Minimal workspace tools for the min agent harness",
   "type": "module",
