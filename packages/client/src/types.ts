@@ -122,7 +122,9 @@ export interface ClientOptions {
   sessionDir?: string;
   noSessionStore?: boolean;
   noTools?: boolean;
+  home?: string;
   skillsDir?: string;
+  skillsDirs?: string[];
   addRoots?: string[];
   askWrite?: boolean;
   allowBash?: boolean;
@@ -249,6 +251,9 @@ export interface MinClient {
     keptTurns: number;
     messageCount: number;
   }>;
+
+  /** Apply a per-model context limit; refreshes the context meter when known. */
+  setMaxContextTokens(tokens: number): void;
 
   /**
    * Escape hatch for advanced hosts. Prefer not to use from ordinary UI code.

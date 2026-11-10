@@ -86,6 +86,13 @@ export function parseProvidersFile(value: unknown): FileParse<Record<string, Pro
     if (typeof spec.apiKeyEnv === "string" && spec.apiKeyEnv.trim()) {
       next.apiKeyEnv = spec.apiKeyEnv.trim();
     }
+    if (
+      typeof spec.maxContextTokens === "number" &&
+      Number.isInteger(spec.maxContextTokens) &&
+      spec.maxContextTokens > 0
+    ) {
+      next.maxContextTokens = spec.maxContextTokens;
+    }
     providers[id] = next;
   }
   return { value: providers, warnings };
@@ -101,6 +108,7 @@ export function parseMcpFile(value: unknown): FileParse<McpServerEntry[]> {
   const table = isPlain(raw.mcpServers) ? raw.mcpServers : isPlain(raw.servers) ? raw.servers : {};
   const servers: McpServerEntry[] = [];
   for (const [name, spec] of Object.entries(table)) {
+    if (isPlain(spec) && spec.enabled === false) continue;
     const parsed = parseMcpServer(name, spec);
     if (!parsed) {
       warnings.push(`mcp server "${name}" needs a command or url`);
@@ -143,8 +151,17 @@ function parseMcpServer(name: string, value: unknown): McpServerEntry | undefine
   if (!isPlain(value)) return undefined;
   const url = typeof value.url === "string" ? value.url.trim() : "";
   const command = typeof value.command === "string" ? value.command.trim() : "";
-  const transport = value.transport === "sse" || value.transport === "stdio" ? value.transport : undefined;
-  if ((transport === "sse" || (!command && url)) && url) {
+  const kind =
+    typeof value.transport === "string" ? value.transport.trim().toLowerCase()
+    : typeof value.type === "string" ? value.type.trim().toLowerCase()
+    : "";
+  const remote =
+    kind === "sse" ||
+    kind === "http" ||
+    kind === "streamable-http" ||
+    kind === "ws" ||
+    kind === "websocket";
+  if ((remote || (!command && url)) && url) {
     return { name, transport: "sse", url };
   }
   if (!command) return undefined;

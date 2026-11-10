@@ -8,6 +8,7 @@ import {
   toResolved,
 } from "./merge.js";
 import { emptyDocument, parseConfigDocument } from "./parse.js";
+import { loadCompatLayers, mergeAuth, mergeProviders } from "./compat.js";
 import {
   keybindingDocument,
   parseAuthFile,
@@ -54,11 +55,13 @@ export interface LoadMinConfigResult {
  * Does not throw on missing or partial files.
  *
  * Low → high:
- * defaults, ~/.min/config.json, keybindings,
+ * defaults, Claude Code / Codex / Cursor (user then project),
+ * ~/.min/config.json, keybindings,
  * ~/.min/settings.json, providers, user mcp,
  * <cwd>/.min/settings.json, <cwd>/.mcp.json, per-project state,
  * per-project mcp, <cwd>/.min/settings.local.json, env.
  * `auth.json` and `cron/jobs.json` are attached, not merged into preferences.
+ * Foreign agent files sit below min's own files so min wins on the same key.
  *
  * `~/.config/min/config.json` and `<cwd>/.min/config.json` are read only to
  * detect a previous install. They do not change the resolved config.
@@ -98,6 +101,42 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
       sources.push(file);
     };
 
+    const takeCompat = () => {
+      const layers = loadCompatLayers(
+        {
+          cwd,
+          home,
+          env,
+          readJson: (file) => readJson(file, warnings),
+          readText: (file) => readText(file),
+          warnings,
+        },
+        isolatedUser,
+      );
+      for (const layer of layers) {
+        let used = false;
+        if (layer.document && layerHasValues(layer.document)) {
+          document = mergeDocuments(document, layer.document);
+          used = true;
+        }
+        if (layer.auth && Object.keys(layer.auth).length > 0) {
+          auth = mergeAuth(auth, layer.auth);
+          used = true;
+        }
+        if (layer.providers && Object.keys(layer.providers).length > 0) {
+          providers = mergeProviders(providers, layer.providers);
+          used = true;
+        }
+        if (layer.mcpServers) {
+          mcpServers = mergeMcp(mcpServers, layer.mcpServers);
+          used = true;
+        }
+        if (used) sources.push(layer.source);
+      }
+    };
+
+    takeCompat();
+
     if (isolatedUser) {
       takeConfig(opts.userPath!);
     } else {
@@ -112,12 +151,12 @@ export function loadMinConfig(opts: LoadMinConfigOptions): LoadMinConfigResult {
       takeSettings(userSettingsPath(home));
       const providerFile = readTypedFile(userProvidersPath(home), parseProvidersFile, warnings);
       if (providerFile && Object.keys(providerFile).length > 0) {
-        providers = providerFile;
+        providers = mergeProviders(providers, providerFile);
         sources.push(userProvidersPath(home));
       }
       const authFile = readTypedFile(userAuthPath(home), parseAuthFile, warnings);
       if (authFile && Object.keys(authFile.keys).length > 0) {
-        auth = authFile.keys;
+        auth = mergeAuth(auth, authFile.keys);
         sources.push(userAuthPath(home));
       }
       const jobs = readTypedFile(userCronJobsPath(home), parseCronFile, warnings);
@@ -251,13 +290,8 @@ function readTypedFile<T>(
 }
 
 function readJson(file: string, warnings: string[]): unknown | undefined {
-  let raw: string;
-  try {
-    raw = readFileSync(file, "utf8");
-  } catch {
-    return undefined;
-  }
-  if (!raw.trim()) return undefined;
+  const raw = readText(file);
+  if (raw === undefined) return undefined;
   try {
     return JSON.parse(raw) as unknown;
   } catch (err) {
@@ -266,6 +300,17 @@ function readJson(file: string, warnings: string[]): unknown | undefined {
     );
     return undefined;
   }
+}
+
+function readText(file: string): string | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+  if (!raw.trim()) return undefined;
+  return raw;
 }
 
 function layerHasValues(doc: MinConfigDocument): boolean {

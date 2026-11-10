@@ -131,6 +131,8 @@ function parseRuntime(value: unknown): RuntimeConfig | undefined {
   const out: RuntimeConfig = {};
   if (isPositiveInt(raw.maxTurns)) out.maxTurns = raw.maxTurns;
   if (isPositiveInt(raw.maxContextTokens)) out.maxContextTokens = raw.maxContextTokens;
+  const modelContext = parseModelContextTokens(raw.modelContextTokens);
+  if (modelContext) out.modelContextTokens = modelContext;
   if (typeof raw.contextStrategy === "string" && raw.contextStrategy.trim()) {
     out.contextStrategy = raw.contextStrategy.trim();
   }
@@ -174,6 +176,17 @@ function parseThemeOverrides(value: unknown): ThemeOverrideConfig | undefined {
   if (isPlainObject(raw.activity)) out.activity = raw.activity as ThemeOverrideConfig["activity"];
   if (isPlainObject(raw.chrome)) out.chrome = raw.chrome as ThemeOverrideConfig["chrome"];
   if (isPlainObject(raw.markdown)) out.markdown = raw.markdown as ThemeOverrideConfig["markdown"];
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function parseModelContextTokens(value: unknown): Record<string, number> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, number> = {};
+  for (const [rawKey, rawVal] of Object.entries(value as Record<string, unknown>)) {
+    const key = rawKey.trim();
+    if (!key || !isPositiveInt(rawVal)) continue;
+    out[key] = rawVal;
+  }
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

@@ -46,18 +46,32 @@ Suggested gitignore. `.min/*` hides local settings, the grant ledger, and sessio
 ## Layers (low → high)
 
 1. Built-in defaults
-2. `~/.min/config.json`
-3. `~/.min/keybindings.json` (merged onto `ui.keybindings` from the preference files)
-4. `~/.min/settings.json`, then `providers.json`, `auth.json`, `cron/jobs.json`, and `mcp.json`
-5. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
-6. `~/.min/projects/{project}/config.json` and `mcp.json`
-7. `<cwd>/.min/settings.local.json`
-8. Environment (`MIN_*`)
-9. CLI / host flags
+2. Claude Code / Codex / Cursor user files, then their project files
+3. `~/.min/config.json`
+4. `~/.min/keybindings.json` (merged onto `ui.keybindings` from the preference files)
+5. `~/.min/settings.json`, then `providers.json`, `auth.json`, `cron/jobs.json`, and `mcp.json`
+6. `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`
+7. `~/.min/projects/{project}/config.json` and `mcp.json`
+8. `<cwd>/.min/settings.local.json`
+9. Environment (`MIN_*`)
+10. CLI / host flags
 
 `~/.config/min/config.json` and `<cwd>/.min/config.json` are not layers. A non-empty file produces one notice and leaves the resolved config unchanged.
 
-Settings merge field by field. A later `permissions.bash` replaces an earlier one and leaves `permissions.read` in place. Hooks merge the same way. MCP servers merge by name: a later file replaces the whole entry for that name and leaves the other names in place.
+Settings merge field by field. A later `permissions.bash` replaces an earlier one and leaves `permissions.read` in place. Hooks merge the same way. MCP servers merge by name: a later file replaces the whole entry for that name and leaves the other names in place. Named providers merge the same way. Foreign agent files are loaded on purpose, then min files overwrite the same names.
+
+## Claude Code, Codex, and Cursor
+
+min reads the usual files from those agents when they exist. They sit below min's own files, so `~/.min/*`, `<cwd>/.min/*`, and `<cwd>/.mcp.json` win on a matching key. A missing file is skipped.
+
+| Kind | Claude Code | Codex | Cursor |
+|---|---|---|---|
+| User MCP | `~/.claude.json` `mcpServers` | `~/.codex/config.toml` `[mcp_servers]` | `~/.cursor/mcp.json` |
+| Project MCP | `~/.claude.json` `projects.<cwd>.mcpServers`; `<cwd>/.claude/settings.json` | `<cwd>/.codex/config.toml` `[mcp_servers]` | `<cwd>/.cursor/mcp.json` |
+| Providers | `~/.claude/settings.json` `model` / `env` | `[model_providers.*]`, `model`, `model_provider` | `~/.cursor/cli-config.json` `model` |
+| Skills | `~/.claude/skills`, `<cwd>/.claude/skills` | `~/.agents/skills`, `~/.codex/skills`, `<cwd>/.agents/skills`, `<cwd>/.codex/skills` | `~/.cursor/skills`, `<cwd>/.cursor/skills` |
+
+`<cwd>/.mcp.json` is the Claude Code project MCP file and a min layer, so it is not imported a second time. Codex `wire_api = "chat"` becomes `openai-chat`; HTTP MCP `type`/`url` becomes min's SSE remote entry. Skills also load from `~/.min/skills`, `<cwd>/.min/skills`, and `<cwd>/skills`, after the foreign dirs, so a min skill of the same name wins. `--skills` is appended last.
 
 `auth.json` and `cron/jobs.json` are attached to the resolved config. They do not change provider, theme, or permissions. An empty keybindings, providers, auth, or cron file does not count as a source. An `mcp.json` that parses, even with no servers, does.
 
@@ -71,7 +85,7 @@ Settings merge field by field. A later `permissions.bash` replaces an earlier on
 |---|---|---|---|
 | `provider`, `model` | yes, flags win | yes, flags win; `/model` opens a list (or takes an id) and switches them for this process | yes, `PROVIDER` / `MODEL` win |
 | `reasoningEffort` | yes, the next model call | yes; `/effort` changes it for this process | yes, the next model call |
-| `runtime.maxTurns`, `maxContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
+| `runtime.maxTurns`, `maxContextTokens`, `modelContextTokens`, `contextStrategy`, `sessionDir` | yes | yes | yes |
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
 | `ui.keybindings` | — | yes, merged onto the built-in chords | — |
 | `settings.permissions.bash` set to `allow` | turns bash on | turns bash on, unless `-y` / `--auto` already did | turns bash on, unless `MIN_AUTO` / `MIN_YES` |
@@ -98,6 +112,10 @@ User preferences, and the per-project state file under `~/.min/projects/{project
   "runtime": {
     "maxTurns": 40,
     "maxContextTokens": 256000,
+    "modelContextTokens": {
+      "gpt-4.1": 128000,
+      "o3": 200000
+    },
     "contextStrategy": "hybrid",
     "sessionDir": ".min/sessions"
   },
@@ -109,7 +127,7 @@ User preferences, and the per-project state file under `~/.min/projects/{project
 }
 ```
 
-Blank strings are dropped. `maxTurns` and `maxContextTokens` must be positive integers. `contextStrategy` is one of `trim`, `hmt`, `tool-offload`, `sticky-trim`, `hybrid`. `reasoningEffort` is one of `none`, `low`, `medium`, `high`, `max`; anything else is dropped with a warning. Omit it to keep the provider default (DeepSeek responses uses `high`). `ui.keybindings` here is the same sparse chord map as `keybindings.json`; the dedicated file is the one to edit.
+Blank strings are dropped. `maxTurns`, `maxContextTokens`, and each value in `modelContextTokens` must be positive integers. Per-model limits override `runtime.maxContextTokens` when that model is selected; CLI `--max-context-tokens` still wins overall. `contextStrategy` is one of `trim`, `hmt`, `tool-offload`, `sticky-trim`, `hybrid`. `reasoningEffort` is one of `none`, `low`, `medium`, `high`, `max`; anything else is dropped with a warning. Omit it to keep the provider default (DeepSeek responses uses `high`). `ui.keybindings` here is the same sparse chord map as `keybindings.json`; the dedicated file is the one to edit.
 
 ## `settings.json`
 
@@ -149,13 +167,14 @@ Only string values under `keys` are kept. `applyAuthToEnv` copies a key into the
       "kind": "openai",
       "model": "gpt",
       "baseUrl": "https://example.test/v1",
-      "apiKeyEnv": "ACME_API_KEY"
+      "apiKeyEnv": "ACME_API_KEY",
+      "maxContextTokens": 64000
     }
   }
 }
 ```
 
-`kind` is required. `model`, `baseUrl`, and `apiKeyEnv` are optional and trimmed. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, the `/model` list includes these names, and `/model <name>` selects one of them for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
+`kind` is required. `model`, `baseUrl`, `apiKeyEnv`, and `maxContextTokens` are optional and trimmed. `maxContextTokens` applies when `/model <name>` selects that entry. An entry without `kind` is skipped. The secret itself belongs in `auth.json` or the environment, under the name in `apiKeyEnv`. In the TUI, the `/model` list includes these names, and `/model <name>` selects one of them for the rest of the process. `/model <model>` switches only the model, and `/model <provider> <model>` switches both.
 
 ## `keybindings.json`
 

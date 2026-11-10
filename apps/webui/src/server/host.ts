@@ -5,8 +5,14 @@ import {
   type ClientEvent,
   type MinClient,
 } from "@min-agent/client";
+import {
+  applyAuthToEnv,
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+  providerLaunchSpec,
+  resolveMinConfig,
+} from "@min-agent/config";
 import { resolveTurnSubmit } from "./staging.js";
-import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
 import {
   loadProviderExtensions,
   modelControls,
@@ -44,6 +50,10 @@ let emit: Emit = () => {};
 let clientPromise: Promise<MinClient> | undefined;
 let controls: ModelControls | null = null;
 let providers: Record<string, NamedProviderSpec> = {};
+let runtimeConfig: {
+  maxContextTokens?: number;
+  modelContextTokens?: Record<string, number>;
+} = {};
 let branchCache: { at: number; cwd: string; value?: string } | undefined;
 
 export function setEmitter(fn: Emit): void {
@@ -57,17 +67,28 @@ export async function getClient(): Promise<MinClient> {
       const { config } = resolveMinConfig({ cwd: CWD });
       applyAuthToEnv(config.auth);
       providers = config.providers;
+      runtimeConfig = {
+        maxContextTokens: config.runtime.maxContextTokens,
+        modelContextTokens: config.runtime.modelContextTokens,
+      };
+      const launch = providerLaunchSpec(config);
       const provider = resolveProvider({
-        provider: process.env.PROVIDER ?? config.provider,
-        model: process.env.MODEL ?? config.model,
+        provider: process.env.PROVIDER ?? launch.kind ?? config.provider,
+        model: process.env.MODEL ?? launch.model ?? config.model,
         reasoningEffort: config.reasoningEffort,
+        baseURL: process.env.PROVIDER ? undefined : launch.baseUrl,
+        apiKey: launch.apiKeyEnv ? process.env[launch.apiKeyEnv] : undefined,
       });
       controls = modelControls(provider) ?? null;
       const client = await createClient({
         cwd: CWD,
         provider,
         sessionDir: config.runtime.sessionDir,
-        maxContextTokens: config.runtime.maxContextTokens,
+        maxContextTokens: effectiveMaxContextTokens({
+          model: config.model ?? modelIdFromProviderId(provider.id),
+          modelContextTokens: config.runtime.modelContextTokens,
+          global: config.runtime.maxContextTokens,
+        }),
         maxTurns: config.runtime.maxTurns,
         contextStrategy: contextStrategyFrom(config.runtime.contextStrategy),
         noTools: process.env.MIN_NO_TOOLS === "1",
@@ -303,15 +324,6 @@ export async function startSession(): Promise<SubmitResponse> {
 
 export async function chooseModel(key: string, effort?: string): Promise<SubmitResponse> {
   const client = await getClient();
-  if (client.getStatus().busy) {
-    return {
-      ok: false,
-      route: "blocked",
-      level: "error",
-      message: "/model is unavailable while the agent is running",
-      snapshot: await snapshot(),
-    };
-  }
   const result = selectModel(commandHost(client), key, effort);
   const body = responseFrom(result, "command");
   body.snapshot = await snapshot();
@@ -333,6 +345,7 @@ function commandHost(client: MinClient) {
     providers,
     controls,
     client,
+    runtime: runtimeConfig,
   };
 }
 

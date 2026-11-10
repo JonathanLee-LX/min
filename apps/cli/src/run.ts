@@ -6,7 +6,13 @@ import {
   type PermissionAnswer,
   type TurnAttachment,
 } from "@min-agent/client";
-import { applyAuthToEnv, resolveMinConfig } from "@min-agent/config";
+import {
+  applyAuthToEnv,
+  effectiveMaxContextTokens,
+  modelIdFromProviderId,
+  providerLaunchSpec,
+  resolveMinConfig,
+} from "@min-agent/config";
 import {
   loadProviderExtensions,
   resolveProvider,
@@ -32,10 +38,11 @@ export function sessionDirFor(args: CliArgs): string {
 export async function createCliClient(args: CliArgs): Promise<CliClient> {
   const { config } = resolveMinConfig({ cwd: args.cwd }, args.flags);
   applyAuthToEnv(config.auth);
+  const launch = providerLaunchSpec(config);
   const resolved: CliArgs = {
     ...args,
-    provider: config.provider ?? args.provider,
-    model: config.model ?? args.model,
+    provider: launch.kind ?? config.provider ?? args.provider,
+    model: launch.model ?? config.model ?? args.model,
     sessionDir: config.runtime.sessionDir ?? args.sessionDir,
     maxTurns: config.runtime.maxTurns ?? args.maxTurns,
     maxContextTokens: config.runtime.maxContextTokens ?? args.maxContextTokens,
@@ -45,13 +52,16 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
   };
   await loadProviderExtensions();
   const autoMode = resolved.auto ? "auto" : resolved.yes ? "yes" : undefined;
+  const provider = resolveProvider({
+    provider: resolved.provider,
+    model: resolved.model,
+    reasoningEffort: config.reasoningEffort,
+    baseURL: launch.baseUrl,
+    apiKey: launch.apiKeyEnv ? process.env[launch.apiKeyEnv] : undefined,
+  });
   const client = await createClient({
     cwd: resolved.cwd,
-    provider: resolveProvider({
-      provider: resolved.provider,
-      model: resolved.model,
-      reasoningEffort: config.reasoningEffort,
-    }),
+    provider,
     sessionId: resolved.sessionId,
     sessionDir: resolved.sessionDir,
     noSessionStore: resolved.noSessionStore,
@@ -60,7 +70,18 @@ export async function createCliClient(args: CliArgs): Promise<CliClient> {
     addRoots: resolved.addRoots,
     askWrite: resolved.askWrite,
     allowBash: resolved.allowBash || resolved.yes || resolved.auto,
-    maxContextTokens: resolved.maxContextTokens,
+    maxContextTokens: effectiveMaxContextTokens({
+      model: resolved.model ?? modelIdFromProviderId(provider.id),
+      modelContextTokens: config.runtime.modelContextTokens,
+      providerSpec:
+        (config.provider && config.providers[config.provider]) ||
+        (resolved.provider && config.providers[resolved.provider]) ||
+        undefined,
+      global: config.runtime.maxContextTokens ?? resolved.maxContextTokens,
+      ...(args.flags.maxContextTokens !== undefined
+        ? { flag: args.flags.maxContextTokens }
+        : {}),
+    }),
     maxUserTurns: resolved.maxUserTurns,
     maxTurns: resolved.maxTurns,
     contextStrategy: resolved.contextStrategy,

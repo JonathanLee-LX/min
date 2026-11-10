@@ -8,10 +8,28 @@ export interface ParsedSkillFile {
   body: string;
 }
 
-export function parseSkillMarkdown(raw: string): ParsedSkillFile {
+export interface ParseSkillOptions {
+  /** Used when frontmatter omits `name`, or the name is not a valid skill id. */
+  fallbackName?: string;
+}
+
+export function parseSkillMarkdown(
+  raw: string,
+  options: ParseSkillOptions = {},
+): ParsedSkillFile {
   const { data, content } = matter(raw);
-  const name = String(data.name ?? "").trim();
-  const description = String(data.description ?? "").trim();
+  const fallback = slugifySkillName(options.fallbackName ?? "");
+  let name = String(data.name ?? "").trim();
+  if (name && !NAME_RE.test(name)) {
+    if (fallback && NAME_RE.test(fallback)) name = fallback;
+    else {
+      throw new Error(
+        `Invalid skill name "${name}": use lowercase letters, numbers, and single hyphens`,
+      );
+    }
+  }
+  if (!name) name = fallback;
+  const description = String(data.description ?? "").trim() || (name ? `Agent skill ${name}.` : "");
 
   if (!name) throw new Error("SKILL.md missing required frontmatter field: name");
   if (!description) {
@@ -44,13 +62,29 @@ export function parseSkillMarkdown(raw: string): ParsedSkillFile {
     );
   }
 
-  if (data["allowed-tools"] != null) {
-    meta.allowedTools = String(data["allowed-tools"])
-      .split(/\s+/)
-      .filter(Boolean);
-  }
+  const allowedTools = readAllowedTools(data["allowed-tools"]);
+  if (allowedTools?.length) meta.allowedTools = allowedTools;
 
   return { meta, body: content.trim() };
+}
+
+/** Directory names → skill ids: `PDF Processing` → `pdf-processing`. */
+export function slugifySkillName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+
+function readAllowedTools(value: unknown): string[] | undefined {
+  if (value == null) return undefined;
+  const parts = Array.isArray(value) ? value : [value];
+  return parts
+    .flatMap((entry) => String(entry).split(/\s+/))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 export function toSkill(

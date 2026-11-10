@@ -117,8 +117,6 @@ const BUSY_BLOCKED = new Set([
   "new",
   "reset",
   "compact",
-  "model-pick",
-  "model-set",
   "effort-set",
   "name",
   "name-set",
@@ -188,6 +186,7 @@ export interface NamedProviderSpec {
   model?: string;
   baseUrl?: string;
   apiKeyEnv?: string;
+  maxContextTokens?: number;
 }
 
 export type ModelChange =

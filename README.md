@@ -8,11 +8,11 @@ A minimal, extensible TypeScript **agent harness**. Core packages, `@min-agent/c
 - **Wide edge**: Skills, MCP, and workspace tools are composed by the host and passed into `createAgent`. The runner does not own a plugin bus.
 - **Dual protocols**: Anthropic Messages and OpenAI Responses adapters — vendor formats never leak into the loop.
 
-## 0.1.0-alpha.10
+## 0.1.0-alpha.12
 
 Current alpha. npm gets one package, `@min-agent/min`, tagged `alpha`. That tarball is the full build: `min`, `min-tui`, and `min-web`, plus the workspace modules they run. Those modules are not published as their own packages.
 
-Since `0.1.0-alpha.9`: the Web UI follows the terminal. Slash commands, session and model pickers, collapsed tool and thinking rows, and the context footer are in the browser, and the layout fits a phone.
+Since `0.1.0-alpha.11`: load Claude Code, Codex, and Cursor skills, MCP, and providers; min files win on the same name.
 
 ```bash
 npm install -g @min-agent/min@alpha
@@ -50,10 +50,10 @@ Known limits of this alpha: MCP is not connected by `createRuntime` (the host ca
 GitHub Actions publishes this monorepo. The workflow is [`.github/workflows/publish.yml`](.github/workflows/publish.yml). It runs on a pushed `v*` tag, and it can also be started by hand with a dry run. Every run, including a dry run, checks `NPM_TOKEN` with `npm whoami` before the build.
 
 1. Create an npm **Automation** token (or a granular token with 2FA bypass) that can publish the `@min-agent` scope. Classic “Publish” tokens fail in CI with `EOTP` when the account has 2FA. Save it as the repository secret `NPM_TOKEN`.
-2. Set the version in the root `package.json`. That is the only version npm receives. For this alpha it is `0.1.0-alpha.10`.
-3. Push the matching tag, `v0.1.0-alpha.10`.
+2. Set the version in the root `package.json`. That is the only version npm receives. For this alpha it is `0.1.0-alpha.12`.
+3. Push the matching tag, `v0.1.0-alpha.12`.
 
-The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag (`gh workflow run publish.yml -f version=0.1.0-alpha.10`).
+The workflow rejects the release when the root version differs from the tag, or when any workspace package is not `private`. It then installs from the lockfile, builds the whole repo, typechecks, tests, and publishes `@min-agent/min`. The pack step copies the CLI, TUI, Web, and package `dist` output into that one tarball and points internal imports at those files. A version that is already on npm is skipped, so a failed run can be repeated after the secret is fixed without deleting the tag (`gh workflow run publish.yml -f version=0.1.0-alpha.12`).
 
 Dist-tags come from the prerelease id: `alpha`, `beta`, `rc`, any other prerelease as `next`, and a stable version as `latest`. Provenance is requested only when the GitHub repository is public.
 
@@ -85,7 +85,7 @@ User files live under `~/.min/`. A project commits `.min/settings.json` and `.mc
 
 `{project}` is the absolute working directory with separators turned into `--` (`/work/app` → `work--app`).
 
-Low → high: defaults, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags. A non-empty `~/.config/min/config.json` or `<cwd>/.min/config.json` prints a notice and does not change settings.
+Low → high: defaults, Claude Code / Codex / Cursor user then project files, `~/.min/config.json`, `keybindings.json`, user settings / providers / auth / cron / mcp, `<cwd>/.min/settings.json` and `<cwd>/.mcp.json`, `~/.min/projects/{project}/`, `<cwd>/.min/settings.local.json`, `MIN_*`, then explicit flags. A non-empty `~/.config/min/config.json` or `<cwd>/.min/config.json` prints a notice and does not change settings. min overwrites a matching skill, MCP server, or provider name from those other agents. Paths are in [`packages/config/README.md`](packages/config/README.md).
 
 `MIN_PROVIDER`, `MIN_MODEL`, `MIN_THEME`, `MIN_MAX_TURNS`, `MIN_MAX_CONTEXT_TOKENS`, and `MIN_CONTEXT_STRATEGY` override the files. A flag such as `--provider` or `--max-turns` overrides those variables. `auth.json` fills an environment variable only when it is still unset, so `.env` wins.
 
@@ -405,12 +405,12 @@ export function withLogging(inner: ModelProvider): ModelProvider {
 ### Skills layout
 
 ```text
-skills/
+skills/                 # also ~/.min/skills and <cwd>/.min/skills
   greeter/
     SKILL.md    # YAML frontmatter: name + description
 ```
 
-Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via the `load_skill` tool (progressive disclosure).
+Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via the `load_skill` tool (progressive disclosure). Claude Code, Codex, and Cursor skill dirs are loaded first; a min skill of the same name wins.
 
 `allowed-tools` follows the Agent Skills spec: a space-separated list of tools pre-approved to run after the skill loads. Other tools stay available under the normal permission policy. Sandbox root grants are unchanged.
 

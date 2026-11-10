@@ -154,6 +154,8 @@ export interface Session {
    */
   generateTitle(opts?: { signal?: AbortSignal }): Promise<string>;
   reset(messages?: Message[]): void;
+  /** Updates the assemble budget; takes effect on the next run. */
+  setMaxContextTokens(tokens: number): void;
   export(): SessionSnapshot;
   dispose(): Promise<void>;
 }
@@ -182,17 +184,23 @@ export async function createSession(
     }
   }
 
-  const budget: ContextBudget = {
-    maxContextTokens:
-      opts.budget?.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
-    reservedOutputTokens: opts.budget?.reservedOutputTokens ?? 1024,
-    maxUserTurns: opts.budget?.maxUserTurns,
-    headTurns: opts.budget?.headTurns,
-    tailTurns: opts.budget?.tailTurns,
-    fold: opts.budget?.fold,
-    estimate: opts.budget?.estimate,
-    stash,
-  };
+  const budget: ContextBudget =
+    opts.budget &&
+    typeof opts.budget.maxContextTokens === "number" &&
+    typeof opts.budget.reservedOutputTokens === "number"
+      ? (opts.budget as ContextBudget)
+      : {
+          maxContextTokens:
+            opts.budget?.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS,
+          reservedOutputTokens: opts.budget?.reservedOutputTokens ?? 1024,
+          maxUserTurns: opts.budget?.maxUserTurns,
+          headTurns: opts.budget?.headTurns,
+          tailTurns: opts.budget?.tailTurns,
+          fold: opts.budget?.fold,
+          estimate: opts.budget?.estimate,
+          stash,
+        };
+  if (stash && !budget.stash) budget.stash = stash;
 
   // Default strategy = trim (eval baseline). H-M-T plugs in via extensions.
   const { assembler: extAssembler, hooks: extHooks } =
@@ -446,6 +454,13 @@ export async function createSession(
       lastAssemble = undefined;
       stash?.clear();
       inputQueue?.clear();
+    },
+
+    setMaxContextTokens(tokens) {
+      if (!Number.isInteger(tokens) || tokens < 1) {
+        throw new Error("maxContextTokens must be a positive integer");
+      }
+      budget.maxContextTokens = tokens;
     },
 
     export() {

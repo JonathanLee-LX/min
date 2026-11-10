@@ -39,12 +39,12 @@ export function filesystemSkillSource(
           continue;
         }
 
-        const raw = await readFile(skillFile, "utf8");
-        const parsed = parseSkillMarkdown(raw);
-        if (parsed.meta.name !== entry.name) {
-          throw new Error(
-            `Skill name "${parsed.meta.name}" must match directory "${entry.name}"`,
-          );
+        let parsed;
+        try {
+          const raw = await readFile(skillFile, "utf8");
+          parsed = parseSkillMarkdown(raw, { fallbackName: entry.name });
+        } catch {
+          continue;
         }
         const uri = `skill://filesystem/${parsed.meta.name}/SKILL.md`;
         const skill = toSkill(parsed, uri, skillDir);

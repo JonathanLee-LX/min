@@ -39,6 +39,17 @@ describe("parseConfigDocument", () => {
     });
   });
 
+  it("parses per-model context limits", () => {
+    const parsed = parseConfigDocument({
+      version: 1,
+      runtime: {
+        maxContextTokens: 256000,
+        modelContextTokens: { "gpt-4.1": 128000, bad: "nope" },
+      },
+    });
+    expect(parsed.document.runtime?.modelContextTokens).toEqual({ "gpt-4.1": 128000 });
+  });
+
   it("accepts a newer version with a warning", () => {
     const parsed = parseConfigDocument({ version: 99, ui: { theme: "default" } });
     expect(parsed.document.ui?.theme).toBe("default");

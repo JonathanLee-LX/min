@@ -127,6 +127,10 @@ export default function App() {
   const [continuing, setContinuing] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const [thinkingExpanded, setThinkingExpanded] = useState(false);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [workedMs, setWorkedMs] = useState<number | null>(null);
+  const [workedUntil, setWorkedUntil] = useState(0);
+  const [activityClock, setActivityClock] = useState(() => Date.now());
   const [overrides, setOverrides] = useState<Set<string>>(() => new Set());
   const [focusSignal, setFocusSignal] = useState(0);
   const [attachments, setAttachments] = useState<
@@ -192,8 +196,9 @@ export default function App() {
         const next = !thinkingExpandedRef.current;
         thinkingExpandedRef.current = next;
         setThinkingExpanded(next);
+        setToolsExpanded(next);
         setOverrides(new Set());
-        push("sys", next ? "thinking expanded" : "thinking collapsed");
+        push("sys", next ? "details expanded" : "details collapsed");
       }
       if (result.message) push(result.level === "error" ? "error" : "sys", result.message);
       if (result.picker === "sessions") {
@@ -216,10 +221,23 @@ export default function App() {
         current ? { ...current, status: event.status, busy: event.status !== "idle" } : current,
       );
       if (event.status !== "asking") setPerm(null);
+      if (event.status === "running" || event.status === "asking") {
+        setRunStartedAt((start) => start ?? Date.now());
+        setWorkedUntil(0);
+        setWorkedMs(null);
+      }
       if (event.status === "idle") {
         inflight.current.clear();
         setToolName(null);
         setContinuing(false);
+        setRunStartedAt((start) => {
+          if (start != null) {
+            const ms = Date.now() - start;
+            setWorkedMs(ms);
+            setWorkedUntil(Date.now() + 2500);
+          }
+          return null;
+        });
       }
       return;
     }
@@ -493,6 +511,13 @@ export default function App() {
   }
 
   thinkingExpandedRef.current = thinkingExpanded;
+  useEffect(() => {
+    if (status !== "running" && status !== "asking" && workedUntil <= 0) return;
+    const timer = setInterval(() => setActivityClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [status, workedUntil]);
+
+  const workedVisible = workedMs != null && activityClock < workedUntil;
   const suggestions = commandSuggestions(input);
   const title =
     snapshot?.title ||
@@ -502,6 +527,10 @@ export default function App() {
     streaming: stream.length > 0,
     toolName,
     continuing,
+    nowMs: activityClock,
+    runStartedAtMs: runStartedAt,
+    workedDurationMs: workedMs,
+    workedVisible,
   });
   const placeholder =
     commandPlaceholder(input) ||
@@ -600,7 +629,7 @@ export default function App() {
           <Transcript
             lines={lines}
             stream={stream}
-            thinking={thinking}
+            thinking={thinkingExpanded ? thinking : ""}
             activity={activity}
             toolsOpen={toolsOpen}
             thinkingOpen={thinkingOpen}
@@ -716,7 +745,12 @@ export default function App() {
                 className="justify-start"
                 onClick={() => {
                   if (item.tools) {
-                    setToolsExpanded((current) => !current);
+                    setToolsExpanded((current) => {
+                      const next = !current;
+                      setThinkingExpanded(next);
+                      thinkingExpandedRef.current = next;
+                      return next;
+                    });
                     setOverrides(new Set());
                     setMoreOpen(false);
                     return;

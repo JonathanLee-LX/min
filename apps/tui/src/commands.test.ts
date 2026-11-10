@@ -53,8 +53,8 @@ describe("routeSubmit", () => {
       command: { type: "dense", text: "keep this" },
     });
     expect(routeSubmit("/model", true)).toEqual({
-      type: "busy-blocked",
-      name: "model",
+      type: "command",
+      command: { type: "model-pick" },
     });
     expect(routeSubmit("/effort", true)).toEqual({ type: "command", command: { type: "effort" } });
     expect(routeSubmit("/exit", true)).toEqual({ type: "command", command: { type: "exit" } });
@@ -68,7 +68,6 @@ describe("routeSubmit", () => {
       "/new",
       "/reset",
       "/compact",
-      "/model gpt-4.1",
       "/effort high",
       "/name",
       "/name Notice colors",
@@ -76,8 +75,8 @@ describe("routeSubmit", () => {
       expect(routeSubmit(line, true).type).toBe("busy-blocked");
     }
     expect(routeSubmit("/model gpt-4.1", true)).toEqual({
-      type: "busy-blocked",
-      name: "model",
+      type: "command",
+      command: { type: "model-set", args: ["gpt-4.1"] },
     });
     expect(routeSubmit("/effort high", true)).toEqual({
       type: "busy-blocked",

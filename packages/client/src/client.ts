@@ -429,6 +429,23 @@ export async function createClient(
       };
     },
 
+    setMaxContextTokens(tokens) {
+      runtime.setMaxContextTokens(tokens);
+      const usage = runtime.session.lastAssemble?.usage;
+      if (usage) {
+        const used = usage.used;
+        const limit = tokens;
+        emit({
+          type: "context",
+          usage: {
+            ...usage,
+            limit,
+            ratio: limit > 0 ? used / limit : 0,
+          },
+        });
+      }
+    },
+
     advanced: {
       get runtime() {
         return runtime;
@@ -466,12 +483,14 @@ function resolveFactory(options: ClientOptions): FactoryOpts {
 
   const runtimeOpts: RuntimeOptions = {
     cwd: options.cwd ?? process.cwd(),
+    home: options.home,
     provider: options.provider!,
     sessionId: options.sessionId,
     sessionDir: options.sessionDir,
     noSessionStore: options.noSessionStore,
     noTools: options.noTools,
     skillsDir: options.skillsDir,
+    skillsDirs: options.skillsDirs,
     addRoots: options.addRoots,
     askWrite: options.askWrite,
     allowBash: options.allowBash,

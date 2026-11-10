@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import type { ContextBudget } from "./assemble.js";
 import { createFsBlobStore } from "./blobs.js";
 import { createInputQueue } from "./input-queue.js";
 import { PNG_SIG } from "./media.fixtures.js";
@@ -387,6 +388,21 @@ describe("createSession", () => {
     expect(users).toHaveLength(2);
     expect(users[1]?.content).toEqual([{ type: "text", text: "extra detail" }]);
     expect(queue.size).toBe(0);
+    await agent.dispose();
+  });
+
+  it("updates maxContextTokens for later assembles", async () => {
+    const agent = await createAgent({
+      provider: mockProvider([{ text: "ok" }]),
+    });
+    const shared: ContextBudget = {
+      maxContextTokens: 4000,
+      reservedOutputTokens: 1024,
+    };
+    const session = await createSession({ agent, budget: shared });
+    expect(shared.maxContextTokens).toBe(4000);
+    session.setMaxContextTokens(8000);
+    expect(shared.maxContextTokens).toBe(8000);
     await agent.dispose();
   });
 

@@ -59,6 +59,7 @@ Options:
   --theme <id>        theme id from config / registry (MIN_THEME also works)
 
 Config (later layers win):
+  Claude Code / Codex / Cursor files, then min
   ~/.min/config.json            preferences
   ~/.min/keybindings.json       key overrides
   ~/.min/settings.json          hooks, permission policy, MCP
@@ -99,11 +100,11 @@ Keys:
   Drag               select transcript text (copies on release)
   Mouse wheel, PageUp/PageDown, Shift+Up/Down, Alt+Up/Down, Ctrl+Up/Down
                     scroll the transcript
-  Ctrl+O             expand / collapse tool output
-  Ctrl+T             expand / collapse thinking
+  Ctrl+O / Ctrl+T    expand / collapse tool and thinking blocks
   Esc                abort the run while it is busy
   Ctrl+C             abort the run, or quit when idle
-  Ctrl+A / Ctrl+E    start / end of line
+  Home / End         start / end of line
+  Ctrl+A / Ctrl+E    also start / end of line
   Ctrl+B / Ctrl+F    move cursor left / right
   Ctrl+W / Ctrl+U    delete the previous word / to the line start
   y / n / a          answer a permission prompt (no answer denies in 2 minutes)

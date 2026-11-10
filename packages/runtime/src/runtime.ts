@@ -17,6 +17,7 @@ import {
   resolveContextStrategy,
   type ContextPartId,
   type ContextPartsSnapshot,
+  type ContextBudget,
   type ContextStrategyId,
   type ContextSystemPart,
   type ContextToolGroup,
@@ -25,6 +26,7 @@ import {
 } from "@min-agent/session";
 import {
   createAllowedToolsGate,
+  discoverSkillDirs,
   skills,
   type AllowedToolsGate,
 } from "@min-agent/skills";
@@ -37,7 +39,6 @@ import {
   type PermissionAskResult,
   type WorkspacePermissionPolicy,
 } from "@min-agent/tools";
-import { access } from "node:fs/promises";
 import path from "node:path";
 
 export const BASE_SYSTEM = [
@@ -47,12 +48,19 @@ export const BASE_SYSTEM = [
 
 export interface RuntimeOptions {
   cwd: string;
+  /**
+   * Home used to discover `~/.min/skills` and foreign agent skill dirs.
+   * Tests pass a temp directory so the real home is not scanned.
+   */
+  home?: string;
   provider: ModelProvider;
   sessionId?: string;
   sessionDir?: string;
   noSessionStore?: boolean;
   noTools?: boolean;
   skillsDir?: string;
+  /** Extra skill roots, lowest first. `skillsDir` is appended after these. */
+  skillsDirs?: string[];
   addRoots?: string[];
   askWrite?: boolean;
   allowBash?: boolean;
@@ -87,6 +95,9 @@ export interface Runtime {
   cwd: string;
   contextStrategy: ContextStrategyId;
   maxTurns: number;
+  /** Shared assembler budget; kept in sync with the session. */
+  readonly contextBudget: ContextBudget;
+  setMaxContextTokens(tokens: number): void;
 }
 
 export function sessionDirFor(cwd: string, sessionDir?: string): string {
@@ -102,7 +113,7 @@ export async function createRuntime(
   const contextStrategy: ContextStrategyId =
     opts.contextStrategy ?? (opts.noTools ? "trim" : "hybrid");
 
-  const budget = {
+  const contextBudget: ContextBudget = {
     maxContextTokens: opts.maxContextTokens || DEFAULT_MAX_CONTEXT_TOKENS,
     maxUserTurns: opts.maxUserTurns,
     reservedOutputTokens: 1024,
@@ -112,7 +123,7 @@ export async function createRuntime(
   const spillFolded = process.env.MIN_SPILL_FOLDED !== "0";
   const resolved = resolveContextStrategy({
     strategy: contextStrategy,
-    budget,
+    budget: contextBudget,
     provider: opts.provider,
     ...(spillFolded
       ? {
@@ -166,12 +177,10 @@ export async function createRuntime(
     appendSystem(recall.system, "system");
   }
 
-  const skillsDir = opts.skillsDir
-    ? path.resolve(opts.skillsDir)
-    : path.join(opts.cwd, "skills");
-  if (await exists(skillsDir)) {
+  const skillDirs = resolveSkillDirs(opts);
+  if (skillDirs.length > 0) {
     const loaded = await skills({
-      dirs: [skillsDir],
+      dirs: skillDirs,
       allowedToolsGate,
       appendSystem: (text) => appendSystem(text, "skills"),
     });
@@ -232,6 +241,10 @@ export async function createRuntime(
         path.join(sessionDirFor(opts.cwd, opts.sessionDir), sessionId, "blobs"),
       );
 
+  if (resolved.stash && !contextBudget.stash) {
+    contextBudget.stash = resolved.stash;
+  }
+
   const sessionExtensions = [
     ...(resolved.extension ? [resolved.extension] : []),
     ...(opts.sessionExtensions ?? []),
@@ -245,13 +258,15 @@ export async function createRuntime(
     stash: resolved.stash,
     systemForBudget: liveSystem,
     contextParts,
-    budget: {
-      ...budget,
-      stash: resolved.stash,
-    },
+    budget: contextBudget,
     extensions: sessionExtensions,
     bindPermissionAsk: (ask) => permissionGate.setAsk(ask),
   });
+
+  const setMaxContextTokens = (tokens: number) => {
+    contextBudget.maxContextTokens = tokens;
+    session.setMaxContextTokens(tokens);
+  };
 
   return {
     agent,
@@ -262,6 +277,8 @@ export async function createRuntime(
     cwd: opts.cwd,
     contextStrategy,
     maxTurns,
+    contextBudget,
+    setMaxContextTokens,
   };
 }
 
@@ -272,11 +289,21 @@ function looksLikeMcpTool(name: string): boolean {
   return name.startsWith("mcp_") || name.includes("__");
 }
 
-async function exists(p: string): Promise<boolean> {
-  try {
-    await access(p);
-    return true;
-  } catch {
-    return false;
+function resolveSkillDirs(opts: RuntimeOptions): string[] {
+  const dirs = opts.skillsDirs?.length
+    ? opts.skillsDirs.map((dir) => path.resolve(dir))
+    : discoverSkillDirs({ cwd: opts.cwd, home: opts.home });
+  if (!opts.skillsDir) return uniqueDirs(dirs);
+  return uniqueDirs([...dirs, path.resolve(opts.skillsDir)]);
+}
+
+function uniqueDirs(dirs: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const dir of dirs) {
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    out.push(dir);
   }
+  return out;
 }
