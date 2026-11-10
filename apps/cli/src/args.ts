@@ -19,7 +19,7 @@ export interface CliArgs {
   auto: boolean;
   /** Force bash permission mode to allow. */
   allowBash: boolean;
-  /** Force write_file permission mode to ask. */
+  /** Force write permission mode to ask (write_file and edit_file). */
   askWrite: boolean;
   /** Allow -y / non-interactive approval of session root grants. */
   allowRootGrant: boolean;
@@ -226,7 +226,7 @@ Options:
   -y, --yes           auto-approve tool prompts once (NOT root expansion)
   --auto              full-auto: bash allow + session grants + root grants
   --allow-bash        allow bash without prompting
-  --ask-write         confirm write_file (default: allow)
+  --ask-write         confirm write_file and edit_file (default: allow)
   --allow-root-grant  allow non-interactive approval of sandbox root grants
   --session <id>      resume/create conversation session id
   --session-dir <dir> session store directory (default: <cwd>/.min/sessions)

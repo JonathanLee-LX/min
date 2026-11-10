@@ -24,10 +24,14 @@ export function permissionDetailLines(input: {
       "Grant session root",
       `  path  ${input.grantRoot}`,
       `  tool  ${tool}`,
-      `  ${input.reason}`,
+      ...reasonLines(input.reason),
     ];
   }
-  return ["Allow tool", `  ${tool}`, `  ${input.reason}`];
+  return ["Allow tool", `  ${tool}`, ...reasonLines(input.reason)];
+}
+
+function reasonLines(reason: string): string[] {
+  return reason.split("\n").map((line) => `  ${line}`);
 }
 
 /** @deprecated Prefer {@link permissionDetailLines} + ConfirmInput. */

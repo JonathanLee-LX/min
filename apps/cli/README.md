@@ -38,6 +38,6 @@ min --provider mock --no-tools -p "ping"
 
 `min` and `min -p` / `min -i` read the same files as the TUI. Details and examples are in [`packages/config/README.md`](../../packages/config/README.md).
 
-From those files the CLI applies `provider`, `model`, `runtime.maxTurns`, `runtime.maxContextTokens`, `runtime.contextStrategy`, and `runtime.sessionDir`. `settings.permissions.bash` set to `allow` turns bash on. `settings.permissions.write` set to `ask` confirms writes. An explicit flag (`--provider`, `--model`, `--max-turns`, `--max-context-tokens`, `--context-strategy`, `--session-dir`) beats the file and `MIN_*`. `--allow-bash` and `--ask-write` still force those modes when the settings file says something else.
+From those files the CLI applies `provider`, `model`, `runtime.maxTurns`, `runtime.maxContextTokens`, `runtime.contextStrategy`, and `runtime.sessionDir`. `settings.permissions.bash` set to `allow` turns bash on. `settings.permissions.write` set to `ask` confirms `write_file` and `edit_file`. An explicit flag (`--provider`, `--model`, `--max-turns`, `--max-context-tokens`, `--context-strategy`, `--session-dir`) beats the file and `MIN_*`. `--allow-bash` and `--ask-write` still force those modes when the settings file says something else.
 
 `providers.json`, MCP servers, and `cron/jobs.json` are loaded and not used by the CLI yet.

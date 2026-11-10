@@ -43,7 +43,14 @@ describe("runtime architecture contracts", () => {
     });
     const names = rt.agent.tools.list().map((tool) => tool.name).sort();
     expect(names).toEqual(
-      expect.arrayContaining(["bash", "glob", "read_file", "write_file", "recall_context"]),
+      expect.arrayContaining([
+        "bash",
+        "edit_file",
+        "glob",
+        "read_file",
+        "write_file",
+        "recall_context",
+      ]),
     );
     expect(names.every((name) => !name.includes("mcp"))).toBe(true);
     await rt.session.dispose();

@@ -104,7 +104,7 @@ packages/
   providers/ @min-agent/providers built-in providers + registerProvider extension
   mcp/       @min-agent/mcp      MCP client extension
   skills/    @min-agent/skills   Agent Skills (SKILL.md) + allowed-tools gate
-  tools/     @min-agent/tools    sandboxed read/write/glob/bash
+  tools/     @min-agent/tools    sandboxed read/edit/write/glob/bash
   session/   @min-agent/session  conversation sessions + context budget + input queue
   runtime/   @min-agent/runtime  shared composition layer for CLI / TUI
   client/    @min-agent/client   UI facade: send / subscribe / queue / permission
@@ -239,14 +239,17 @@ registerProvider("groq", () => groq);
 
 ### Workspace tools (`@min-agent/tools`)
 
-Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `glob`, `bash`, all scoped to `--cwd`.
+Registered by the CLI (unless `--no-tools`): `read_file`, `write_file`, `edit_file`, `glob`, `bash`, all scoped to `--cwd`.
+
+`edit_file` replaces an exact snippet. Prefer it for a small change; `write_file` creates a file or replaces it entirely. `old_string` must match once unless `replace_all` is set. Pass `edits` to apply several replacements in order; if one fails, the file is left unchanged. `edit_file` requires a `read_file` of that path in the same process (a successful `write_file` refreshes the snapshot) and does not write if the file changed on disk. With `--ask-write`, the prompt includes a short diff of the replacement.
 
 ### Permissions (fluency-first)
 
 | Surface | Default | Notes |
 |---------|---------|--------|
 | read / glob | allow | Inside primary + session roots |
-| write_file | allow | `--ask-write` to confirm |
+| write_file | allow | `--ask-write` to confirm. Prefer `edit_file` for a small edit |
+| edit_file | allow | Same write mode as `write_file`. `--ask-write` shows a short diff |
 | bash | ask | Small allowlist (`git`, `ls`, `pnpm`, …) auto-passes |
 | path outside roots | ask | Approving adds a **tight session root** (`dirname` / dir itself) |
 | other tools | ask | `load_skill` and `recall_context` are trusted. MCP and other host tools ask |

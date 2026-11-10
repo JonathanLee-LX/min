@@ -39,7 +39,7 @@ apps    ← client, config
 | Client grants | `persistPermissionGrants: false` must not write `.min/permissions.json` |
 | Config | Unknown JSON keys go under `extensions`; `version` is 1; user files live under `~/.min/`; committed project settings are `.min/settings.json`; legacy `config.json` files are reported and do not change settings; auth and cron are attached, not merged into preferences; permissions/sessions stay sidecars; Claude Code / Codex / Cursor files load before min files |
 | Sidecar paths | `config.permissionRulesPath` formula matches `tools.permissionRulesPath`; sessions live under `.min/sessions` |
-| Tools | Sandbox rejects `..` escapes; permission rules file is `version: 1`; `grantRoot` is the escaped dir |
+| Tools | Sandbox rejects `..` escapes; permission rules file is `version: 1`; `grantRoot` is the escaped dir. `edit_file` uses that same resolve path and the write permission mode |
 | Skills | `appendSystem` grows on catalog + `load_skill`; `allowed-tools` pre-approve only; foreign skill dirs load before `~/.min/skills` / `<cwd>/.min/skills` / `<cwd>/skills`; `/name` loads the skill then sends the line; built-in slash commands win on the same name |
 | Providers | Adapter results expose only core part types (`text` / `tool_call`) |
 

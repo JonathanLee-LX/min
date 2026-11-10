@@ -19,6 +19,16 @@ describe("permission view", () => {
     expect(lines.join("\n")).not.toContain("[y]");
   });
 
+  it("keeps each line of a diff on its own row", () => {
+    const lines = permissionDetailLines({
+      reason: 'edit_file path="a.ts"\n- old\n+ new',
+      toolCall: { name: "edit_file", arguments: { path: "a.ts" } },
+    });
+    expect(lines).toContain("  - old");
+    expect(lines).toContain("  + new");
+    expect(lines.filter((line) => line.startsWith("  ")).length).toBeGreaterThan(2);
+  });
+
   it("shows a root grant separately from the tool", () => {
     const lines = permissionDetailLines({
       reason: "path is outside the sandbox",
