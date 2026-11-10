@@ -55,4 +55,30 @@ describe("deepseekProvider", () => {
       { type: "text", text: "hi from chat" },
     ]);
   });
+
+  it("rejects image and document parts", async () => {
+    const create = vi.fn();
+    const provider = deepseekProvider({
+      apiKey: "test",
+      client: { responses: { create } } as never,
+    });
+    await expect(
+      provider.complete({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                mediaType: "image/png",
+                blobId: "a".repeat(64),
+                data: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+              },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/deepseek/i);
+    expect(create).not.toHaveBeenCalled();
+  });
 });

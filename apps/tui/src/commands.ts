@@ -33,7 +33,9 @@ export type TuiCommand =
   | { type: "effort" }
   | { type: "effort-set"; value: string }
   | { type: "name" }
-  | { type: "name-set"; title: string };
+  | { type: "name-set"; title: string }
+  | { type: "attach"; path: string }
+  | { type: "attach-usage" };
 
 export type SubmitRoute =
   | { type: "empty" }
@@ -75,6 +77,7 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "effort", hint: "show or set thinking intensity", arg: true },
   { name: "name", hint: "generate a session name, or set one", arg: true },
   { name: "dense", hint: "queue text as a dense-latest supplement", arg: true },
+  { name: "attach", hint: "attach an image, PDF, or text file", arg: true },
   { name: "exit", hint: "quit" },
   { name: "quit", hint: "quit" },
 ];
@@ -103,6 +106,7 @@ export const TUI_HELP = `Commands:
   /name              ask the model for a short name
   /name <text>       set the session name
   /dense <text>      queue text as a dense-latest supplement
+  /attach <path>     attach an image, PDF, or text file to the next send
   /exit /quit        quit
 
 Keys:
@@ -246,6 +250,10 @@ export function parseTuiCommand(line: string): TuiCommand {
   if (name === "dense") {
     const text = rest.join(" ").trim();
     return text ? { type: "dense", text } : { type: "dense-usage" };
+  }
+  if (name === "attach") {
+    const file = rest.join(" ").trim();
+    return file ? { type: "attach", path: file } : { type: "attach-usage" };
   }
   return { type: "prompt", text: trimmed };
 }

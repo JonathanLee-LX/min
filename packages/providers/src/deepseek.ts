@@ -1,7 +1,8 @@
 import type OpenAI from "openai";
-import type { ModelProvider, ReasoningEffort } from "@min-agent/core";
+import type { CompletionRequest, ModelProvider, ReasoningEffort } from "@min-agent/core";
 import { openaiChatProvider } from "./openai-chat.js";
 import { openaiProvider } from "./openai.js";
+import { rejectMedia } from "./media.js";
 
 export interface DeepSeekProviderOptions {
   apiKey?: string;
@@ -47,15 +48,17 @@ export function deepseekProvider(
 
   if (api === "chat") {
     const model = opts.model ?? "deepseek-chat";
-    return openaiChatProvider({
-      apiKey,
-      model,
-      baseURL,
-      maxTokens,
-      id: "deepseek",
-      reasoningEffort: opts.reasoningEffort,
-      client: opts.client,
-    });
+    return guardDeepseek(
+      openaiChatProvider({
+        apiKey,
+        model,
+        baseURL,
+        maxTokens,
+        id: "deepseek",
+        reasoningEffort: opts.reasoningEffort,
+        client: opts.client,
+      }),
+    );
   }
 
   const model = opts.model ?? "deepseek-flash";
@@ -69,9 +72,26 @@ export function deepseekProvider(
     reasoningEffort: opts.reasoningEffort ?? "high",
     client: opts.client,
   });
-  return {
+  return guardDeepseek({
     id: `deepseek:${model}`,
     complete: (req) => inner.complete(req),
     stream: inner.stream?.bind(inner),
+  });
+}
+
+function guardDeepseek(provider: ModelProvider): ModelProvider {
+  const complete = async (req: CompletionRequest) => {
+    rejectMedia(req.messages, "deepseek");
+    return provider.complete(req);
+  };
+  return {
+    id: provider.id,
+    complete,
+    stream: provider.stream
+      ? async function* (req: CompletionRequest) {
+          rejectMedia(req.messages, "deepseek");
+          yield* provider.stream!(req);
+        }
+      : undefined,
   };
 }

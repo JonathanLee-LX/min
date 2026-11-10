@@ -51,6 +51,8 @@ export interface CliArgs {
     | "sticky-trim"
     | "hybrid";
   prompt?: string;
+  /** Repeatable `--file` paths for this turn. */
+  files: string[];
   /** Values the user set with flags. Env defaults stay out of this object. */
   flags: FlagOverrides;
 }
@@ -70,6 +72,7 @@ export function parseArgs(argv: string[]): CliArgs {
     addRoots: [],
     noSessionStore: false,
     listSessions: false,
+    files: [],
     maxContextTokens: Number(
       process.env.MIN_MAX_CONTEXT_TOKENS ?? DEFAULT_MAX_CONTEXT_TOKENS,
     ),
@@ -159,6 +162,14 @@ export function parseArgs(argv: string[]): CliArgs {
       if (args.model) args.flags.model = args.model;
     } else if (a === "--skills") {
       args.skillsDir = argv[++i];
+    } else if (a === "--file") {
+      const file = argv[++i];
+      if (!file) throw new Error("--file requires a path");
+      args.files.push(file);
+    } else if (a.startsWith("--file=")) {
+      const file = a.slice("--file=".length);
+      if (!file) throw new Error("--file= requires a path");
+      args.files.push(file);
     } else if (a === "-p" || a === "--prompt") {
       const text = argv[++i];
       if (text === undefined) throw new Error("-p / --prompt requires text");
@@ -205,6 +216,7 @@ Usage:
 
 Options:
   -p, --prompt <text> one-shot user message
+  --file <path>       attach an image, PDF, or text file (repeatable)
   --provider <name>   mock | deepseek | openai | anthropic
   --model <id>        provider model id
   --cwd <dir>         primary sandbox root (default: .)

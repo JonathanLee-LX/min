@@ -7,7 +7,9 @@ import {
   type Tool,
 } from "@min-agent/core";
 import {
+  createFsBlobStore,
   createFsStore,
+  createMemoryBlobStore,
   createSession,
   DEFAULT_MAX_CONTEXT_TOKENS,
   newSessionId,
@@ -233,6 +235,11 @@ export async function createRuntime(
   const store = opts.noSessionStore
     ? undefined
     : createFsStore(sessionDirFor(opts.cwd, opts.sessionDir));
+  const blobStore = opts.noSessionStore
+    ? createMemoryBlobStore()
+    : createFsBlobStore(
+        path.join(sessionDirFor(opts.cwd, opts.sessionDir), sessionId, "blobs"),
+      );
 
   if (resolved.stash && !contextBudget.stash) {
     contextBudget.stash = resolved.stash;
@@ -246,6 +253,7 @@ export async function createRuntime(
   const session = await createSession({
     agent,
     store,
+    blobStore,
     id: sessionId,
     stash: resolved.stash,
     systemForBudget: liveSystem,

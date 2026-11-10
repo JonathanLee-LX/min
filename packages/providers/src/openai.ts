@@ -4,6 +4,7 @@ import type {
   FunctionTool,
   Response,
   ResponseFunctionToolCall,
+  ResponseInputContent,
   ResponseInputItem,
   ResponseOutputItem,
   Tool,
@@ -15,9 +16,11 @@ import type {
   CompletionRequest,
   CompletionResult,
   ContentPart,
+  Message,
   ToolDefinition,
 } from "@min-agent/core";
 import { modelLikelyReasons } from "./catalog.js";
+import { requireMediaData, toDataUrl } from "./media.js";
 
 export { modelLikelyReasons };
 
@@ -208,12 +211,7 @@ function toResponsesInput(req: CompletionRequest): {
     }
 
     if (msg.role === "user") {
-      const text = msg.content
-        .filter((p) => p.type === "text")
-        .map((p) => (p as { text: string }).text)
-        .join("");
-      const easy: EasyInputMessage = { role: "user", content: text };
-      input.push(easy);
+      input.push(toResponsesUser(msg.content));
       continue;
     }
 
@@ -256,6 +254,40 @@ function toResponsesInput(req: CompletionRequest): {
       : undefined,
     input,
   };
+}
+
+function toResponsesUser(parts: Message["content"]): EasyInputMessage {
+  const hasMedia = parts.some(
+    (part) => part.type === "image" || part.type === "document",
+  );
+  if (!hasMedia) {
+    const text = parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+    return { role: "user", content: text };
+  }
+  const content: ResponseInputContent[] = [];
+  for (const part of parts) {
+    if (part.type === "text") {
+      content.push({ type: "input_text", text: part.text });
+    } else if (part.type === "image") {
+      const data = requireMediaData(part);
+      content.push({
+        type: "input_image",
+        detail: "auto",
+        image_url: toDataUrl(part.mediaType, data),
+      });
+    } else if (part.type === "document") {
+      const data = requireMediaData(part);
+      content.push({
+        type: "input_file",
+        filename: part.filename ?? "file.pdf",
+        file_data: toDataUrl("application/pdf", data),
+      });
+    }
+  }
+  return { role: "user", content };
 }
 
 function fromResponsesOutput(response: Response): CompletionResult {

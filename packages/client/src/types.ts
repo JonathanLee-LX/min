@@ -103,6 +103,15 @@ export type ClientEventHandler = (event: ClientEvent) => void;
 
 export interface SendOptions {
   signal?: AbortSignal;
+  /**
+   * Image, PDF, or text files for this turn. Bytes are stored as session
+   * blobs; the first `send` argument stays a string.
+   */
+  attachments?: readonly {
+    filename?: string;
+    mediaType?: string;
+    bytes: Uint8Array;
+  }[];
 }
 
 export interface ClientOptions {

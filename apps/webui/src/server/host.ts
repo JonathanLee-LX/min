@@ -1,4 +1,5 @@
 import {
+  classifyAttachment,
   createAutoPermissionApprover,
   createClient,
   type ClientEvent,
@@ -11,6 +12,7 @@ import {
   providerLaunchSpec,
   resolveMinConfig,
 } from "@min-agent/config";
+import { resolveTurnSubmit } from "./staging.js";
 import {
   loadProviderExtensions,
   modelControls,
@@ -189,26 +191,59 @@ export async function listModelRows(): Promise<ModelRow[]> {
   return modelRows(commandHost(client));
 }
 
-export async function submitText(text: string): Promise<SubmitResponse> {
+export async function submitText(
+  text: string,
+  attachmentIds: readonly string[] = [],
+): Promise<SubmitResponse> {
   const client = await getClient();
   const route = routeSubmit(text, client.getStatus().busy);
-  if (route.type === "empty") {
+  if (route.type === "empty" && attachmentIds.length === 0) {
     return { ok: false, route: "empty", error: "text required" };
   }
-  if (route.type === "send") {
-    void client.send(route.text).catch((err) => {
-      emit({
-        type: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
+  if (route.type === "send" || route.type === "queue" || route.type === "empty") {
+    const prompt = route.type === "empty" ? "" : route.text;
+    const decision = resolveTurnSubmit({
+      text: prompt,
+      attachmentIds,
+      busy: client.getStatus().busy,
     });
+    if (decision.type === "empty") {
+      return { ok: false, route: "empty", error: "text required" };
+    }
+    if (decision.type === "reject") {
+      return {
+        ok: false,
+        route: "blocked",
+        level: "error",
+        message: "cannot queue attachments while busy",
+        snapshot: await snapshot(),
+      };
+    }
+    if (decision.type === "unknown") {
+      return {
+        ok: false,
+        route: "send",
+        error: decision.error,
+        message: decision.error,
+      };
+    }
+    if (decision.type === "queue") {
+      client.queue.push(decision.text);
+      const body = { ok: true, route: "queue" as const, snapshot: await snapshot() };
+      emit({ type: "chrome", snapshot: body.snapshot });
+      return body;
+    }
+    void client
+      .send(decision.text, {
+        ...(decision.attachments.length ? { attachments: decision.attachments } : {}),
+      })
+      .catch((err) => {
+        emit({
+          type: "error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
     return { ok: true, route: "send", snapshot: await snapshot() };
-  }
-  if (route.type === "queue") {
-    client.queue.push(route.text);
-    const body = { ok: true, route: "queue" as const, snapshot: await snapshot() };
-    emit({ type: "chrome", snapshot: body.snapshot });
-    return body;
   }
   if (route.type === "busy-blocked") {
     return {
@@ -349,6 +384,21 @@ function contextStrategyFrom(
     return value;
   }
   return undefined;
+}
+
+export async function readSessionBlob(
+  blobId: string,
+): Promise<{ bytes: Uint8Array; mediaType: string }> {
+  const client = await getClient();
+  const bytes = await client.advanced.runtime.session.blobs.get(blobId);
+  const classified = classifyAttachment({ bytes });
+  const mediaType =
+    classified.kind === "image"
+      ? classified.mediaType
+      : classified.kind === "document"
+        ? "application/pdf"
+        : "application/octet-stream";
+  return { bytes, mediaType };
 }
 
 function messageOf(err: unknown): string {

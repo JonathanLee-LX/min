@@ -10,12 +10,44 @@ async function read(res: Response): Promise<SubmitResponse> {
   };
 }
 
-export function submitText(text: string): Promise<SubmitResponse> {
+export function submitText(
+  text: string,
+  attachmentIds: readonly string[] = [],
+): Promise<SubmitResponse> {
   return fetch("/api/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, attachmentIds }),
   }).then(read);
+}
+
+export async function uploadAttachment(file: File): Promise<{
+  id: string;
+  filename: string;
+  mediaType: string;
+  byteLength: number;
+}> {
+  const res = await fetch("/api/attachments", {
+    method: "POST",
+    headers: { "X-Filename": file.name },
+    body: file,
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    id?: string;
+    filename?: string;
+    mediaType?: string;
+    byteLength?: number;
+    error?: string;
+  };
+  if (!res.ok || !data.id) {
+    throw new Error(data.error ?? res.statusText);
+  }
+  return {
+    id: data.id,
+    filename: data.filename ?? file.name,
+    mediaType: data.mediaType ?? "application/octet-stream",
+    byteLength: data.byteLength ?? file.size,
+  };
 }
 
 export function openSession(id: string): Promise<SubmitResponse> {

@@ -238,9 +238,13 @@ export async function createClient(
 
   const send = async (text: string, opts: SendOptions = {}): Promise<void> => {
     const prompt = text.trim();
-    if (!prompt) return;
+    const attachments = opts.attachments ?? [];
+    if (!prompt && attachments.length === 0) return;
 
     if (runLock) {
+      if (attachments.length > 0) {
+        throw new Error("cannot queue attachments while busy");
+      }
       if (factory.onBusySend === "reject") {
         throw new Error("client is busy");
       }
@@ -263,6 +267,7 @@ export async function createClient(
     try {
       const result = await runtime.session.run(prompt, {
         signal: abortController.signal,
+        ...(attachments.length ? { attachments } : {}),
         onEvent: (event: RunEvent) => {
           if (event.type === "thinking_delta") {
             turnBuf.thinking += event.text;

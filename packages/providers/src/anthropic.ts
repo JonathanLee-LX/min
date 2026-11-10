@@ -16,6 +16,7 @@ import type {
   Message,
   ToolDefinition,
 } from "@min-agent/core";
+import { bytesToBase64, requireMediaData } from "./media.js";
 
 export interface AnthropicProviderOptions {
   apiKey?: string;
@@ -137,12 +138,33 @@ function toAnthropicMessages(messages: Message[]): MessageParam[] {
 
   for (const msg of messages) {
     if (msg.role === "user") {
-      out.push({
-        role: "user",
-        content: msg.content
-          .filter((p) => p.type === "text")
-          .map((p) => ({ type: "text" as const, text: (p as { text: string }).text })),
-      });
+      const content: ContentBlockParam[] = [];
+      for (const part of msg.content) {
+        if (part.type === "text") {
+          content.push({ type: "text", text: part.text });
+        } else if (part.type === "image") {
+          const data = requireMediaData(part);
+          content.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: part.mediaType,
+              data: bytesToBase64(data),
+            },
+          });
+        } else if (part.type === "document") {
+          const data = requireMediaData(part);
+          content.push({
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: bytesToBase64(data),
+            },
+          });
+        }
+      }
+      out.push({ role: "user", content });
     } else if (msg.role === "assistant") {
       const content: ContentBlockParam[] = [];
       for (const part of msg.content) {

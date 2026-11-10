@@ -2,10 +2,13 @@ import { Alert, ThemeProvider } from "@inkjs/ui";
 import {
   createAutoPermissionApprover,
   createClient,
+  decideTurnSubmit,
+  readTurnFiles,
   type ClientEvent,
   type ClientStatus,
   type ContextUsage,
   type MinClient,
+  type TurnAttachment,
 } from "@min-agent/client";
 import {
   loadProviderExtensions,
@@ -178,6 +181,8 @@ export function App({ args }: { args: TuiArgs }) {
   const [busy, setBusy] = useState(false);
   const [statusLabel, setStatusLabel] = useState<ClientStatus>("idle");
   const [queueSize, setQueueSize] = useState(0);
+  const [pendingAttachments, setPendingAttachments] = useState<TurnAttachment[]>([]);
+  const pendingAttachmentsRef = useRef<TurnAttachment[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [stream, setStream] = useState("");
   const [thinking, setThinking] = useState("");
@@ -766,6 +771,22 @@ export function App({ args }: { args: TuiArgs }) {
         pushLine("sys", formatQueue(live.queue.peek()));
         return;
       }
+      if (command.type === "attach-usage") {
+        pushLine("sys", "usage: /attach <path>  — attach a file to the next send");
+        return;
+      }
+      if (command.type === "attach") {
+        try {
+          const items = await readTurnFiles([command.path]);
+          pendingAttachmentsRef.current = [...pendingAttachmentsRef.current, ...items];
+          setPendingAttachments(pendingAttachmentsRef.current);
+          const name = items[0]?.filename ?? command.path;
+          pushLine("sys", `attached ${name} (tray=${pendingAttachmentsRef.current.length})`);
+        } catch (err) {
+          pushLine("error", messageOf(err));
+        }
+        return;
+      }
       if (command.type === "dense-usage") {
         pushLine("sys", "usage: /dense <text>  — queue as dense-latest supplement");
         return;
@@ -797,26 +818,48 @@ export function App({ args }: { args: TuiArgs }) {
       const live = clientRef.current;
       if (!live) return;
       const route = routeSubmit(text, live.getStatus().busy);
-      if (route.type === "empty") return;
-      if (route.type === "send" || route.type === "queue") {
-        pushLine("user", route.text);
-        try {
-          if (route.type === "queue") {
-            live.queue.push(route.text);
-            setQueueSize(live.queue.size);
-          } else {
-            await live.send(route.text);
-          }
-        } catch (err) {
-          pushLine("error", messageOf(err));
-        }
-        return;
-      }
       if (route.type === "busy-blocked") {
         pushLine("notice", `/${route.name} is unavailable while the agent is running`);
         return;
       }
-      await runCommand(live, route.command);
+      if (route.type === "command") {
+        await runCommand(live, route.command);
+        return;
+      }
+      const tray = pendingAttachmentsRef.current;
+      const prompt = route.type === "empty" ? "" : route.text;
+      const decision = decideTurnSubmit({
+        text: prompt,
+        attachmentCount: tray.length,
+        busy: live.getStatus().busy,
+      });
+      if (decision.type === "empty") return;
+      if (decision.type === "reject") {
+        pushLine("error", "cannot queue attachments while busy");
+        return;
+      }
+      const label = [
+        decision.text,
+        ...tray.map((item) => item.filename).filter(Boolean),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      pushLine("user", label || "(attachment)");
+      try {
+        if (decision.type === "queue") {
+          live.queue.push(decision.text);
+          setQueueSize(live.queue.size);
+        } else {
+          const attachments = tray;
+          pendingAttachmentsRef.current = [];
+          setPendingAttachments([]);
+          await live.send(decision.text, {
+            ...(attachments.length ? { attachments } : {}),
+          });
+        }
+      } catch (err) {
+        pushLine("error", messageOf(err));
+      }
     },
     [pushLine, runCommand],
   );
@@ -1559,7 +1602,15 @@ export function App({ args }: { args: TuiArgs }) {
         color={userTone.body}
         borderColor={theme.chrome.brand}
         placeholder={
-          editor.cursor === editor.text.length ? commandPlaceholder(editor.text) : undefined
+          editor.cursor === editor.text.length
+            ? commandPlaceholder(editor.text) ??
+              (pendingAttachments.length
+                ? pendingAttachments
+                    .map((item) => item.filename)
+                    .filter(Boolean)
+                    .join(", ")
+                : undefined)
+            : undefined
         }
       />
       <ContextMeter

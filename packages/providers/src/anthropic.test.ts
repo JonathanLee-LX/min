@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { anthropicProvider } from "./anthropic.js";
 
+const PNG = Uint8Array.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0,
+]);
+const PDF = new TextEncoder().encode("%PDF-1.4\n%%EOF\n");
+
 describe("anthropicProvider", () => {
   it("maps internal messages to Anthropic Messages and back", async () => {
     const create = vi.fn().mockResolvedValue({
@@ -101,5 +106,81 @@ describe("anthropicProvider", () => {
     const [params] = create.mock.calls[0]!;
     expect(params.thinking).toEqual({ type: "enabled", budget_tokens: 8192 });
     expect(params.max_tokens).toBe(9216);
+  });
+
+  it("maps hydrated image and pdf onto Anthropic user blocks", async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "ok" }],
+      stop_reason: "end",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const provider = anthropicProvider({
+      model: "claude-test",
+      client: { messages: { create } } as never,
+    });
+    const result = await provider.complete({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "look" },
+            {
+              type: "image",
+              mediaType: "image/png",
+              blobId: "a".repeat(64),
+              filename: "shot.png",
+              data: PNG,
+            },
+            {
+              type: "document",
+              mediaType: "application/pdf",
+              blobId: "b".repeat(64),
+              filename: "spec.pdf",
+              data: PDF,
+            },
+          ],
+        },
+      ],
+    });
+    const content = create.mock.calls[0]![0].messages[0].content as Array<{
+      type: string;
+      source?: { type: string; media_type: string; data: string };
+      text?: string;
+    }>;
+    expect(content[0]).toEqual({ type: "text", text: "look" });
+    expect(content[1]).toMatchObject({
+      type: "image",
+      source: { type: "base64", media_type: "image/png" },
+    });
+    expect(content[2]).toMatchObject({
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf" },
+    });
+    expect(result.message.content.map((part) => part.type)).toEqual(["text"]);
+  });
+
+  it("throws on unhydrated image parts", async () => {
+    const create = vi.fn();
+    const provider = anthropicProvider({
+      model: "claude-test",
+      client: { messages: { create } } as never,
+    });
+    await expect(
+      provider.complete({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                mediaType: "image/png",
+                blobId: "a".repeat(64),
+              },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow(/unhydrated/);
+    expect(create).not.toHaveBeenCalled();
   });
 });

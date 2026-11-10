@@ -9,13 +9,18 @@ import {
   toolResultPart,
   userMessage,
 } from "@min-agent/core";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { ContextBudget } from "./assemble.js";
+import { createFsBlobStore } from "./blobs.js";
 import { createInputQueue } from "./input-queue.js";
+import { PNG_SIG } from "./media.fixtures.js";
 import { createSession } from "./session.js";
 import { hmtContextExtension, hybridContextExtension } from "./strategies.js";
-import { createMemoryStore } from "./store.js";
+import { createFsStore, createMemoryStore } from "./store.js";
 
 describe("createSession", () => {
   it("accumulates canonical history across runs", async () => {
@@ -284,6 +289,105 @@ describe("createSession", () => {
       expect(viewTool.content[0].content.length).toBeLessThan(blob.length);
     }
     expect(session.stash?.size).toBeGreaterThan(0);
+    await agent.dispose();
+  });
+
+  it("persists image parts as blobId and reloads them", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "min-session-media-"));
+    const store = createFsStore(root);
+    const blobs = createFsBlobStore(path.join(root, "ses_img", "blobs"));
+    const provider = mockProvider([{ text: "saw it" }]);
+    const agent = await createAgent({ provider });
+    const session = await createSession({
+      agent,
+      store,
+      blobStore: blobs,
+      id: "ses_img",
+    });
+    await session.run("look", {
+      attachments: [{ filename: "shot.png", bytes: PNG_SIG }],
+    });
+    const raw = readFileSync(path.join(root, "ses_img.json"), "utf8");
+    expect(raw).toContain('"type": "image"');
+    expect(raw).toContain("blobId");
+    expect(raw).not.toContain("data:");
+    expect(raw).not.toMatch(/base64/i);
+    expect(raw).not.toContain(String.fromCharCode(0x89, 0x50, 0x4e, 0x47));
+    const user = session.messages.find((message) => message.role === "user");
+    const image = user?.content.find((part) => part.type === "image");
+    expect(image?.type).toBe("image");
+    if (image?.type === "image") {
+      expect(image).not.toHaveProperty("data");
+      expect(image.filename).toBe("shot.png");
+    }
+    const hydrated = provider.calls[0]?.messages
+      .find((message) => message.role === "user")
+      ?.content.find((part) => part.type === "image");
+    expect(hydrated?.type).toBe("image");
+    if (hydrated?.type === "image") expect(hydrated.data).toEqual(PNG_SIG);
+    await session.dispose();
+
+    const agent2 = await createAgent({ provider: mockProvider([{ text: "again" }]) });
+    const resumed = await createSession({
+      agent: agent2,
+      store,
+      blobStore: blobs,
+      id: "ses_img",
+    });
+    const again = resumed.messages
+      .find((message) => message.role === "user")
+      ?.content.find((part) => part.type === "image");
+    expect(again?.type).toBe("image");
+    if (again?.type === "image") expect(again.blobId).toBe(
+      image && image.type === "image" ? image.blobId : "",
+    );
+    await agent.dispose();
+    await agent2.dispose();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("still no-ops on empty text and no attachments", async () => {
+    const provider = mockProvider([{ text: "unused" }]);
+    const agent = await createAgent({ provider });
+    const session = await createSession({ agent });
+    const result = await session.run("   ");
+    expect(session.messages).toEqual([]);
+    expect(result.turns).toBe(0);
+    expect(provider.calls).toHaveLength(0);
+    await agent.dispose();
+  });
+
+  it("allows an attachments-only user turn", async () => {
+    const provider = mockProvider([{ text: "ok" }]);
+    const agent = await createAgent({ provider });
+    const session = await createSession({ agent });
+    await session.run("", {
+      attachments: [{ filename: "shot.png", bytes: PNG_SIG }],
+    });
+    const user = session.messages.find((message) => message.role === "user");
+    expect(user?.content.some((part) => part.type === "text")).toBe(false);
+    expect(user?.content.some((part) => part.type === "image")).toBe(true);
+    expect(session.meta.title).toBe("shot.png");
+    const modelUser = provider.calls[0]?.messages.find((message) => message.role === "user");
+    expect(modelUser?.content.some((part) => part.type === "image" && part.data)).toBe(
+      true,
+    );
+    await agent.dispose();
+  });
+
+  it("keeps queued follow-ups as plain strings", async () => {
+    const provider = mockProvider([{ text: "first" }, { text: "second" }]);
+    const agent = await createAgent({ provider });
+    const queue = createInputQueue({ mode: "enqueue" });
+    const session = await createSession({ agent, inputQueue: queue });
+    queue.push("extra detail");
+    await session.run("look", {
+      attachments: [{ filename: "shot.png", bytes: PNG_SIG }],
+    });
+    const users = session.messages.filter((message) => message.role === "user");
+    expect(users).toHaveLength(2);
+    expect(users[1]?.content).toEqual([{ type: "text", text: "extra detail" }]);
+    expect(queue.size).toBe(0);
     await agent.dispose();
   });
 

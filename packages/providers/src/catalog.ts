@@ -40,3 +40,26 @@ export function modelSupportsEffort(kind: string, model?: string): boolean {
   }
   return false;
 }
+
+/**
+ * Built-in vision support. Unknown custom kinds return true so a BYOK
+ * vision model is not blocked here; the host can still reject.
+ */
+export function modelSupportsImage(kind: string, _model?: string): boolean {
+  const name = kind.trim().toLowerCase();
+  if (name === "anthropic" || name === "openai" || name === "openai-chat") {
+    return true;
+  }
+  if (name === "deepseek" || name === "mock") return false;
+  return true;
+}
+
+/** PDF user parts. Chat Completions has no document field. */
+export function modelSupportsPdf(kind: string, _model?: string): boolean {
+  const name = kind.trim().toLowerCase();
+  if (name === "anthropic" || name === "openai") return true;
+  if (name === "openai-chat" || name === "deepseek" || name === "mock") {
+    return false;
+  }
+  return true;
+}

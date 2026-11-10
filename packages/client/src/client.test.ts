@@ -84,6 +84,66 @@ describe("createClient", () => {
     await client.dispose();
   });
 
+  it("sends attachments on SendOptions without changing send arity", async () => {
+    const png = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    const client = await createClient({
+      cwd: process.cwd(),
+      provider: mockProvider([{ text: "ok" }]),
+      noTools: true,
+      noSessionStore: true,
+    });
+    await client.send("look", {
+      attachments: [{ filename: "shot.png", bytes: png }],
+    });
+    const user = client.getSession().messages.find((message) => message.role === "user");
+    expect(user?.content.some((part) => part.type === "image")).toBe(true);
+    expect(client.send.length).toBe(1);
+    await client.dispose();
+  });
+
+  it("rejects attachments while busy instead of queueing them", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const png = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    const provider = mockProvider([{ text: "one" }]);
+    const original = provider.complete.bind(provider);
+    provider.complete = async (req) => {
+      await gate;
+      return original(req);
+    };
+    provider.stream = async function* (req) {
+      await gate;
+      const result = await original(req);
+      for (const part of result.message.content) {
+        if (part.type === "text" && part.text) {
+          yield { type: "text_delta" as const, text: part.text };
+        }
+      }
+      yield { type: "done" as const, result };
+    };
+    const client = await createClient({
+      cwd: process.cwd(),
+      provider,
+      noTools: true,
+      noSessionStore: true,
+    });
+    const first = client.send("a");
+    await new Promise((r) => setTimeout(r, 20));
+    await expect(
+      client.send("x", { attachments: [{ filename: "shot.png", bytes: png }] }),
+    ).rejects.toThrow(/attachments while busy/);
+    expect(client.queue.peek()).toEqual([]);
+    release();
+    await first;
+    await client.dispose();
+  });
+
   it("permission bridge waits for respondPermission", async () => {
     const bash = defineTool({
       name: "bash",

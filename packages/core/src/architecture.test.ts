@@ -7,6 +7,8 @@ import { createAgent } from "./agent.js";
 import * as core from "./index.js";
 import {
   assistantMessage,
+  documentPart,
+  imagePart,
   lastAssistantText,
   messageText,
   messageToolCalls,
@@ -16,6 +18,7 @@ import {
   toolMessage,
   toolResultPart,
   userMessage,
+  userMessageWithParts,
 } from "./messages.js";
 import { mockProvider } from "./provider.js";
 import { defineTool, ToolRegistry } from "./tools.js";
@@ -38,12 +41,15 @@ const PUBLIC_EXPORTS = [
   "parseReasoningEffort",
   "REASONING_EFFORTS",
   "systemMessage",
+  "documentPart",
+  "imagePart",
   "textPart",
   "toolCallPart",
   "toolMessage",
   "toolResultPart",
   "toolToDefinition",
   "userMessage",
+  "userMessageWithParts",
 ].sort();
 
 const RUN_EVENT_TYPES = [
@@ -103,6 +109,13 @@ describe("core architecture contracts", () => {
   it("builds messages from structured ContentParts, not raw strings", () => {
     const user = userMessage("hi");
     expect(user).toEqual({ role: "user", content: [{ type: "text", text: "hi" }] });
+    const mixed = userMessageWithParts([
+      textPart("look"),
+      imagePart({ mediaType: "image/png", blobId: "a".repeat(64), filename: "shot.png" }),
+    ]);
+    expect(mixed.content.map((part) => part.type)).toEqual(["text", "image"]);
+    expect(messageText(mixed)).toBe("look");
+    expect(documentPart({ blobId: "b".repeat(64) }).type).toBe("document");
     const sys = systemMessage("rules");
     expect(sys.role).toBe("system");
     const call = toolCallPart("c1", "bash", { command: "ls" });
@@ -112,6 +125,10 @@ describe("core architecture contracts", () => {
     const tool = toolMessage([toolResultPart("c1", "ok")]);
     expect(tool.role).toBe("tool");
     expect(lastAssistantText([user, assistant, tool])).toBe("running");
+    const withImage = assistantMessage([
+      imagePart({ mediaType: "image/png", blobId: "c".repeat(64) }),
+    ]);
+    expect(withImage.content[0]?.type).toBe("image");
   });
 
   it("folds tool execution failures into isError results (never throws to the model)", async () => {

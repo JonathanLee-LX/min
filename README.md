@@ -418,7 +418,7 @@ Follows the [Agent Skills](https://agentskills.io/specification) format. Metadat
 
 | Layer | Responsibility |
 |-------|----------------|
-| Internal messages | Single source of truth (`text` / `tool_call` / `tool_result`) |
+| Internal messages | Single source of truth (`text` / `image` / `document` / `tool_call` / `tool_result`). Image and PDF bytes live in session blobs; messages keep `blobId`. |
 | `ModelProvider` | Translate to Anthropic Messages or OpenAI Responses. Hosts may wrap it to project messages or observe turns. |
 | `Runner` | Tool-use loop: complete, execute tools, append tool results |
 | Host composition | Skills, MCP, workspace tools, and permission gates are assembled before `createAgent` |

@@ -294,7 +294,27 @@ function clonePart(part: ContentPart): ContentPart {
       isError: part.isError,
     };
   }
-  return { type: "text", text: part.text };
+  if (part.type === "image") {
+    return {
+      type: "image",
+      mediaType: part.mediaType,
+      blobId: part.blobId,
+      ...(part.filename ? { filename: part.filename } : {}),
+    };
+  }
+  if (part.type === "document") {
+    return {
+      type: "document",
+      mediaType: "application/pdf",
+      blobId: part.blobId,
+      ...(part.filename ? { filename: part.filename } : {}),
+    };
+  }
+  if (part.type === "text") {
+    return { type: "text", text: part.text };
+  }
+  const unknown = part as { type: string };
+  throw new Error(`unknown content part: ${unknown.type}`);
 }
 
 /** Build toolCallId → tool name map from a message list. */

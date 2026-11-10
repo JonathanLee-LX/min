@@ -7,6 +7,15 @@ import {
   type RunResult,
   type ToolCallPart,
 } from "@min-agent/core";
+import {
+  createMemoryBlobStore,
+  firstAttachmentTitle,
+  hydrateMediaParts,
+  stripMediaData,
+  userMessageFromAttachments,
+  type BlobStore,
+} from "./blobs.js";
+import type { TurnAttachment } from "./media.js";
 import type { AssembleResult, ContextBudget } from "./assemble.js";
 import {
   compactHistoryMessages,
@@ -87,6 +96,11 @@ export interface CreateSessionOptions {
   /** Composable packs of assembler/hooks. Later assembler wins; hooks run in order. */
   extensions?: SessionExtension[];
   /**
+   * Content-addressed attachment bytes. Defaults to an in-memory store.
+   * Runtime pairs this with `.min/sessions/<id>/blobs` when persisting.
+   */
+  blobStore?: BlobStore;
+  /**
    * Follow-up queue for interjections during / after a run.
    * Defaults to enqueue + 1.5s dense-latest window.
    * Pass `false` to disable. Does not modify `@min-agent/core`.
@@ -105,6 +119,8 @@ export interface SessionRunOptions {
   maxTurns?: number;
   onEvent?: RunInput["onEvent"];
   onPermissionAsk?: SessionPermissionAsk;
+  /** Image / PDF / text files for this user turn. */
+  attachments?: readonly TurnAttachment[];
 }
 
 export interface Session {
@@ -118,6 +134,8 @@ export interface Session {
   readonly stash?: ContextStash;
   /** Follow-up queue (undefined when disabled). */
   readonly inputQueue?: InputQueue;
+  /** Content-addressed attachment bytes for this session. */
+  readonly blobs: BlobStore;
   run(input: string, opts?: SessionRunOptions): Promise<RunResult>;
   /**
    * Explicit on-demand compact: summarize older turns via the agent provider
@@ -190,6 +208,7 @@ export async function createSession(
   const finalAssembler = opts.assembler ?? extAssembler;
 
   const inputQueue = resolveInputQueue(opts.inputQueue);
+  const blobs = opts.blobStore ?? createMemoryBlobStore();
   const projection = attachMessageProjection(opts.agent.provider);
 
   const hooks: SessionHooks[] = [
@@ -211,7 +230,7 @@ export async function createSession(
     meta = { ...meta, updatedAt: new Date().toISOString() };
     let snapshot: SessionSnapshot = {
       meta: { ...meta },
-      messages: [...messages],
+      messages: stripMediaData(messages),
     };
     for (const h of hooks) {
       if (!h.onBeforeSave) continue;
@@ -251,7 +270,13 @@ export async function createSession(
         estimate: budget.estimate,
       });
 
-    const pending = [...messages, userMessage(userText)];
+    const user =
+      (await userMessageFromAttachments(
+        userText,
+        runOpts.attachments ?? [],
+        blobs,
+      )) ?? userMessage(userText);
+    const pending = [...messages, user];
     let assembled = annotateUsage(
       await finalAssembler.assemble({
         messages: pending,
@@ -296,7 +321,7 @@ export async function createSession(
         if (next) projected = annotateUsage(next);
       }
       lastAssemble = projected;
-      return projected.view;
+      return hydrateMediaParts(projected.view, blobs);
     };
 
     projection.set(project);
@@ -318,7 +343,9 @@ export async function createSession(
     messages = result.messages;
     const nextMessages = messages;
     if (!meta.title) {
-      const title = cleanSessionTitle(userText);
+      const title = cleanSessionTitle(
+        firstAttachmentTitle(userText, user.content),
+      );
       if (title) meta = { ...meta, title };
     }
 
@@ -353,9 +380,14 @@ export async function createSession(
     get inputQueue() {
       return inputQueue;
     },
-
+    get blobs() {
+      return blobs;
+    },
 
     async run(input, runOpts = {}) {
+      if (!input.trim() && !(runOpts.attachments?.length)) {
+        return { messages, text: "", turns: 0 };
+      }
       let result = await runOnce(input, runOpts);
 
       // Session-level follow-ups only — core Runner is unchanged.
@@ -373,7 +405,7 @@ export async function createSession(
           await h.onIncoming?.(parts);
         }
 
-        result = await runOnce(follow, runOpts);
+        result = await runOnce(follow, { ...runOpts, attachments: undefined });
       }
 
       await persist();
@@ -432,7 +464,7 @@ export async function createSession(
     },
 
     export() {
-      return { meta: { ...meta }, messages: [...messages] };
+      return { meta: { ...meta }, messages: stripMediaData(messages) };
     },
 
     async dispose() {

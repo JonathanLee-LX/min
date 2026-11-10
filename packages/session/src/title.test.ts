@@ -1,4 +1,5 @@
 import { createAgent, textPart, type ModelProvider } from "@min-agent/core";
+import { PNG_SIG } from "./media.fixtures.js";
 import { describe, expect, it } from "vitest";
 import { createSession } from "./session.js";
 import { createMemoryStore } from "./store.js";
@@ -30,6 +31,29 @@ describe("session titles", () => {
     const listed = await store.list();
     expect(listed[0]?.title).toBe("Notice colors");
     expect(listed[0]?.preview).toBe("fix the band");
+    await agent.dispose();
+  });
+
+  it("titles an image-only first turn from the filename", async () => {
+    const agent = await createAgent({
+      provider: {
+        id: "title-test",
+        async complete() {
+          return {
+            message: { role: "assistant", content: [textPart("ok")] },
+            stopReason: "end",
+          };
+        },
+      },
+    });
+    const store = createMemoryStore();
+    const session = await createSession({ agent, store, id: "ses_img" });
+    await session.run("", {
+      attachments: [{ filename: "shot.png", bytes: PNG_SIG }],
+    });
+    expect(session.meta.title).toBe("shot.png");
+    const listed = await store.list();
+    expect(listed[0]?.preview).toBe("shot.png");
     await agent.dispose();
   });
 

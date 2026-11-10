@@ -10,6 +10,7 @@ import {
   listModelRows,
   listSessionRows,
   openSessionById,
+  readSessionBlob,
   setEmitter,
   snapshot,
   startSession,
@@ -17,6 +18,7 @@ import {
   type ChromeEvent,
   type ViewNotice,
 } from "./host.js";
+import { stageBytes } from "./staging.js";
 import { loadEnvFiles } from "./load-env.js";
 import type { ClientEvent } from "@min-agent/client";
 
@@ -115,7 +117,7 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Filename");
   if (method === "OPTIONS") {
     res.writeHead(204);
     res.end();
@@ -173,9 +175,50 @@ async function handler(req: IncomingMessage, res: ServerResponse): Promise<void>
     }
 
     if (method === "POST" && pathname === "/api/submit") {
-      const body = (await readJson(req)) as { text?: string };
-      const result = await submitText(body.text ?? "");
+      const body = (await readJson(req)) as {
+        text?: string;
+        attachmentIds?: string[];
+      };
+      const result = await submitText(body.text ?? "", body.attachmentIds ?? []);
       sendJson(res, statusFor(result), result);
+      return;
+    }
+
+    if (method === "POST" && pathname === "/api/attachments") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const bytes = new Uint8Array(Buffer.concat(chunks));
+      const filename =
+        typeof req.headers["x-filename"] === "string"
+          ? path.basename(req.headers["x-filename"])
+          : "upload";
+      try {
+        const staged = stageBytes({ filename, bytes });
+        sendJson(res, 201, staged);
+      } catch (err) {
+        sendJson(res, 400, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return;
+    }
+
+    if (method === "GET" && pathname.startsWith("/api/blobs/")) {
+      const blobId = pathname.slice("/api/blobs/".length);
+      try {
+        const blob = await readSessionBlob(blobId);
+        res.writeHead(200, {
+          "Content-Type": blob.mediaType,
+          "Cache-Control": "private, max-age=3600",
+        });
+        res.end(Buffer.from(blob.bytes));
+      } catch (err) {
+        sendJson(res, 404, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       return;
     }
 

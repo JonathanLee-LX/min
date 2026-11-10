@@ -8,6 +8,7 @@ function fakeCli(
   const reset = vi.fn();
   return {
     args: {} as CliClient["args"],
+    pendingAttachments: [],
     client: {
       reset,
       queue: { size: 0, peek: () => [], push: vi.fn(), clear: vi.fn() },
@@ -47,6 +48,17 @@ describe("handleReplCommand", () => {
 
   it("ignores non-commands", () => {
     expect(handleReplCommand(fakeCli(), "hello")).toBeNull();
+  });
+
+  it("treats /attach as a handled command not a prompt", () => {
+    expect(handleReplCommand(fakeCli(), "/attach ./shot.png")).toEqual({
+      type: "attach",
+      path: "./shot.png",
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(handleReplCommand(fakeCli(), "/attach")).toEqual({ type: "handled" });
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it("routes session switch commands", () => {

@@ -3,6 +3,8 @@ export { parseReasoningEffort, type ReasoningEffort } from "@min-agent/core";
 export {
   modelControls,
   modelSupportsEffort,
+  modelSupportsImage,
+  modelSupportsPdf,
   type ModelControls,
   type ModelProviderChange,
   type ModelSelection,

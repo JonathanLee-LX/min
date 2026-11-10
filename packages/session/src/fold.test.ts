@@ -1,11 +1,13 @@
 import {
   assistantMessage,
+  imagePart,
   textPart,
   toolCallPart,
   toolMessage,
   toolResultPart,
   userMessage,
 } from "@min-agent/core";
+import { PNG_SIG } from "./media.fixtures.js";
 import { describe, expect, it } from "vitest";
 import {
   foldMessagesForView,
@@ -60,6 +62,69 @@ describe("foldMessagesForView", () => {
       expect(folded.content.length).toBeLessThan(20_000);
       expect(folded.content).toContain("truncated");
     }
+  });
+
+  it("clones image and document parts by field instead of collapsing to text", () => {
+    const blobId = "a".repeat(64);
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          imagePart({
+            mediaType: "image/png",
+            blobId,
+            filename: "shot.png",
+            data: PNG_SIG,
+          }),
+        ],
+      },
+    ];
+    const { messages: view, foldedParts } = foldMessagesForView(messages, {});
+    expect(foldedParts).toBe(0);
+    const part = view[0]!.content[0];
+    expect(part).toEqual({
+      type: "image",
+      mediaType: "image/png",
+      blobId,
+      filename: "shot.png",
+    });
+    expect(part).not.toHaveProperty("data");
+  });
+
+  it("does not fold image bytes into tool-result markers", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          imagePart({
+            mediaType: "image/png",
+            blobId: "a".repeat(64),
+            filename: "shot.png",
+          }),
+        ],
+      },
+    ];
+    const { messages: view } = foldMessagesForView(messages, {
+      fold: {
+        maxToolResultChars: 10,
+        toolResultHeadChars: 4,
+        toolResultTailChars: 4,
+      },
+    });
+    const part = view[0]!.content[0];
+    expect(part?.type).toBe("image");
+    if (part?.type === "image") {
+      expect(JSON.stringify(part)).not.toMatch(/truncated|hidden:/);
+    }
+  });
+
+  it("throws on unknown content parts instead of collapsing them to text", () => {
+    expect(() =>
+      foldMessagesForView(
+        [{ role: "user", content: [{ type: "audio" } as never] }],
+        {},
+      ),
+    ).toThrow(/unknown content part: audio/);
   });
 
   it("registers stash ids in the omission marker", () => {

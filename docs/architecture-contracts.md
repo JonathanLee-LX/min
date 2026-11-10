@@ -30,7 +30,7 @@ apps    ← client, config
 | Area | Contract |
 |------|----------|
 | Core tools | `ToolRegistry.execute` returns `{ isError }` instead of throwing to the model |
-| Core types | Messages use `ContentPart` (`text` / `tool_call` / `tool_result`) |
+| Core types | Messages use `ContentPart` (`text` / `image` / `document` / `tool_call` / `tool_result`). `image` / `document` persist `blobId` only; adapters see hydrated `data`. |
 | Core events | `RunEvent` is `turn_start\|text_delta\|thinking_delta\|tool_call\|tool_result\|turn_end\|done\|error` — no `permission` |
 | Core agent | `Agent` keys are `provider` / `tools` / `run` / `dispose` only |
 | Session | Canonical `session.messages` stay full; assemblers only change the model view; `bindPermissionAsk` clears after run |

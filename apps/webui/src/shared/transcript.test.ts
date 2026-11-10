@@ -8,6 +8,13 @@ describe("transcript", () => {
         { role: "system", content: [{ type: "text", text: "hidden" }] },
         { role: "user", content: [{ type: "text", text: "hello" }] },
         {
+          role: "user",
+          content: [
+            { type: "image", filename: "shot.png", blobId: "a".repeat(64) },
+            { type: "document", filename: "spec.pdf", blobId: "b".repeat(64) },
+          ],
+        },
+        {
           role: "assistant",
           content: [
             { type: "text", text: "ok" },
@@ -21,10 +28,25 @@ describe("transcript", () => {
       ]),
     ).toEqual([
       { kind: "user", text: "hello" },
+      { kind: "user", text: "image shot.png" },
+      { kind: "user", text: "document spec.pdf" },
       { kind: "assistant", text: "ok" },
       { kind: "tool", text: "bash  ls" },
       { kind: "tool-result", text: "a\nb" },
     ]);
+    const rendered = linesFromMessages([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hello" },
+          { type: "image", filename: "shot.png", blobId: "a".repeat(64) },
+        ],
+      },
+    ])
+      .map((line) => line.text)
+      .join("\n");
+    expect(rendered).not.toContain("a".repeat(64));
+    expect(rendered).not.toMatch(/base64/i);
     expect(summarizeToolCall("read_file", { file_path: "README.md" })).toBe("read_file  README.md");
   });
 

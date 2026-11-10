@@ -24,6 +24,25 @@ describe("linesFromMessages", () => {
     expect(lines[2]?.text).toBe("read_file  a.ts");
     expect(lines[3]?.text).toBe(`x\n${"y".repeat(1200)}`);
   });
+
+  it("renders image and document chips without blob ids", () => {
+    const lines = linesFromMessages([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "hello" },
+          { type: "image", filename: "shot.png", blobId: "a".repeat(64) },
+          { type: "document", filename: "spec.pdf", blobId: "b".repeat(64) },
+        ],
+      },
+    ]);
+    expect(lines).toEqual([
+      { kind: "user", text: "hello" },
+      { kind: "user", text: "image shot.png" },
+      { kind: "user", text: "document spec.pdf" },
+    ]);
+    expect(lines.map((line) => line.text).join("\n")).not.toContain("a".repeat(64));
+  });
 });
 
 describe("layoutViewport", () => {

@@ -33,8 +33,16 @@ function userTexts(messages: readonly Message[]): string[] {
   const lines: string[] = [];
   for (const message of messages) {
     if (message.role !== "user") continue;
+    const bits: string[] = [];
     const text = messageText(message).replace(/\s+/g, " ").trim();
-    if (text) lines.push(text);
+    if (text) bits.push(text);
+    for (const part of message.content) {
+      if (part.type === "image" || part.type === "document") {
+        const name = part.filename?.trim();
+        if (name) bits.push(name);
+      }
+    }
+    if (bits.length) lines.push(bits.join(" "));
   }
   return lines;
 }
