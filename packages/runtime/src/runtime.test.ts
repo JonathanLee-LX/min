@@ -234,4 +234,41 @@ describe("createRuntime", () => {
     await again.session.dispose();
     await again.agent.dispose();
   });
+
+  it("lists skills and loadSkill injects the body for /name", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "min-skill-slash-"));
+    const skillDir = path.join(cwd, "skills", "greeter");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      path.join(skillDir, "SKILL.md"),
+      [
+        "---",
+        "name: greeter",
+        "description: Greet the user.",
+        "---",
+        "",
+        "Say hello warmly.",
+        "",
+      ].join("\n"),
+    );
+    const provider = mockProvider([{ text: "hello" }]);
+    const rt = await createRuntime({
+      cwd,
+      home: cwd,
+      provider,
+      noTools: true,
+      noSessionStore: true,
+      skillsDir: path.join(cwd, "skills"),
+    });
+    expect(rt.listSkills()).toEqual([
+      { name: "greeter", description: "Greet the user." },
+    ]);
+    const loaded = await rt.loadSkill("greeter");
+    expect(loaded.ok).toBe(true);
+    await rt.session.run("/greeter hello");
+    expect(provider.calls[0]?.system).toContain("Say hello warmly.");
+    expect(provider.calls[0]?.system).toContain("invoke with /name");
+    await rt.session.dispose();
+    await rt.agent.dispose();
+  });
 });

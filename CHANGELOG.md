@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Loaded skills are slash commands: type `/skill-name` (optional args) in CLI, TUI, or Web to load the skill and run it. Built-in commands still win on the same name.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 
 ## 0.1.0-alpha.13

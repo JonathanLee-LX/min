@@ -82,6 +82,42 @@ export const TUI_COMMANDS: readonly CommandSpec[] = [
   { name: "quit", hint: "quit" },
 ];
 
+export function clipCommandHint(text: string, max = 72): string {
+  const first = text.trim().split("\n")[0] ?? "";
+  return first.length <= max ? first : `${first.slice(0, max - 3)}...`;
+}
+
+/** Skills as slash rows. Built-in names are skipped so `/help` stays help. */
+export function skillCommandSpecs(
+  skills: readonly { name: string; description: string }[],
+): CommandSpec[] {
+  const reserved = new Set(TUI_COMMANDS.map((command) => command.name));
+  const specs: CommandSpec[] = [];
+  const seen = new Set<string>();
+  for (const skill of skills) {
+    const name = skill.name.trim().toLowerCase();
+    if (!name || reserved.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    specs.push({
+      name,
+      hint: clipCommandHint(skill.description),
+      arg: true,
+      pick: true,
+    });
+  }
+  return specs;
+}
+
+export function formatTuiHelp(
+  skills: readonly { name: string; description: string }[] = [],
+): string {
+  const extra = skillCommandSpecs(skills);
+  if (extra.length === 0) return TUI_HELP;
+  const width = Math.max(14, ...extra.map((skill) => skill.name.length));
+  const lines = extra.map((skill) => `  /${skill.name.padEnd(width)} ${skill.hint}`);
+  return TUI_HELP.replace("\nKeys:", `\nSkills:\n${lines.join("\n")}\n\nKeys:`);
+}
+
 export const TUI_HELP = `Commands:
   /help              show this help
   /context           context window used/limit and part breakdown
@@ -141,18 +177,25 @@ export function commandPlaceholder(text: string): string | undefined {
 }
 
 /** Slash command names matching a draft that has no arguments yet. */
-export function commandSuggestions(text: string): CommandSpec[] {
+export function commandSuggestions(
+  text: string,
+  extra: readonly CommandSpec[] = [],
+): CommandSpec[] {
   // Empty / non-slash drafts must yield nothing so the panel unmounts.
   if (!text.startsWith("/")) return [];
   const match = /^\/([^\s]*)$/.exec(text);
   if (!match) return [];
   const prefix = (match[1] ?? "").toLowerCase();
-  return TUI_COMMANDS.filter((command) => command.name.startsWith(prefix));
+  return [...TUI_COMMANDS, ...extra].filter((command) => command.name.startsWith(prefix));
 }
 
 /** Ghost suffix for the selected match, not including the typed prefix. */
-export function commandGhost(text: string, selected: number): string {
-  const matches = commandSuggestions(text);
+export function commandGhost(
+  text: string,
+  selected: number,
+  extra: readonly CommandSpec[] = [],
+): string {
+  const matches = commandSuggestions(text, extra);
   if (matches.length === 0) return "";
   const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
   const typed = text.slice(1).toLowerCase();
@@ -161,8 +204,12 @@ export function commandGhost(text: string, selected: number): string {
 }
 
 /** Replace the draft with the selected slash command. */
-export function applyCommandCompletion(text: string, selected: number): string | null {
-  const matches = commandSuggestions(text);
+export function applyCommandCompletion(
+  text: string,
+  selected: number,
+  extra: readonly CommandSpec[] = [],
+): string | null {
+  const matches = commandSuggestions(text, extra);
   if (matches.length === 0) return null;
   const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
   return `/${pick.name}${pick.arg ? " " : ""}`;
@@ -185,8 +232,12 @@ export function slashMenuEnter(command: CommandSpec): SlashMenuEnter {
  * Fill the composer with the selected slash match while browsing the menu.
  * No trailing space so the panel stays open for arg commands until Tab/Enter.
  */
-export function selectCommandCompletion(text: string, selected: number): string | null {
-  const matches = commandSuggestions(text);
+export function selectCommandCompletion(
+  text: string,
+  selected: number,
+  extra: readonly CommandSpec[] = [],
+): string | null {
+  const matches = commandSuggestions(text, extra);
   if (matches.length === 0) return null;
   const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
   return `/${pick.name}`;

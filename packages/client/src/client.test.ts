@@ -6,6 +6,9 @@ import {
 import { createRuntime } from "@min-agent/runtime";
 import { createMemoryStore, createSession } from "@min-agent/session";
 import { createPermissionGate } from "@min-agent/tools";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createClient } from "./client.js";
@@ -210,6 +213,41 @@ describe("createClient", () => {
     expect(client.advanced.runtime).toBe(rt);
     await client.send("ping");
     expect(client.getSession().messageCount).toBeGreaterThan(0);
+    await client.dispose();
+  });
+
+  it("loads a skill when send starts with /name", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "min-client-skill-"));
+    const skillDir = path.join(cwd, "skills", "greeter");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      path.join(skillDir, "SKILL.md"),
+      [
+        "---",
+        "name: greeter",
+        "description: Greet the user.",
+        "---",
+        "",
+        "Say hello warmly.",
+        "",
+      ].join("\n"),
+    );
+    const provider = mockProvider([{ text: "hi" }]);
+    const client = await createClient({
+      cwd,
+      home: cwd,
+      provider,
+      noTools: true,
+      noSessionStore: true,
+      skillsDir: path.join(cwd, "skills"),
+    });
+    expect(client.listSkills().map((skill) => skill.name)).toEqual(["greeter"]);
+    await client.send("/greeter hello");
+    expect(provider.calls[0]?.system).toContain("Say hello warmly.");
+    const user = client.getSession().messages.find((message) => message.role === "user");
+    expect(user?.content.some((part) => part.type === "text" && part.text === "/greeter hello")).toBe(
+      true,
+    );
     await client.dispose();
   });
 });

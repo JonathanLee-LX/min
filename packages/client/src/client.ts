@@ -13,6 +13,7 @@ import type {
   ClientOptions,
   ClientSessionInfo,
   ClientStatus,
+  ClientSkill,
   ClientStatusSnapshot,
   MinClient,
   PermissionAnswer,
@@ -236,6 +237,17 @@ export async function createClient(
     messages: runtime.session.messages,
   });
 
+  const listSkills = (): readonly ClientSkill[] =>
+    typeof runtime.listSkills === "function" ? runtime.listSkills() : [];
+
+  const loadSlashSkill = async (prompt: string) => {
+    if (typeof runtime.loadSkill !== "function") return;
+    const match = matchSkillSlash(prompt, new Set(listSkills().map((skill) => skill.name)));
+    if (!match) return;
+    const result = await runtime.loadSkill(match.name);
+    if (!result.ok) throw new Error(result.error);
+  };
+
   const send = async (text: string, opts: SendOptions = {}): Promise<void> => {
     const prompt = text.trim();
     const attachments = opts.attachments ?? [];
@@ -248,6 +260,7 @@ export async function createClient(
       if (factory.onBusySend === "reject") {
         throw new Error("client is busy");
       }
+      await loadSlashSkill(prompt);
       queueApi.push(prompt);
       return;
     }
@@ -265,6 +278,7 @@ export async function createClient(
     turnBuf.thinking = "";
 
     try {
+      await loadSlashSkill(prompt);
       const result = await runtime.session.run(prompt, {
         signal: abortController.signal,
         ...(attachments.length ? { attachments } : {}),
@@ -345,6 +359,7 @@ export async function createClient(
     },
 
     getStatus,
+    listSkills,
     subscribe(handler) {
       listeners.add(handler);
       return () => {
@@ -454,6 +469,17 @@ export async function createClient(
   };
 
   return client;
+}
+
+function matchSkillSlash(
+  line: string,
+  names: ReadonlySet<string>,
+): { name: string; args: string } | undefined {
+  if (!line.startsWith("/")) return undefined;
+  const [cmd, ...rest] = line.slice(1).trim().split(/\s+/);
+  const name = (cmd ?? "").toLowerCase();
+  if (!name || !names.has(name)) return undefined;
+  return { name, args: rest.join(" ").trim() };
 }
 
 /**

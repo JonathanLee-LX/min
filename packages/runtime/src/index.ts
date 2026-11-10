@@ -16,6 +16,7 @@ export {
   sessionDirFor,
   type Runtime,
   type RuntimeOptions,
+  type RuntimeSkill,
   type PermissionAskResult,
   type RunEvent,
 } from "./runtime.js";

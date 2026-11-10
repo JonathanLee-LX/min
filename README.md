@@ -410,7 +410,7 @@ skills/                 # also ~/.min/skills and <cwd>/.min/skills
     SKILL.md    # YAML frontmatter: name + description
 ```
 
-Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via the `load_skill` tool (progressive disclosure). Claude Code, Codex, and Cursor skill dirs are loaded first; a min skill of the same name wins.
+Follows the [Agent Skills](https://agentskills.io/specification) format. Metadata loads at startup; full body loads via `/skill-name` or the `load_skill` tool (progressive disclosure). Claude Code, Codex, and Cursor skill dirs are loaded first; a min skill of the same name wins. Built-in slash commands (`/help`, `/resume`, …) still win when a skill reuses that name.
 
 `allowed-tools` follows the Agent Skills spec: a space-separated list of tools pre-approved to run after the skill loads. Other tools stay available under the normal permission policy. Sandbox root grants are unchanged.
 

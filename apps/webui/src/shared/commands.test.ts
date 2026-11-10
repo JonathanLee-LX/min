@@ -13,6 +13,8 @@ import {
   resolveModelArgs,
   routeSubmit,
   slashMenuEnter,
+  skillCommandSpecs,
+  formatHelp,
 } from "./commands.js";
 
 describe("routeSubmit", () => {
@@ -129,5 +131,20 @@ describe("routeSubmit", () => {
       type: "fill",
       text: "/effort ",
     });
+  });
+
+  it("lists loaded skills as /name without replacing built-ins", () => {
+    const extra = skillCommandSpecs([
+      { name: "greeter", description: "Say hello" },
+      { name: "help", description: "ignored" },
+    ]);
+    expect(extra.map((command) => command.name)).toEqual(["greeter"]);
+    expect(commandSuggestions("/g", extra).map((command) => command.name)).toEqual([
+      "greeter",
+    ]);
+    expect(applyCommandCompletion("/g", 0, extra)).toBe("/greeter ");
+    expect(formatHelp([{ name: "greeter", description: "Say hello" }])).toContain(
+      "/greeter",
+    );
   });
 });

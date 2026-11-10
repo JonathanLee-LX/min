@@ -69,6 +69,7 @@ function host(overrides?: {
     respondPermission: () => undefined,
     notices: { list: () => [], subscribe: () => () => undefined },
     setMaxContextTokens: () => undefined,
+    listSkills: () => [],
     advanced: {},
   } as unknown as MinClient;
   return {

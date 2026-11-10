@@ -24,12 +24,12 @@ import type { TuiArgs } from "./args.js";
 import { minBannerLines } from "./banner.js";
 import { composerFrameRows } from "./chrome-layout.js";
 import {
-  TUI_HELP,
   applyCommandCompletion,
   buildEffortPickerItems,
   buildModelPickerItems,
   commandPlaceholder,
   commandSuggestions,
+  formatTuiHelp,
   cycleCommandIndex,
   formatCompact,
   formatModelStatus,
@@ -38,6 +38,7 @@ import {
   formatSessionList,
   resolveModelArgs,
   routeSubmit,
+  skillCommandSpecs,
   slashMenuEnter,
   type EffortPickItem,
   type EffortPickValue,
@@ -645,7 +646,7 @@ export function App({ args }: { args: TuiArgs }) {
         return;
       }
       if (command.type === "help") {
-        pushLine("sys", TUI_HELP);
+        pushLine("sys", formatTuiHelp(live.listSkills()));
         return;
       }
       if (command.type === "context") {
@@ -1122,7 +1123,7 @@ export function App({ args }: { args: TuiArgs }) {
       }
       return;
     }
-    const slashMatches = commandSuggestions(editor.text);
+    const slashMatches = slashSuggestions(clientRef.current, editor.text);
     const slashOpen = slashMatches.length > 0;
     if (slashOpen && (key.upArrow || key.downArrow)) {
       setCompleteIndex((current) =>
@@ -1131,7 +1132,11 @@ export function App({ args }: { args: TuiArgs }) {
       return;
     }
     if (slashOpen && (key.tab || action.type === "complete")) {
-      const next = applyCommandCompletion(editor.text, completeIndex);
+      const next = applyCommandCompletion(
+        editor.text,
+        completeIndex,
+        skillCommandSpecs(clientRef.current?.listSkills() ?? []),
+      );
       if (next === null) return;
       setEditor((current) => ({ ...current, text: next, cursor: next.length }));
       setCompleteIndex(0);
@@ -1163,7 +1168,11 @@ export function App({ args }: { args: TuiArgs }) {
       return;
     }
     if (action.type === "complete") {
-      const next = applyCommandCompletion(editor.text, completeIndex);
+      const next = applyCommandCompletion(
+        editor.text,
+        completeIndex,
+        skillCommandSpecs(clientRef.current?.listSkills() ?? []),
+      );
       if (next === null) return;
       setEditor((current) => ({ ...current, text: next, cursor: next.length }));
       setCompleteIndex(0);
@@ -1243,7 +1252,7 @@ export function App({ args }: { args: TuiArgs }) {
    */
   const paintRows = Math.max(1, termRows);
   const innerWidth = Math.max(1, columns - 2);
-  const suggestions = commandSuggestions(editor.text);
+  const suggestions = slashSuggestions(clientRef.current, editor.text);
   const selectedComplete =
     suggestions.length > 0
       ? ((completeIndex % suggestions.length) + suggestions.length) % suggestions.length
@@ -1690,6 +1699,10 @@ function spanColor(
   if (spanTone === "strong") return theme.markdown.strong ?? body;
   if (spanTone === "em") return theme.markdown.em ?? body;
   return body;
+}
+
+function slashSuggestions(client: MinClient | null, text: string) {
+  return commandSuggestions(text, skillCommandSpecs(client?.listSkills() ?? []));
 }
 
 function shortId(id: string): string {

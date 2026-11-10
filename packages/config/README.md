@@ -71,7 +71,7 @@ min reads the usual files from those agents when they exist. They sit below min'
 | Providers | `~/.claude/settings.json` `model` / `env` | `[model_providers.*]`, `model`, `model_provider` | `~/.cursor/cli-config.json` `model` |
 | Skills | `~/.claude/skills`, `<cwd>/.claude/skills` | `~/.agents/skills`, `~/.codex/skills`, `<cwd>/.agents/skills`, `<cwd>/.codex/skills` | `~/.cursor/skills`, `<cwd>/.cursor/skills` |
 
-`<cwd>/.mcp.json` is the Claude Code project MCP file and a min layer, so it is not imported a second time. Codex `wire_api = "chat"` becomes `openai-chat`; HTTP MCP `type`/`url` becomes min's SSE remote entry. Skills also load from `~/.min/skills`, `<cwd>/.min/skills`, and `<cwd>/skills`, after the foreign dirs, so a min skill of the same name wins. `--skills` is appended last.
+`<cwd>/.mcp.json` is the Claude Code project MCP file and a min layer, so it is not imported a second time. Codex `wire_api = "chat"` becomes `openai-chat`; HTTP MCP `type`/`url` becomes min's SSE remote entry. Skills also load from `~/.min/skills`, `<cwd>/.min/skills`, and `<cwd>/skills`, after the foreign dirs, so a min skill of the same name wins. `--skills` is appended last. Type `/skill-name` in CLI, TUI, or Web to load a skill and run it; `/help` and other built-in commands still win on the same name.
 
 `auth.json` and `cron/jobs.json` are attached to the resolved config. They do not change provider, theme, or permissions. An empty keybindings, providers, auth, or cron file does not count as a source. An `mcp.json` that parses, even with no servers, does.
 
