@@ -51,6 +51,31 @@ export interface CommandSpec {
   pick?: boolean;
 }
 
+export function clipCommandHint(text: string, max = 72): string {
+  const first = text.trim().split("\n")[0] ?? "";
+  return first.length <= max ? first : `${first.slice(0, max - 3)}...`;
+}
+
+export function skillCommandSpecs(
+  skills: readonly { name: string; description: string }[],
+): CommandSpec[] {
+  const reserved = new Set(COMMANDS.map((command) => command.name));
+  const specs: CommandSpec[] = [];
+  const seen = new Set<string>();
+  for (const skill of skills) {
+    const name = skill.name.trim().toLowerCase();
+    if (!name || reserved.has(name) || seen.has(name)) continue;
+    seen.add(name);
+    specs.push({
+      name,
+      hint: clipCommandHint(skill.description),
+      arg: true,
+      pick: true,
+    });
+  }
+  return specs;
+}
+
 export const COMMANDS: readonly CommandSpec[] = [
   { name: "help", hint: "show this help" },
   { name: "context", hint: "context window used/limit and part breakdown" },
@@ -79,16 +104,23 @@ export function commandPlaceholder(text: string): string | undefined {
   return NAME_PLACEHOLDER;
 }
 
-export function commandSuggestions(text: string): CommandSpec[] {
+export function commandSuggestions(
+  text: string,
+  extra: readonly CommandSpec[] = [],
+): CommandSpec[] {
   if (!text.startsWith("/")) return [];
   const match = /^\/([^\s]*)$/.exec(text);
   if (!match) return [];
   const prefix = (match[1] ?? "").toLowerCase();
-  return COMMANDS.filter((command) => command.name.startsWith(prefix));
+  return [...COMMANDS, ...extra].filter((command) => command.name.startsWith(prefix));
 }
 
-export function applyCommandCompletion(text: string, selected: number): string | null {
-  const matches = commandSuggestions(text);
+export function applyCommandCompletion(
+  text: string,
+  selected: number,
+  extra: readonly CommandSpec[] = [],
+): string | null {
+  const matches = commandSuggestions(text, extra);
   if (matches.length === 0) return null;
   const pick = matches[((selected % matches.length) + matches.length) % matches.length]!;
   return `/${pick.name}${pick.arg ? " " : ""}`;
@@ -399,7 +431,9 @@ export function formatCompact(result: {
   return preview ? `${head}\n${preview}` : head;
 }
 
-export function formatHelp(): string {
+export function formatHelp(
+  skills: readonly { name: string; description: string }[] = [],
+): string {
   const lines = ["Commands:"];
   const seen = new Set<string>();
   for (const command of COMMANDS) {
@@ -407,6 +441,14 @@ export function formatHelp(): string {
     if (seen.has(command.name)) continue;
     seen.add(command.name);
     lines.push(`  /${command.name.padEnd(14)} ${command.hint}`);
+  }
+  const extra = skillCommandSpecs(skills);
+  if (extra.length > 0) {
+    lines.push("", "Skills:");
+    const width = Math.max(14, ...extra.map((skill) => skill.name.length));
+    for (const skill of extra) {
+      lines.push(`  /${skill.name.padEnd(width)} ${skill.hint}`);
+    }
   }
   lines.push(
     "  /quit           close this tab",

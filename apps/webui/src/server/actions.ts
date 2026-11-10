@@ -49,6 +49,7 @@ export interface CommandHost {
     | "generateSessionTitle"
     | "compact"
     | "setMaxContextTokens"
+    | "listSkills"
   >;
   runtime: {
     maxContextTokens?: number;
@@ -60,7 +61,9 @@ export async function executeCommand(host: CommandHost, command: Command): Promi
   if (command.type === "exit") {
     return { level: "sys", message: "Close this tab to leave min-web." };
   }
-  if (command.type === "help") return { level: "sys", message: formatHelp() };
+  if (command.type === "help") {
+    return { level: "sys", message: formatHelp(host.client.listSkills()) };
+  }
   if (command.type === "thinking") return { toggle: "thinking" };
   if (command.type === "context") {
     return { level: "sys", message: formatContextUsageReport(host.client.getStatus().context) };

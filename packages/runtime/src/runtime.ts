@@ -29,6 +29,7 @@ import {
   discoverSkillDirs,
   skills,
   type AllowedToolsGate,
+  type LoadSkillResult,
 } from "@min-agent/skills";
 import {
   createPermissionGate,
@@ -85,6 +86,11 @@ export interface RuntimeOptions {
 /** Default agent tool-loop budget (model completes per user message). */
 export const DEFAULT_MAX_TURNS = 40;
 
+export interface RuntimeSkill {
+  name: string;
+  description: string;
+}
+
 export interface Runtime {
   agent: Agent;
   session: Session;
@@ -98,6 +104,10 @@ export interface Runtime {
   /** Shared assembler budget; kept in sync with the session. */
   readonly contextBudget: ContextBudget;
   setMaxContextTokens(tokens: number): void;
+  /** Loaded skill catalog for `/name` slash invoke. */
+  listSkills(): readonly RuntimeSkill[];
+  /** Inject a skill body into the system prompt. Used by `/name` and load_skill. */
+  loadSkill(name: string): Promise<LoadSkillResult>;
 }
 
 export function sessionDirFor(cwd: string, sessionDir?: string): string {
@@ -178,6 +188,11 @@ export async function createRuntime(
   }
 
   const skillDirs = resolveSkillDirs(opts);
+  let skillCatalog: RuntimeSkill[] = [];
+  let loadSkill: Runtime["loadSkill"] = async (name) => ({
+    ok: false,
+    error: `Skill not found: ${name}`,
+  });
   if (skillDirs.length > 0) {
     const loaded = await skills({
       dirs: skillDirs,
@@ -185,6 +200,11 @@ export async function createRuntime(
       appendSystem: (text) => appendSystem(text, "skills"),
     });
     addTools(loaded.tools, "skills");
+    skillCatalog = loaded.catalog.map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+    }));
+    loadSkill = (name) => loaded.load(name);
   }
 
   const tools: Tool[] = [...toolBuckets.values()].flat();
@@ -279,6 +299,8 @@ export async function createRuntime(
     maxTurns,
     contextBudget,
     setMaxContextTokens,
+    listSkills: () => skillCatalog,
+    loadSkill,
   };
 }
 

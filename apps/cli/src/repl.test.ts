@@ -26,6 +26,7 @@ function fakeCli(
         queueSize: 0,
         cwd: "/tmp",
       }),
+      listSkills: () => [],
       ...overrides,
     } as unknown as CliClient["client"],
   };
@@ -116,6 +117,17 @@ describe("handleReplCommand", () => {
     expect(log.mock.calls.at(-1)?.[0]).toMatch(/ctx /);
     expect(handleReplCommand(cli, "/version")).toEqual({ type: "handled" });
     expect(log.mock.calls.at(-1)?.[0]).toMatch(/^min /);
+    log.mockRestore();
+  });
+
+  it("lists skills on /help", () => {
+    const cli = fakeCli({
+      listSkills: () => [{ name: "greeter", description: "Say hello" }],
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(handleReplCommand(cli, "/help")).toEqual({ type: "handled" });
+    expect(log.mock.calls.at(-1)?.[0]).toContain("/greeter");
+    expect(log.mock.calls.at(-1)?.[0]).toContain("Say hello");
     log.mockRestore();
   });
 });

@@ -130,6 +130,8 @@ describe("runtime architecture contracts", () => {
       noSessionStore: true,
     });
     expect(rt.agent.tools.list().some((tool) => tool.name === "load_skill")).toBe(true);
+    expect(rt.listSkills().map((skill) => skill.name)).toEqual(["greeter"]);
+    expect(rt.listSkills()[0]?.description).toBe("min greeter");
     await rt.session.run("load it");
     await rt.session.dispose();
     await rt.agent.dispose();

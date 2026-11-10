@@ -47,6 +47,28 @@ describe("skills composition contracts", () => {
     expect(chunks[1]).toContain("# Skill: demo");
     expect(chunks[1]).toContain("Do the demo carefully.");
     expect([...bundle.allowedToolsGate.preapproved()]).toEqual(["read_file"]);
+
+    const again = await bundle.load("demo");
+    expect(again).toMatchObject({ ok: true, alreadyLoaded: true });
+    expect(chunks).toHaveLength(2);
+  });
+
+  it("exposes /name invoke through catalog + load", async () => {
+    const skill: Skill = {
+      name: "greeter",
+      description: "Say hello",
+      uri: "memory:greeter",
+      body: "Greet the user.",
+    };
+    const bundle = await skills({
+      sources: [memorySource(skill)],
+    });
+    expect(bundle.catalog.map((item) => item.name)).toEqual(["greeter"]);
+    const missing = await bundle.load("nope");
+    expect(missing.ok).toBe(false);
+    const loaded = await bundle.load("greeter");
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.skill.body).toContain("Greet the user.");
   });
 
   it("pre-approves frontmatter tools while non-listed tools still ask", async () => {

@@ -178,6 +178,7 @@ export async function snapshot(): Promise<WebSnapshot> {
     ...(status.context ? { context: status.context } : {}),
     ...(model ? { model } : {}),
     version: formatVersionLine(),
+    skills: [...client.listSkills()],
   };
 }
 

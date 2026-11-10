@@ -19,6 +19,7 @@ export type {
   ClientSessionInfo,
   ClientStatus,
   ClientStatusSnapshot,
+  ClientSkill,
   MinClient,
   OnBusySend,
   PermissionAnswer,

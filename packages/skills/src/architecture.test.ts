@@ -43,6 +43,9 @@ describe("skills architecture contracts", () => {
     const bundle = await skills({ dirs: [root] });
     expect(bundle.tools.some((tool) => tool.name === "load_skill")).toBe(true);
     expect(bundle.allowedToolsGate).toBeDefined();
+    expect(bundle.catalog.map((skill) => skill.name)).toContain("demo");
+    const loaded = await bundle.load("demo");
+    expect(loaded).toMatchObject({ ok: true, alreadyLoaded: false });
   });
 
   it("pre-approves only names from allowed-tools", () => {

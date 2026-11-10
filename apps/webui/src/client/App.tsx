@@ -37,6 +37,7 @@ import {
   cycleCommandIndex,
   routeSubmit,
   shortSessionId,
+  skillCommandSpecs,
   slashMenuEnter,
 } from "../shared/commands";
 import type { SessionRow, SubmitResponse, WebSnapshot } from "../shared/types";
@@ -380,6 +381,8 @@ export default function App() {
     setCompleteIndex(0);
   }, [input]);
 
+  const slashExtra = skillCommandSpecs(snapshot?.skills ?? []);
+
   async function runLine(text: string) {
     if (pending) return;
     const route = routeSubmit(text, busy);
@@ -417,7 +420,7 @@ export default function App() {
 
   function onSubmit() {
     if (!input.trim() && attachments.length === 0) return;
-    const matches = commandSuggestions(input);
+    const matches = commandSuggestions(input, slashExtra);
     if (matches.length > 0) {
       const command = matches[((completeIndex % matches.length) + matches.length) % matches.length];
       if (!command) return;
@@ -438,7 +441,7 @@ export default function App() {
 
   function onComposerKey(event: ReactKey<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return;
-    const matches = commandSuggestions(input);
+    const matches = commandSuggestions(input, slashExtra);
     if (matches.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
       event.preventDefault();
       setCompleteIndex((current) =>
@@ -448,7 +451,7 @@ export default function App() {
     }
     if (matches.length > 0 && event.key === "Tab") {
       event.preventDefault();
-      const next = applyCommandCompletion(input, completeIndex);
+      const next = applyCommandCompletion(input, completeIndex, slashExtra);
       if (next !== null) setInput(next);
       return;
     }
@@ -473,7 +476,7 @@ export default function App() {
   }
 
   function chooseSlash(index: number) {
-    const matches = commandSuggestions(input);
+    const matches = commandSuggestions(input, slashExtra);
     const command = matches[index];
     if (!command) return;
     const action = slashMenuEnter(command);
@@ -518,7 +521,7 @@ export default function App() {
   }, [status, workedUntil]);
 
   const workedVisible = workedMs != null && activityClock < workedUntil;
-  const suggestions = commandSuggestions(input);
+  const suggestions = commandSuggestions(input, slashExtra);
   const title =
     snapshot?.title ||
     (snapshot?.sessionId ? shortSessionId(snapshot.sessionId) : "session");

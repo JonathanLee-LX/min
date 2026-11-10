@@ -32,6 +32,16 @@ export function handleReplCommand(
   }
 
   if (name === "help" || name === "h" || name === "?") {
+    const skills = cli.client.listSkills?.() ?? [];
+    const skillLines =
+      skills.length === 0
+        ? ""
+        : `\nSkills (invoke with /name):\n${skills
+            .map((skill) => {
+              const hint = skill.description.trim().split("\n")[0] ?? "";
+              return `  /${skill.name.padEnd(16)} ${hint}`;
+            })
+            .join("\n")}\n`;
     console.log(`REPL commands:
   /help              show this help
   /context           context window used/limit and part breakdown
@@ -47,7 +57,7 @@ export function handleReplCommand(
   /dense             push next line as dense-latest (or: /dense <text>)
   /attach <path>     attach an image, PDF, or text file to the next send
   /exit              quit (also /quit)
-
+${skillLines}
 Follow-ups: client.queue (or /dense). After the current agent pass finishes,
 the session drains the queue and continues. Rapid lines within 1.5s collapse
 to dense-latest. Anything else is sent as a user message.`);

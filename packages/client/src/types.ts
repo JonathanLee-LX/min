@@ -197,6 +197,11 @@ export interface ClientNotices {
   subscribe(handler: (notice: Notice) => void): () => void;
 }
 
+export interface ClientSkill {
+  name: string;
+  description: string;
+}
+
 export interface MinClient {
   readonly queue: ClientQueueApi;
   /** System notices collected before and during this process. */
@@ -205,6 +210,9 @@ export interface MinClient {
   send(text: string, opts?: SendOptions): Promise<void>;
   abort(): void;
   dispose(): Promise<void>;
+
+  /** Skills available as `/name` slash commands. Built-in commands still win. */
+  listSkills(): readonly ClientSkill[];
 
   getStatus(): ClientStatusSnapshot;
   subscribe(handler: ClientEventHandler): () => void;

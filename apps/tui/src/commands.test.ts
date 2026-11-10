@@ -18,7 +18,9 @@ import {
   resolveModelArgs,
   routeSubmit,
   selectCommandCompletion,
+  skillCommandSpecs,
   slashMenuEnter,
+  formatTuiHelp,
   TUI_COMMANDS,
 } from "./commands.js";
 
@@ -296,6 +298,29 @@ describe("command completion", () => {
     expect(slashMenuEnter(resume!)).toEqual({ type: "run", line: "/resume" });
     expect(slashMenuEnter(dense!)).toEqual({ type: "fill", text: "/dense " });
     expect(slashMenuEnter(help!)).toEqual({ type: "run", line: "/help" });
+  });
+
+  it("lists loaded skills as /name and keeps built-in commands first", () => {
+    const extra = skillCommandSpecs([
+      { name: "greeter", description: "Say hello" },
+      { name: "help", description: "should not replace /help" },
+    ]);
+    expect(extra.map((command) => command.name)).toEqual(["greeter"]);
+    expect(extra[0]).toMatchObject({ arg: true, pick: true, hint: "Say hello" });
+    expect(slashMenuEnter(extra[0]!)).toEqual({ type: "run", line: "/greeter" });
+    expect(commandSuggestions("/g", extra).map((command) => command.name)).toEqual([
+      "greeter",
+    ]);
+    expect(commandSuggestions("/h", extra).map((command) => command.name)).toEqual([
+      "help",
+    ]);
+    expect(applyCommandCompletion("/g", 0, extra)).toBe("/greeter ");
+    expect(formatTuiHelp([{ name: "greeter", description: "Say hello" }])).toContain(
+      "/greeter",
+    );
+    expect(formatTuiHelp([{ name: "greeter", description: "Say hello" }])).toContain(
+      "Skills:",
+    );
   });
 
   it("fills the selected command when browsing without a trailing space", () => {

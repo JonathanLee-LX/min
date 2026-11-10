@@ -23,6 +23,11 @@ export interface ModelView {
   effort?: string;
 }
 
+export interface WebSkill {
+  name: string;
+  description: string;
+}
+
 export interface WebSnapshot {
   status: "idle" | "running" | "asking";
   busy: boolean;
@@ -39,6 +44,7 @@ export interface WebSnapshot {
   context?: ContextUsageView;
   model?: ModelView;
   version: string;
+  skills: WebSkill[];
 }
 
 export interface SessionRow {
