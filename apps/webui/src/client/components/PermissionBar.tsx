@@ -24,7 +24,7 @@ export function PermissionBar({
             <p className="break-all font-mono text-xs">
               {toolName} {args}
             </p>
-            <p>{reason}</p>
+            <p className="whitespace-pre-wrap">{reason}</p>
             <p className="text-muted-foreground">No answer denies in 2 minutes.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">

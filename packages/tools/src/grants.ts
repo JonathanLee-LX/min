@@ -10,7 +10,7 @@ import path from "node:path";
 export type PermissionGrant =
   | { kind: "bash-prefix"; prefix: string }
   | { kind: "bash-exact"; command: string }
-  | { kind: "path"; tool: "read_file" | "write_file" | "glob"; path: string }
+  | { kind: "path"; tool: "read_file" | "write_file" | "edit_file" | "glob"; path: string }
   | { kind: "tool"; name: string };
 
 export interface PermissionRules {
@@ -123,7 +123,10 @@ function parseGrant(value: unknown): PermissionGrant | undefined {
   }
   if (
     entry.kind === "path" &&
-    (entry.tool === "read_file" || entry.tool === "write_file" || entry.tool === "glob") &&
+    (entry.tool === "read_file" ||
+      entry.tool === "write_file" ||
+      entry.tool === "edit_file" ||
+      entry.tool === "glob") &&
     typeof entry.path === "string" &&
     entry.path
   ) {

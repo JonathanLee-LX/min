@@ -197,4 +197,121 @@ describe("createWorkspacePermissionPolicy", () => {
       reason: expect.stringContaining("write_file"),
     });
   });
+
+  it("treats edit_file as a write and shows a short diff when asking", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "min-pol-"));
+    const allowed = createWorkspacePermissionPolicy(createSandbox(root));
+    expect(
+      allowed.handler(
+        ctx("edit_file", { path: "a.ts", old_string: "alpha", new_string: "beta" }),
+      ),
+    ).toEqual({ action: "allow" });
+
+    const asking = createWorkspacePermissionPolicy(createSandbox(root), {
+      write: "ask",
+    });
+    const decision = await asking.handler(
+      ctx("edit_file", { path: "a.ts", old_string: "alpha", new_string: "beta" }),
+    );
+    expect(decision).toMatchObject({ action: "ask" });
+    if (decision.action !== "ask") throw new Error("expected ask");
+    expect(decision.reason).toContain('edit_file path="a.ts"');
+    expect(decision.reason).toContain("- alpha");
+    expect(decision.reason).toContain("+ beta");
+    expect(decision.reason.length).toBeLessThan(500);
+
+    const multi = await asking.handler(
+      ctx("edit_file", {
+        path: "a.ts",
+        edits: [
+          { old_string: "alpha", new_string: "beta" },
+          { old_string: "one", new_string: "two", replace_all: true },
+        ],
+      }),
+    );
+    expect(multi).toMatchObject({ action: "ask" });
+    if (multi.action !== "ask") throw new Error("expected ask");
+    expect(multi.reason).toContain("1. replace");
+    expect(multi.reason).toContain("- alpha");
+    expect(multi.reason).toContain("+ beta");
+    expect(multi.reason).toContain("2. replace all");
+    expect(multi.reason).toContain("- one");
+    expect(multi.reason).toContain("+ two");
+
+    const denied = createWorkspacePermissionPolicy(createSandbox(root), {
+      write: "deny",
+    });
+    expect(
+      denied.handler(
+        ctx("edit_file", { path: "a.ts", old_string: "alpha", new_string: "beta" }),
+      ),
+    ).toMatchObject({
+      action: "deny",
+      reason: expect.stringContaining("- alpha"),
+    });
+  });
+
+  it("remembers one edit_file path and does not reuse a write_file grant", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "min-pol-"));
+    const policy = createWorkspacePermissionPolicy(createSandbox(root), {
+      write: "ask",
+    });
+    policy.grantSession(
+      ctx("write_file", { path: "note.txt", content: "x" }).toolCall,
+    );
+    expect(
+      (
+        await policy.handler(
+          ctx("edit_file", { path: "note.txt", old_string: "a", new_string: "b" }),
+        )
+      ).action,
+    ).toBe("ask");
+
+    policy.grantSession(
+      ctx("edit_file", { path: "note.txt", old_string: "a", new_string: "b" }).toolCall,
+    );
+    expect(
+      policy.handler(
+        ctx("edit_file", { path: "note.txt", old_string: "other", new_string: "z" }),
+      ),
+    ).toEqual({ action: "allow" });
+    expect(
+      (
+        await policy.handler(
+          ctx("edit_file", { path: "other.txt", old_string: "a", new_string: "b" }),
+        )
+      ).action,
+    ).toBe("ask");
+  });
+
+  it("keeps an escaping edit_file on the root-grant prompt and still shows the diff", async () => {
+    const primary = await realTemp("min-pol-p-");
+    const outside = await realTemp("min-pol-o-");
+    const policy = createWorkspacePermissionPolicy(createSandbox(primary));
+    const escapePath = path.relative(primary, path.join(outside, "x.txt"));
+    const decision = await policy.handler(
+      ctx("edit_file", { path: escapePath, old_string: "secret", new_string: "nope" }),
+    );
+    expect(decision).toMatchObject({ action: "ask", grantRoot: outside });
+    if (decision.action !== "ask") throw new Error("expected ask");
+    expect(decision.reason).toContain("- secret");
+    expect(decision.reason).toContain("+ nope");
+    expect(decision.reason).not.toContain("ENTIRE");
+  });
+
+  it("truncates a huge edit diff in the prompt", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "min-pol-"));
+    const policy = createWorkspacePermissionPolicy(createSandbox(root), {
+      write: "ask",
+    });
+    const oldString = "Z".repeat(5_000);
+    const decision = await policy.handler(
+      ctx("edit_file", { path: "a.ts", old_string: oldString, new_string: "short" }),
+    );
+    expect(decision.action).toBe("ask");
+    if (decision.action !== "ask") throw new Error("expected ask");
+    expect(decision.reason).not.toContain(oldString);
+    expect(decision.reason.length).toBeLessThan(900);
+    expect(decision.reason).toContain("…");
+  });
 });

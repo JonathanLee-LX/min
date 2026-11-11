@@ -1,9 +1,16 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineTool, type Tool } from "@min-agent/core";
 import { z } from "zod";
 import { createSandbox, SandboxError, type Sandbox } from "./sandbox.js";
+import {
+  applyTextEdits,
+  contentHash,
+  inspectText,
+  normalizeEdits,
+  writeTextAtomic,
+} from "./text-edit.js";
 
 export interface WorkspaceToolsOptions {
   /** Sandbox root (default: process.cwd()). */
@@ -20,10 +27,17 @@ export function createWorkspaceTools(
   const sandbox = createSandbox(opts.root ?? process.cwd());
   const bashTimeoutMs = opts.bashTimeoutMs ?? 30_000;
   const maxReadBytes = opts.maxReadBytes ?? 200_000;
+  /** sha256 of the last successful read or write of a resolved path, for this tools instance. */
+  const snapshots = new Map<string, string>();
+
+  const remember = (abs: string, bytes: Buffer) => {
+    snapshots.set(abs, contentHash(bytes));
+  };
 
   const read_file = defineTool({
     name: "read_file",
-    description: "Read a UTF-8 text file inside the workspace.",
+    description:
+      "Read a UTF-8 text file inside the workspace. A successful read allows edit_file on that path until the file changes.",
     inputSchema: z.object({
       path: z.string().describe("Path relative to workspace root"),
     }),
@@ -37,6 +51,7 @@ export function createWorkspaceTools(
             isError: true,
           };
         }
+        remember(abs, buf);
         return { content: buf.toString("utf8") };
       } catch (err) {
         return toolError(err);
@@ -46,7 +61,8 @@ export function createWorkspaceTools(
 
   const write_file = defineTool({
     name: "write_file",
-    description: "Write a UTF-8 text file inside the workspace (creates parents).",
+    description:
+      "Create or fully replace a UTF-8 text file inside the workspace (creates parents). Prefer edit_file for small changes to an existing file.",
     inputSchema: z.object({
       path: z.string().describe("Path relative to workspace root"),
       content: z.string().describe("File contents"),
@@ -56,7 +72,103 @@ export function createWorkspaceTools(
         const abs = sandbox.resolve(userPath);
         await mkdir(path.dirname(abs), { recursive: true });
         await writeFile(abs, content, "utf8");
+        remember(abs, Buffer.from(content, "utf8"));
         return { content: `Wrote ${sandbox.relative(abs)} (${content.length} chars)` };
+      } catch (err) {
+        return toolError(err);
+      }
+    },
+  });
+
+  const editChange = z.object({
+    old_string: z.string().describe("Exact text to replace"),
+    new_string: z
+      .string()
+      .describe("Replacement text. An empty string deletes the match"),
+    replace_all: z
+      .boolean()
+      .optional()
+      .describe("Replace every match. Omit to require exactly one match"),
+  });
+
+  const edit_file = defineTool({
+    name: "edit_file",
+    description:
+      "Replace exact text in an existing UTF-8 file. Prefer this over write_file for small edits. Requires read_file of the path in this session (a successful write_file refreshes that snapshot). old_string must match once unless replace_all. Pass edits for several replacements in order; the file is unchanged if any fails.",
+    inputSchema: z.object({
+      path: z.string().describe("Path relative to the workspace root"),
+      old_string: z
+        .string()
+        .optional()
+        .describe("Exact text to replace for a single edit"),
+      new_string: z
+        .string()
+        .optional()
+        .describe("Replacement for old_string. An empty string deletes the match"),
+      replace_all: z
+        .boolean()
+        .optional()
+        .describe("Replace every match of old_string"),
+      edits: z
+        .array(editChange)
+        .optional()
+        .describe(
+          "Ordered edits. Applied atomically; any failure leaves the file unchanged. Do not also set old_string.",
+        ),
+    }),
+    async execute(input) {
+      try {
+        const abs = sandbox.resolve(input.path);
+        const rel = sandbox.relative(abs);
+        const normalized = normalizeEdits(input);
+        if (!normalized.ok) return { content: normalized.message, isError: true };
+
+        const info = await stat(abs);
+        if (!info.isFile()) {
+          return { content: `${rel} is not a file.`, isError: true };
+        }
+        if (info.size > maxReadBytes) {
+          return {
+            content: `File too large (${info.size} bytes; max ${maxReadBytes}).`,
+            isError: true,
+          };
+        }
+        const buf = await readFile(abs);
+        if (buf.byteLength > maxReadBytes) {
+          return {
+            content: `File too large (${buf.byteLength} bytes; max ${maxReadBytes}).`,
+            isError: true,
+          };
+        }
+        const decoded = inspectText(buf);
+        if (!decoded.ok) {
+          return {
+            content: `${rel} is binary or not valid UTF-8. edit_file only changes text.`,
+            isError: true,
+          };
+        }
+        const seen = snapshots.get(abs);
+        if (!seen) {
+          return {
+            content: `No read_file snapshot for ${rel} in this session. Read the file before editing.`,
+            isError: true,
+          };
+        }
+        if (seen !== contentHash(buf)) {
+          return {
+            content: `${rel} changed since it was last read or written in this session. Read it again before editing.`,
+            isError: true,
+          };
+        }
+        const applied = applyTextEdits(decoded.text, normalized.edits, rel);
+        if (!applied.ok) return { content: applied.message, isError: true };
+
+        await writeTextAtomic(abs, applied.text);
+        remember(abs, Buffer.from(applied.text, "utf8"));
+        const n = applied.replacements;
+        return {
+          content: `Edited ${rel} (${n} replacement${n === 1 ? "" : "s"}).`,
+        };
       } catch (err) {
         return toolError(err);
       }
@@ -135,7 +247,7 @@ export function createWorkspaceTools(
     },
   });
 
-  return { sandbox, tools: [read_file, write_file, glob, bash] };
+  return { sandbox, tools: [read_file, write_file, edit_file, glob, bash] };
 }
 
 async function walk(

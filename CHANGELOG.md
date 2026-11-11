@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `edit_file` replaces an exact snippet in an existing file, so a small edit does not resend the whole file. `write_file` remains for new files and full rewrites. The edit requires `read_file` of that path in the process (a successful `write_file` refreshes the snapshot) and does not write when the match is missing or ambiguous, the file changed on disk, or the write prompt is denied. `--ask-write` shows a short diff.
 - Loaded skills are slash commands: type `/skill-name` (optional args) in CLI, TUI, or Web to load the skill and run it. Built-in commands still win on the same name.
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
 

@@ -50,6 +50,7 @@ export {
 export type WorkspaceToolName =
   | "read_file"
   | "write_file"
+  | "edit_file"
   | "glob"
   | "bash";
 
@@ -106,9 +107,11 @@ export function workspaceTools(
       "You have workspace tools scoped to a sandbox root.",
       `Primary sandbox root: ${sandbox.root}`,
       "Use relative paths when possible. Prefer read_file/glob before bash when inspecting files.",
+      "Prefer edit_file for a small change to an existing file. Use write_file to create a file or replace it entirely.",
+      "edit_file requires read_file of that path first in this session (a successful write_file refreshes that snapshot). It does not write if the file changed since that read, or if old_string is missing or matches more than once (unless replace_all).",
       "Paths outside the sandbox require user approval to add a session root (tight directory only).",
       "Permission policy: reads/writes usually allowed inside roots; bash may require approval.",
-      "Tools other than read_file, write_file, glob, and bash require approval unless the user has remembered that tool.",
+      "Tools other than read_file, write_file, edit_file, glob, and bash require approval unless the user has remembered that tool.",
       "When the user remembers a bash prompt, later simple commands with the same first token are allowed. Shell compounds are remembered only as that exact command.",
       "If a tool returns Permission denied, choose a safer approach or ask the user.",
     ].join("\n"),

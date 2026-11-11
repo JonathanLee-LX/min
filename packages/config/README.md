@@ -89,7 +89,7 @@ min reads the usual files from those agents when they exist. They sit below min'
 | `ui.theme`, `ui.themeOverrides` | — | yes, `--theme` / `MIN_THEME` win | — |
 | `ui.keybindings` | — | yes, merged onto the built-in chords | — |
 | `settings.permissions.bash` set to `allow` | turns bash on | turns bash on, unless `-y` / `--auto` already did | turns bash on, unless `MIN_AUTO` / `MIN_YES` |
-| `settings.permissions.write` set to `ask` | confirms writes | confirms writes | confirms writes |
+| `settings.permissions.write` set to `ask` | confirms `write_file` and `edit_file` | confirms `write_file` and `edit_file` | confirms `write_file` and `edit_file` |
 | `auth` | copied into the environment when the variable is unset | same | same |
 | `settings.permissions.read`, `settings.hooks`, `settings.mcp` | loaded only | loaded only | loaded only |
 | `providers` | loaded only | `/model` list or `/model <name>` selects an entry | loaded only |

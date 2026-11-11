@@ -13,6 +13,7 @@ import type {
   PermissionHandler,
 } from "./permission-protocol.js";
 import type { Sandbox } from "./sandbox.js";
+import { conciseEditDiff } from "./text-edit.js";
 
 export type PermissionMode = "allow" | "ask" | "deny";
 
@@ -149,29 +150,42 @@ export function createWorkspacePermissionPolicy(
   ): PermissionDecision => {
     const { name, arguments: args } = ctx.toolCall;
 
-    if (name === "read_file" || name === "write_file" || name === "glob") {
+    if (
+      name === "read_file" ||
+      name === "write_file" ||
+      name === "edit_file" ||
+      name === "glob"
+    ) {
       const userPath = pathArg(name, args);
       const probed = sandbox.probe(userPath);
       if (!probed.ok) {
+        let reason = `path outside sandbox → add session root "${probed.suggestedRoot}" for "${userPath}"`;
+        if (name === "edit_file") {
+          const diff = conciseEditDiff(args);
+          if (diff) reason = `${reason}\n${diff}`;
+        }
         return {
           action: "ask",
-          reason: `path outside sandbox → add session root "${probed.suggestedRoot}" for "${userPath}"`,
+          reason,
           grantRoot: probed.suggestedRoot,
         };
       }
 
-      const mode = name === "write_file" ? write : read;
-      const reason =
-        name === "write_file"
-          ? `write_file path="${userPath}"`
-          : `read tool "${name}"`;
-      if (mode === "deny") return { action: "deny", reason };
+      const writing = name === "write_file" || name === "edit_file";
+      const mode = writing ? write : read;
+      const head = writing ? `${name} path="${userPath}"` : `read tool "${name}"`;
+      const diff = name === "edit_file" ? conciseEditDiff(args) : "";
+      const withDiff = diff ? `${head}\n${diff}` : head;
+      if (mode === "deny") return { action: "deny", reason: withDiff };
       if (remembered(ctx.toolCall)) return { action: "allow" };
       if (mode === "allow") return { action: "allow" };
       const grant = grantFor(sandbox, ctx.toolCall);
+      const askHead = grant
+        ? `${head} — always remembers ${describeGrant(grant)}`
+        : head;
       return {
         action: "ask",
-        reason: grant ? `${reason} — always remembers ${describeGrant(grant)}` : reason,
+        reason: diff ? `${askHead}\n${diff}` : askHead,
       };
     }
 
@@ -263,7 +277,12 @@ function grantFor(sandbox: Sandbox, call: ToolCallPart): PermissionGrant | undef
     if (shape.kind === "prefix") return { kind: "bash-prefix", prefix: shape.prefix };
     return { kind: "bash-exact", command: shape.command };
   }
-  if (call.name === "read_file" || call.name === "write_file" || call.name === "glob") {
+  if (
+    call.name === "read_file" ||
+    call.name === "write_file" ||
+    call.name === "edit_file" ||
+    call.name === "glob"
+  ) {
     return {
       kind: "path",
       tool: call.name,
