@@ -1,4 +1,4 @@
-import { createAgent, defineTool, mockProvider } from "@min-agent/core";
+import { createAgent, defineTool, mockProvider, ToolRegistry } from "@min-agent/core";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createPermissionGate } from "./permission-protocol.js";
@@ -204,6 +204,76 @@ describe("permission gate", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it("starts the display clock when the body starts, not during confirmation", async () => {
+    const marks: string[] = [];
+    const gate = createPermissionGate(() => ({ action: "ask", reason: "confirm" }));
+    gate.setAsk(async () => {
+      expect(marks).toEqual(["claim"]);
+      marks.push("ask");
+      return "allow";
+    });
+    const [wrapped] = gate.wrap([
+      defineTool({
+        name: "bash",
+        description: "run",
+        inputSchema: z.object({}),
+        async execute() {
+          marks.push("body");
+          return { content: "ok" };
+        },
+      }),
+    ]);
+    const registry = new ToolRegistry();
+    registry.register(wrapped!);
+    const result = await registry.execute("bash", {}, {
+      toolCallId: "c1",
+      onBodyStart: {
+        claim() {
+          marks.push("claim");
+        },
+        start() {
+          marks.push("start");
+        },
+      },
+    });
+    expect(result.content).toBe("ok");
+    expect(result.durationMs).toBeGreaterThan(0);
+    expect(marks).toEqual(["claim", "ask", "start", "body"]);
+  });
+
+  it("does not start the display clock when confirmation denies the call", async () => {
+    const marks: string[] = [];
+    const gate = createPermissionGate(() => ({ action: "ask", reason: "confirm" }));
+    gate.setAsk(async () => {
+      marks.push("ask");
+      return "deny";
+    });
+    const [wrapped] = gate.wrap([
+      defineTool({
+        name: "bash",
+        description: "run",
+        inputSchema: z.object({}),
+        async execute() {
+          return { content: "ok" };
+        },
+      }),
+    ]);
+    const registry = new ToolRegistry();
+    registry.register(wrapped!);
+    const result = await registry.execute("bash", {}, {
+      onBodyStart: {
+        claim() {
+          marks.push("claim");
+        },
+        start() {
+          marks.push("start");
+        },
+      },
+    });
+    expect(marks).toEqual(["claim", "ask"]);
+    expect(result.durationMs).toBe(0);
   });
 
   it("records 0ms when confirmation denies the call before it runs", async () => {

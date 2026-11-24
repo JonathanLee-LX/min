@@ -173,7 +173,12 @@ describe("Runner / createAgent", () => {
     let now = 1_000;
     const spy = vi.spyOn(performance, "now").mockImplementation(() => now);
     try {
-      const events: Array<{ type: string; durationMs?: number; toolCallId?: string }> = [];
+      const events: Array<{
+        type: string;
+        durationMs?: number;
+        toolCallId?: string;
+        phase?: string;
+      }> = [];
       const agent = await createAgent({
         provider: mockProvider([
           {
@@ -208,6 +213,14 @@ describe("Runner / createAgent", () => {
       const result = await agent.run({
         input: "go",
         onEvent(event) {
+          if (event.type === "tool_call") {
+            events.push({
+              type: event.type,
+              toolCallId: event.toolCall.id,
+              ...(event.phase ? { phase: event.phase } : {}),
+            });
+            expect(event).not.toHaveProperty("durationMs");
+          }
           if (event.type === "tool_result") {
             events.push({
               type: event.type,
@@ -218,7 +231,11 @@ describe("Runner / createAgent", () => {
         },
       });
       expect(events).toEqual([
+        { type: "tool_call", toolCallId: "a" },
+        { type: "tool_call", toolCallId: "a", phase: "running" },
         { type: "tool_result", toolCallId: "a", durationMs: 10 },
+        { type: "tool_call", toolCallId: "b" },
+        { type: "tool_call", toolCallId: "b", phase: "running" },
         { type: "tool_result", toolCallId: "b", durationMs: 30 },
       ]);
       const tool = result.messages.find((message) => message.role === "tool");
@@ -226,6 +243,8 @@ describe("Runner / createAgent", () => {
         { type: "tool_result", toolCallId: "a", durationMs: 10 },
         { type: "tool_result", toolCallId: "b", durationMs: 30 },
       ]);
+      expect(JSON.stringify(result.messages)).not.toContain("running");
+      expect(JSON.stringify(tool?.content).match(/"durationMs"/g)).toHaveLength(2);
       await agent.dispose();
     } finally {
       spy.mockRestore();

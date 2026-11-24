@@ -44,6 +44,7 @@ import type { SessionRow, SubmitResponse, WebSnapshot } from "../shared/types";
 import {
   activityLabel,
   isTranscriptMessage,
+  finishToolLine,
   linesFromMessages,
   summarizeToolCall,
   type LogKind,
@@ -64,7 +65,13 @@ type Wire =
   | { type: "assistant_done"; text: string }
   | { type: "thinking_delta"; text: string }
   | { type: "thinking_done"; text: string }
-  | { type: "tool_start"; name: string; args: Record<string, unknown>; toolCallId: string }
+  | {
+      type: "tool_start";
+      name: string;
+      args: Record<string, unknown>;
+      toolCallId: string;
+      running?: boolean;
+    }
   | {
       type: "tool_end";
       toolCallId: string;
@@ -296,6 +303,31 @@ export default function App() {
       inflight.current.set(event.toolCallId, event.name);
       setToolName(event.name);
       setContinuing(false);
+      if (event.running) {
+        const startedAt = Date.now();
+        setLines((prev) => {
+          let found = false;
+          const next = prev.map((line) => {
+            if (line.kind !== "tool" || line.toolCallId !== event.toolCallId) return line;
+            if (recordedDuration(line.durationMs) !== undefined) return line;
+            found = true;
+            return { ...line, liveStartedAt: startedAt };
+          });
+          if (found) return next;
+          seq.current += 1;
+          return [
+            ...next,
+            {
+              id: `l${seq.current}`,
+              kind: "tool" as const,
+              text: summarizeToolCall(event.name, event.args),
+              toolCallId: event.toolCallId,
+              liveStartedAt: startedAt,
+            },
+          ];
+        });
+        return;
+      }
       push("tool", summarizeToolCall(event.name, event.args), event.toolCallId);
       return;
     }
@@ -304,15 +336,7 @@ export default function App() {
       const names = [...inflight.current.values()];
       setToolName(names.length > 0 ? names[names.length - 1]! : null);
       const durationMs = recordedDuration(event.durationMs);
-      if (durationMs !== undefined) {
-        setLines((prev) =>
-          prev.map((line) =>
-            line.kind === "tool" && line.toolCallId === event.toolCallId
-              ? { ...line, durationMs }
-              : line,
-          ),
-        );
-      }
+      setLines((prev) => finishToolLine(prev, event.toolCallId, durationMs));
       const body = event.content.trim();
       push(event.ok ? "tool-result" : "tool-error", body || (event.ok ? "(no output)" : "(failed)"));
       return;

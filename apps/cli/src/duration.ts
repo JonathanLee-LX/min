@@ -29,3 +29,24 @@ export function recordedDuration(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
   return value;
 }
+
+/** Elapsed time while a body is still running. Never `0ms`; that label is a denial. */
+export function formatLiveToolDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 1) return "<1ms";
+  return formatToolDuration(ms);
+}
+
+/**
+ * Stored duration wins. A live call with no stored value ticks.
+ * History with no duration stays blank.
+ */
+export function toolDurationLabel(input: {
+  stored: unknown;
+  startedAt?: number;
+  now: number;
+}): string | undefined {
+  const stored = recordedDuration(input.stored);
+  if (stored !== undefined) return formatToolDuration(stored);
+  if (input.startedAt === undefined) return undefined;
+  return formatLiveToolDuration(input.now - input.startedAt);
+}

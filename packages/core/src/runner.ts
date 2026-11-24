@@ -86,6 +86,18 @@ export class Runner {
               toolCallId: call.id,
               turn: turns,
               messages: [...messages],
+              onBodyStart: {
+                claim() {},
+                start() {
+                  // Sync so the live row appears before a fast body finishes.
+                  // Not awaited, and not copied onto the session message.
+                  void input.onEvent?.({
+                    type: "tool_call",
+                    toolCall: call,
+                    phase: "running",
+                  });
+                },
+              },
             },
           );
 

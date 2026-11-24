@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { defineTool, ToolRegistry, toolToDefinition } from "./tools.js";
 
@@ -45,6 +45,12 @@ describe("ToolRegistry", () => {
     const missing = await registry.execute("nope", {});
     expect(missing.isError).toBe(true);
     expect(missing.durationMs).toBeUndefined();
+
+    const clock = { claim: vi.fn(), start: vi.fn() };
+    await registry.execute("ping", { n: "x" }, { onBodyStart: clock });
+    await registry.execute("nope", {}, { onBodyStart: clock });
+    expect(clock.claim).not.toHaveBeenCalled();
+    expect(clock.start).not.toHaveBeenCalled();
   });
 
   it("keeps a body duration and times overlapping calls apart", async () => {
@@ -82,7 +88,18 @@ describe("ToolRegistry", () => {
       }),
     );
 
-    const kept = await registry.execute("kept", {});
+    const marks: string[] = [];
+    const kept = await registry.execute("kept", {}, {
+      onBodyStart: {
+        claim() {
+          marks.push("claim");
+        },
+        start() {
+          marks.push("start");
+        },
+      },
+    });
+    expect(marks).toEqual(["start"]);
     expect(kept.durationMs).toBe(5);
 
     const [fast, slow] = await Promise.all([

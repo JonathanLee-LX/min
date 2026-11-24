@@ -33,6 +33,7 @@ export function createEventTranslator(): EventTranslator {
               name: event.toolCall.name,
               args: event.toolCall.arguments,
               toolCallId: event.toolCall.id,
+              ...(event.phase === "running" ? { running: true } : {}),
             },
           ];
         }

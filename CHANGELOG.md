@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
-- Each finished tool call shows how long that call's body ran. The clock starts when execution starts and stops when it ends, so a permission prompt or a queued message is not included. Success, failure, and cancel each show the time already spent, and overlapping calls keep separate clocks. A sub-millisecond run is shown as `<1ms`. Older transcripts that have no duration field render unchanged.
+- Each tool call shows how long its body ran. While the body is still running, the web transcript, the TUI, and a TTY CLI line tick that call's own elapsed time. The clock starts when execution starts, so a permission prompt or a queued message is not included, and those ticks are not written into the session. The stored duration is the final body time, written once when the call ends (success, failure, or cancel). A sub-millisecond run is shown as `<1ms`, and a denial that never entered the tool is `0ms`. Older transcripts that have no duration field render unchanged.
 
 ## 0.1.0-alpha.14
 

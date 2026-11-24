@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
-import { formatToolDuration, recordedDuration } from "../../shared/duration";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { toolDurationLabel } from "../../shared/duration";
 import type { LogKind } from "../../shared/transcript";
 
 export interface TranscriptLine {
@@ -12,7 +12,10 @@ export interface TranscriptLine {
   kind: LogKind;
   text: string;
   toolCallId?: string;
+  /** Final stored duration. Absent while the body is still running. */
   durationMs?: number;
+  /** Display clock start. Never loaded from history. */
+  liveStartedAt?: number;
 }
 
 export function Transcript({
@@ -139,17 +142,11 @@ function LineView({
     );
   }
   if (line.kind === "tool") {
-    const duration = recordedDuration(line.durationMs);
-    const label = duration !== undefined ? formatToolDuration(duration) : "";
     return (
       <div className="flex items-start gap-2 border-l-2 border-tool py-1 pl-3 text-sm text-tool">
         <span aria-hidden="true">▸</span>
         <span className="min-w-0 flex-1 break-all font-mono text-xs">{line.text}</span>
-        {label ? (
-          <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
-            {label}
-          </span>
-        ) : null}
+        <ToolClock stored={line.durationMs} startedAt={line.liveStartedAt} />
       </div>
     );
   }
@@ -172,6 +169,20 @@ function LineView({
     >
       {line.text}
     </pre>
+  );
+}
+
+function ToolClock({ stored, startedAt }: { stored?: number; startedAt?: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  const label = toolDurationLabel({ stored, startedAt, now });
+  useEffect(() => {
+    if (startedAt === undefined || stored !== undefined) return;
+    const id = window.setInterval(() => setNow(Date.now()), 100);
+    return () => window.clearInterval(id);
+  }, [startedAt, stored]);
+  if (!label) return null;
+  return (
+    <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{label}</span>
   );
 }
 

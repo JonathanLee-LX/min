@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatToolDuration } from "./duration.js";
+import { formatToolDuration, toolDurationLabel } from "./duration.js";
 
 describe("formatToolDuration", () => {
   it("keeps short runs visible and uses clear units", () => {
@@ -12,5 +12,16 @@ describe("formatToolDuration", () => {
     expect(formatToolDuration(12_400)).toBe("12s");
     expect(formatToolDuration(65_000)).toBe("1m 5s");
     expect(formatToolDuration(120_000)).toBe("2m");
+  });
+});
+
+describe("toolDurationLabel", () => {
+  it("ticks a live call, keeps a stored final value, and invents nothing", () => {
+    expect(toolDurationLabel({ stored: undefined, now: 1_000 })).toBeUndefined();
+    expect(toolDurationLabel({ stored: undefined, startedAt: 1_000, now: 1_000 })).toBe("<1ms");
+    expect(toolDurationLabel({ stored: undefined, startedAt: 1_000, now: 1_400 })).toBe("400ms");
+    expect(toolDurationLabel({ stored: 0, startedAt: 1_000, now: 1_400 })).toBe("0ms");
+    expect(toolDurationLabel({ stored: 1_500, startedAt: 1_000, now: 9_000 })).toBe("1.5s");
+    expect(toolDurationLabel({ stored: 400, now: 0 })).toBe("400ms");
   });
 });

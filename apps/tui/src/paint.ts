@@ -33,7 +33,7 @@ export interface TranscriptSource {
   text: string;
   /** Assistant text that is still streaming. The caret is drawn after Markdown. */
   streaming?: boolean;
-  /** Right-hand column for a finished tool call. Absent when duration was not recorded. */
+  /** Right-hand column for a tool call. A live body ticks; history uses the stored value. */
   durationLabel?: string;
 }
 

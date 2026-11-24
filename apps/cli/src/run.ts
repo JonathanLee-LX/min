@@ -136,6 +136,7 @@ export async function runTurn(
     if (event.type === "tool_start") {
       printer.onEvent({
         type: "tool_call",
+        ...(event.running ? { phase: "running" as const } : {}),
         toolCall: {
           type: "tool_call",
           id: event.toolCallId,

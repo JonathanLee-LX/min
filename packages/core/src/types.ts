@@ -54,9 +54,9 @@ export interface ToolResultPart {
   content: string;
   isError?: boolean;
   /**
-   * Wall time of the tool body, in milliseconds.
-   * Absent on history written before durations were recorded.
-   * Does not include permission confirmation or queue wait.
+   * Final wall time of the tool body, in milliseconds.
+   * Written once when the call ends. Absent on history that predates durations.
+   * Does not include permission confirmation, queue wait, or live ticks.
    */
   durationMs?: number;
 }
@@ -116,7 +116,15 @@ export type RunEvent =
   | { type: "text_delta"; text: string }
   /** Model reasoning / chain-of-thought stream (not persisted as ContentPart). */
   | { type: "thinking_delta"; text: string }
-  | { type: "tool_call"; toolCall: ToolCallPart }
+  | {
+      type: "tool_call";
+      toolCall: ToolCallPart;
+      /**
+       * `running` means the tool body clock has started.
+       * Display only. It is not a session message and carries no duration.
+       */
+      phase?: "running";
+    }
   | {
       type: "tool_result";
       toolCallId: string;

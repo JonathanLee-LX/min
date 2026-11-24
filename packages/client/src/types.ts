@@ -61,6 +61,12 @@ export type ClientEvent =
       name: string;
       args: Record<string, unknown>;
       toolCallId: string;
+      /**
+       * The tool body clock has started. Display only.
+       * Absent on the earlier row that appears before permission.
+       * Not a stored duration.
+       */
+      running?: boolean;
     }
   | {
       type: "tool_end";
@@ -72,8 +78,9 @@ export type ClientEvent =
       /** Full tool output, newlines included. */
       content: string;
       /**
-       * Tool-body milliseconds. Absent when the result was stored before
-       * durations existed, or when the call never recorded one.
+       * Final tool-body milliseconds, written when the call ends.
+       * Absent when the result was stored before durations existed,
+       * or when the call never recorded one. Not a live tick.
        */
       durationMs?: number;
     }

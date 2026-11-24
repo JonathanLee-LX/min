@@ -36,6 +36,7 @@ export {
   defineTool,
   ToolRegistry,
   toolToDefinition,
+  type BodyClock,
   type Tool,
   type ToolContext,
   type ToolResult,

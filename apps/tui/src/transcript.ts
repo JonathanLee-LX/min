@@ -39,8 +39,13 @@ export interface LogLine {
   text: string;
   /** Set on a tool-call row so a later result can stamp that row only. */
   toolCallId?: string;
-  /** Tool-body milliseconds. Absent when the history row did not record one. */
+  /** Final tool-body milliseconds. Absent when history did not record one. */
   durationMs?: number;
+  /**
+   * Display clock start (`Date.now()`). Set only while the body is running.
+   * Never taken from history.
+   */
+  liveStartedAt?: number;
 }
 
 export function linesFromMessages(
@@ -93,6 +98,37 @@ export function linesFromMessages(
     }
   }
   return lines;
+}
+
+/**
+ * Write the final duration onto the open row for that call.
+ * A row that already has a stored duration is left alone, so a later call
+ * cannot replace an earlier one.
+ */
+export function finishToolLine<
+  T extends { kind: string; toolCallId?: string; durationMs?: number; liveStartedAt?: number },
+>(lines: readonly T[], toolCallId: string, durationMs: number | undefined): T[] {
+  let target = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || line.kind !== "tool" || line.toolCallId !== toolCallId) continue;
+    if (line.durationMs === undefined) target = i;
+  }
+  if (target === -1) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line?.kind === "tool" && line.toolCallId === toolCallId) target = i;
+    }
+  }
+  if (target === -1) return [...lines];
+  return lines.map((line, index) => {
+    if (index !== target) return line;
+    const next = { ...line };
+    delete next.liveStartedAt;
+    if (durationMs !== undefined) next.durationMs = durationMs;
+    else delete next.durationMs;
+    return next;
+  });
 }
 
 export interface ViewportRow<T> {

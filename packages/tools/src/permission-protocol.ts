@@ -1,4 +1,4 @@
-import type { Message, Tool, ToolCallPart, ToolContext, ToolResult } from "@min-agent/core";
+import type { BodyClock, Message, Tool, ToolCallPart, ToolContext, ToolResult } from "@min-agent/core";
 
 export type PermissionAskResult = "allow" | "deny" | "allow_session";
 
@@ -68,6 +68,11 @@ function wrapTool(
     description: tool.description,
     inputSchema: tool.inputSchema,
     async execute(input: unknown, ctx: ToolContext = {}): Promise<ToolResult> {
+      const clock = ctx.onBodyStart;
+      // Own the display clock before any permission wait. The registry
+      // will not start it, and we start it only if the body runs.
+      clock?.claim();
+      const quiet: ToolContext = { ...ctx, onBodyStart: undefined };
       const args =
         input && typeof input === "object"
           ? (input as Record<string, unknown>)
@@ -86,7 +91,7 @@ function wrapTool(
       });
 
       if (decision.action === "allow") {
-        return runTool(tool, input, ctx);
+        return runTool(tool, input, quiet, clock);
       }
       if (decision.action === "deny") {
         return denied(decision.reason);
@@ -104,7 +109,7 @@ function wrapTool(
       if (answer === "deny") {
         return denied(decision.reason);
       }
-      return runTool(tool, input, ctx);
+      return runTool(tool, input, quiet, clock);
     },
   };
 }
@@ -118,10 +123,12 @@ async function runTool(
   tool: Tool,
   input: unknown,
   ctx: ToolContext,
+  clock?: BodyClock,
 ): Promise<ToolResult> {
   if (ctx.signal?.aborted) {
     return { content: "aborted", isError: true, durationMs: 0 };
   }
+  clock?.start();
   const started = performance.now();
   let settled = false;
   const pending = Promise.resolve()

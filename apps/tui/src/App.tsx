@@ -47,7 +47,7 @@ import {
   type TuiCommand,
 } from "./commands.js";
 import { contextReport } from "./context-view.js";
-import { formatToolDuration, recordedDuration } from "./duration.js";
+import { recordedDuration, toolDurationLabel } from "./duration.js";
 import { formatVersionLine } from "./version.js";
 import {
   commitEditor,
@@ -97,6 +97,7 @@ import {
 import { syncModelContextBudget } from "./sync-model-context.js";
 import { themeFromConfig } from "./theme.js";
 import {
+  finishToolLine,
   linesFromMessages,
   summarizeToolCall,
   sliceViewport,
@@ -466,6 +467,30 @@ export function App({ args }: { args: TuiArgs }) {
             inflightTools.current.set(event.toolCallId, event.name);
             setToolName(event.name);
             setContinuing(false);
+            if (event.running) {
+              const startedAt = Date.now();
+              setLogs((prev) => {
+                let found = false;
+                const next = prev.map((line) => {
+                  if (line.kind !== "tool" || line.toolCallId !== event.toolCallId) return line;
+                  if (recordedDuration(line.durationMs) !== undefined) return line;
+                  found = true;
+                  return { ...line, liveStartedAt: startedAt };
+                });
+                if (found) return next;
+                seq.current += 1;
+                const row: LogLine = {
+                  id: seq.current,
+                  kind: "tool",
+                  text: summarizeToolCall(event.name, event.args),
+                  toolCallId: event.toolCallId,
+                  liveStartedAt: startedAt,
+                };
+                const withRow = [...next, row];
+                return withRow.length > LOG_CAP ? withRow.slice(withRow.length - LOG_CAP) : withRow;
+              });
+              return;
+            }
             pushLine("tool", summarizeToolCall(event.name, event.args), event.toolCallId);
             return;
           }
@@ -474,15 +499,7 @@ export function App({ args }: { args: TuiArgs }) {
             const names = [...inflightTools.current.values()];
             setToolName(names.length > 0 ? names[names.length - 1]! : null);
             const durationMs = recordedDuration(event.durationMs);
-            if (durationMs !== undefined) {
-              setLogs((prev) =>
-                prev.map((line) =>
-                  line.kind === "tool" && line.toolCallId === event.toolCallId
-                    ? { ...line, durationMs }
-                    : line,
-                ),
-              );
-            }
+            setLogs((prev) => finishToolLine(prev, event.toolCallId, durationMs));
             const body = event.content.trim();
             pushLine(
               event.ok ? "tool-result" : "tool-error",
@@ -1250,6 +1267,19 @@ export function App({ args }: { args: TuiArgs }) {
     return () => clearInterval(timer);
   }, [statusLabel, workedUntil]);
 
+  const toolLive = logs.some(
+    (line) =>
+      line.kind === "tool" &&
+      line.liveStartedAt !== undefined &&
+      recordedDuration(line.durationMs) === undefined,
+  );
+  const [toolFrame, setToolFrame] = useState(0);
+  useEffect(() => {
+    if (!toolLive) return;
+    const timer = setInterval(() => setToolFrame((frame) => frame + 1), 100);
+    return () => clearInterval(timer);
+  }, [toolLive]);
+
   const workedVisible = workedMs != null && activityClock < workedUntil;
   const activity = activityFor(
     {
@@ -1324,7 +1354,7 @@ export function App({ args }: { args: TuiArgs }) {
   imeAnchorRef.current = imeAnchor;
   termColumnsRef.current = columns;
   const painted = paintCache.current.paint(
-    toDisplayLines(logs, stream, thinking, detailsExpanded),
+    toDisplayLines(logs, stream, thinking, detailsExpanded, toolLive ? Date.now() : toolFrame),
     innerWidth,
     {
       detailsExpanded,
@@ -1676,12 +1706,17 @@ function toDisplayLines(
   stream: string,
   thinking: string,
   detailsExpanded: boolean,
+  now: number,
 ): TranscriptSource[] {
   const lines: TranscriptSource[] = logs.map((line) => {
-    const duration =
-      line.kind === "tool" ? recordedDuration(line.durationMs) : undefined;
     const durationLabel =
-      duration !== undefined ? formatToolDuration(duration) : undefined;
+      line.kind === "tool"
+        ? toolDurationLabel({
+            stored: line.durationMs,
+            startedAt: line.liveStartedAt,
+            now,
+          })
+        : undefined;
     return {
       key: String(line.id),
       kind: line.kind,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityLabel, linesFromMessages, summarizeToolCall } from "./transcript.js";
+import { activityLabel, finishToolLine, linesFromMessages, summarizeToolCall } from "./transcript.js";
 
 describe("transcript", () => {
   it("rebuilds user, assistant, and tool lines from session messages", () => {
@@ -86,6 +86,24 @@ describe("transcript", () => {
       ["read_file  a.ts", undefined],
     ]);
     expect(tools[2]).not.toHaveProperty("durationMs");
+  });
+
+  it("stores a final duration on the open row and leaves an earlier row", () => {
+    const next = finishToolLine(
+      [
+        { kind: "tool", toolCallId: "sleep", text: "bash  sleep 4", durationMs: 4147 },
+        { kind: "tool", toolCallId: "sleep", text: "bash  sleep 12", liveStartedAt: 50 },
+        { kind: "tool", toolCallId: "other", text: "glob", liveStartedAt: 10 },
+      ],
+      "sleep",
+      12_000,
+    );
+    expect(next[0]).toMatchObject({ durationMs: 4147 });
+    expect(next[0]).not.toHaveProperty("liveStartedAt");
+    expect(next[1]).toMatchObject({ durationMs: 12_000 });
+    expect(next[1]).not.toHaveProperty("liveStartedAt");
+    expect(next[2]).toMatchObject({ liveStartedAt: 10 });
+    expect(next[2]).not.toHaveProperty("durationMs");
   });
 
   it("names the activity the same way as the terminal", () => {

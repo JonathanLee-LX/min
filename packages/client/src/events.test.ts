@@ -79,6 +79,25 @@ describe("createEventTranslator", () => {
     expect(event).not.toHaveProperty("durationMs");
   });
 
+  it("marks a running body without storing a duration", () => {
+    const t = createEventTranslator();
+    expect(
+      t.push({
+        type: "tool_call",
+        phase: "running",
+        toolCall: { type: "tool_call", id: "c1", name: "bash", arguments: { command: "sleep 1" } },
+      }),
+    ).toEqual([
+      {
+        type: "tool_start",
+        name: "bash",
+        args: { command: "sleep 1" },
+        toolCallId: "c1",
+        running: true,
+      },
+    ]);
+  });
+
   it("keeps the full tool output and clips only the one-line preview", () => {
     const t = createEventTranslator();
     t.push({

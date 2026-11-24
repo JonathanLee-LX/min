@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutViewport, linesFromMessages, sliceViewport } from "./transcript.js";
+import { finishToolLine, layoutViewport, linesFromMessages, sliceViewport } from "./transcript.js";
 
 describe("linesFromMessages", () => {
   it("skips system text and keeps user text intact", () => {
@@ -24,6 +24,7 @@ describe("linesFromMessages", () => {
     expect(lines[2]?.text).toBe("read_file  a.ts");
     expect(lines[3]?.text).toBe(`x\n${"y".repeat(1200)}`);
     expect(lines[2]).not.toHaveProperty("durationMs");
+    expect(lines[2]).not.toHaveProperty("liveStartedAt");
     expect(JSON.stringify(lines)).not.toMatch(/\d+ms|<1ms/);
   });
 
@@ -53,6 +54,23 @@ describe("linesFromMessages", () => {
       ["read_file  a.ts", undefined],
     ]);
     expect(tools[2]).not.toHaveProperty("durationMs");
+  });
+
+  it("stores a final duration on the open row and leaves an earlier row", () => {
+    const next = finishToolLine(
+      [
+        { kind: "tool", toolCallId: "sleep", text: "bash  sleep 4", durationMs: 4147 },
+        { kind: "tool", toolCallId: "sleep", text: "bash  sleep 12", liveStartedAt: 50 },
+        { kind: "tool", toolCallId: "other", text: "glob", liveStartedAt: 10 },
+      ],
+      "sleep",
+      12_000,
+    );
+    expect(next[0]).toMatchObject({ durationMs: 4147 });
+    expect(next[1]).toMatchObject({ durationMs: 12_000 });
+    expect(next[1]).not.toHaveProperty("liveStartedAt");
+    expect(next[2]).toMatchObject({ liveStartedAt: 10 });
+    expect(next[2]).not.toHaveProperty("durationMs");
   });
 
   it("renders image and document chips without blob ids", () => {

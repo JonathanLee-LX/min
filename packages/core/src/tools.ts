@@ -3,6 +3,17 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { isRecordedDuration } from "./messages.js";
 import type { JsonSchema, Message, ToolDefinition } from "./types.js";
 
+/**
+ * Display clock for one tool body.
+ * A wrapper that still has to wait for permission calls `claim` immediately,
+ * then `start` when the body clock starts. The registry calls `start` itself
+ * when nobody claims. This is not stored.
+ */
+export interface BodyClock {
+  claim(): void;
+  start(): void;
+}
+
 export interface ToolContext {
   signal?: AbortSignal;
   /** Opaque bag for extensions / callers. */
@@ -16,6 +27,11 @@ export interface ToolContext {
    * the call. A shallow copy; not the projected model view.
    */
   messages?: readonly Message[];
+  /**
+   * Live display clock. Not written to the session.
+   * See {@link BodyClock}.
+   */
+  onBodyStart?: BodyClock;
 }
 
 export interface ToolResult {
@@ -101,8 +117,27 @@ export class ToolRegistry {
     }
 
     const started = performance.now();
+    const clock = ctx.onBodyStart;
+    let claimed = false;
+    const child: ToolContext = {
+      ...ctx,
+      onBodyStart: clock
+        ? {
+            claim() {
+              claimed = true;
+            },
+            start() {
+              clock.start();
+            },
+          }
+        : undefined,
+    };
     try {
-      const result = await tool.execute(parsed.data, ctx);
+      const pending = tool.execute(parsed.data, child);
+      // Ungated tools never claim. Announce before awaiting the body.
+      // A permission gate claims synchronously, then starts the clock later.
+      if (!claimed) clock?.start();
+      const result = await pending;
       return keepToolDuration(result, started);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
