@@ -177,4 +177,138 @@ describe("permission gate", () => {
     expect(JSON.stringify(result.messages)).toContain("no interactive approver");
     expect(JSON.stringify(result.messages)).not.toContain('"ran"');
   });
+
+  it("times the tool body and not the permission confirmation", async () => {
+    let now = 0;
+    const spy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const gate = createPermissionGate(() => ({ action: "ask", reason: "confirm" }));
+      gate.setAsk(async () => {
+        now += 5_000;
+        return "allow";
+      });
+      const [wrapped] = gate.wrap([
+        defineTool({
+          name: "bash",
+          description: "run",
+          inputSchema: z.object({}),
+          async execute() {
+            now += 25;
+            return { content: "ok" };
+          },
+        }),
+      ]);
+      const result = await wrapped!.execute({}, { toolCallId: "c1" });
+      expect(result.content).toBe("ok");
+      expect(result.durationMs).toBe(25);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("records 0ms when confirmation denies the call before it runs", async () => {
+    let now = 0;
+    const spy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const ran = vi.fn();
+      const gate = createPermissionGate(() => ({ action: "ask", reason: "confirm" }));
+      gate.setAsk(async () => {
+        now += 5_000;
+        return "deny";
+      });
+      const [wrapped] = gate.wrap([
+        defineTool({
+          name: "bash",
+          description: "run",
+          inputSchema: z.object({}),
+          async execute() {
+            ran();
+            return { content: "ok" };
+          },
+        }),
+      ]);
+      const result = await wrapped!.execute({}, { toolCallId: "c1" });
+      expect(ran).not.toHaveBeenCalled();
+      expect(result.isError).toBe(true);
+      expect(result.durationMs).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("keeps the time already spent when the tool throws or is cancelled", async () => {
+    let now = 100;
+    const spy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const gate = createPermissionGate(() => ({ action: "allow" }));
+      const [boom] = gate.wrap([
+        defineTool({
+          name: "boom",
+          description: "throws",
+          inputSchema: z.object({}),
+          async execute() {
+            now += 18;
+            throw new Error("nope");
+          },
+        }),
+      ]);
+      const failed = await boom!.execute({}, { toolCallId: "err" });
+      expect(failed.isError).toBe(true);
+      expect(failed.content).toContain("nope");
+      expect(failed.durationMs).toBe(18);
+
+      const ac = new AbortController();
+      now = 1_000;
+      const [hang] = gate.wrap([
+        defineTool({
+          name: "hang",
+          description: "hang",
+          inputSchema: z.object({}),
+          async execute() {
+            now += 40;
+            ac.abort();
+            now += 1_000;
+            return { content: "finished" };
+          },
+        }),
+      ]);
+      const cancelled = await hang!.execute({}, { signal: ac.signal, toolCallId: "cancel" });
+      expect(cancelled).toMatchObject({ content: "aborted", isError: true, durationMs: 40 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("times overlapping calls separately", async () => {
+    const gate = createPermissionGate(() => ({ action: "allow" }));
+    const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const [fast, slow] = gate.wrap([
+      defineTool({
+        name: "fast",
+        description: "fast",
+        inputSchema: z.object({}),
+        async execute() {
+          await pause(20);
+          return { content: "fast" };
+        },
+      }),
+      defineTool({
+        name: "slow",
+        description: "slow",
+        inputSchema: z.object({}),
+        async execute() {
+          await pause(80);
+          return { content: "slow" };
+        },
+      }),
+    ]);
+    const [fastResult, slowResult] = await Promise.all([
+      fast!.execute({}, { toolCallId: "fast" }),
+      slow!.execute({}, { toolCallId: "slow" }),
+    ]);
+    expect(fastResult.durationMs).toBeGreaterThan(0);
+    expect(slowResult.durationMs).toBeGreaterThan(fastResult.durationMs!);
+    expect(fastResult.content).toBe("fast");
+    expect(slowResult.content).toBe("slow");
+  });
 });

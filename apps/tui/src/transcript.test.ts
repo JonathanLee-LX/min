@@ -23,6 +23,36 @@ describe("linesFromMessages", () => {
     expect(lines[0]?.text).toBe(text);
     expect(lines[2]?.text).toBe("read_file  a.ts");
     expect(lines[3]?.text).toBe(`x\n${"y".repeat(1200)}`);
+    expect(lines[2]).not.toHaveProperty("durationMs");
+    expect(JSON.stringify(lines)).not.toMatch(/\d+ms|<1ms/);
+  });
+
+  it("stamps each call's recorded duration and does not invent one", () => {
+    const lines = linesFromMessages([
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", id: "fast", name: "bash", arguments: { command: "true" } },
+          { type: "tool_call", id: "slow", name: "bash", arguments: { command: "sleep 1" } },
+          { type: "tool_call", id: "old", name: "read_file", arguments: { path: "a.ts" } },
+        ],
+      },
+      {
+        role: "tool",
+        content: [
+          { type: "tool_result", toolCallId: "slow", content: "S", durationMs: 80 },
+          { type: "tool_result", toolCallId: "fast", content: "F", durationMs: 12 },
+          { type: "tool_result", toolCallId: "old", content: "legacy" },
+        ],
+      },
+    ]);
+    const tools = lines.filter((line) => line.kind === "tool");
+    expect(tools.map((line) => [line.text, line.durationMs])).toEqual([
+      ["bash  true", 12],
+      ["bash  sleep 1", 80],
+      ["read_file  a.ts", undefined],
+    ]);
+    expect(tools[2]).not.toHaveProperty("durationMs");
   });
 
   it("renders image and document chips without blob ids", () => {

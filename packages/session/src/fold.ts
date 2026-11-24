@@ -292,6 +292,11 @@ function clonePart(part: ContentPart): ContentPart {
       toolCallId: part.toolCallId,
       content: part.content,
       isError: part.isError,
+      ...(typeof part.durationMs === "number" &&
+      Number.isFinite(part.durationMs) &&
+      part.durationMs >= 0
+        ? { durationMs: part.durationMs }
+        : {}),
     };
   }
   if (part.type === "image") {

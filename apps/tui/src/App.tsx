@@ -47,6 +47,7 @@ import {
   type TuiCommand,
 } from "./commands.js";
 import { contextReport } from "./context-view.js";
+import { formatToolDuration, recordedDuration } from "./duration.js";
 import { formatVersionLine } from "./version.js";
 import {
   commitEditor,
@@ -266,11 +267,14 @@ export function App({ args }: { args: TuiArgs }) {
   const imeAnchorRef = useRef<ReturnType<typeof composerCaretAnchor> | null>(null);
   const termColumnsRef = useRef(80);
 
-  const pushLine = useCallback((kind: LogKind, text: string) => {
+  const pushLine = useCallback((kind: LogKind, text: string, toolCallId?: string) => {
     seq.current += 1;
     const id = seq.current;
     setLogs((prev) => {
-      const next = [...prev, { id, kind, text }];
+      const next = [
+        ...prev,
+        { id, kind, text, ...(toolCallId ? { toolCallId } : {}) },
+      ];
       return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
     });
   }, []);
@@ -281,7 +285,13 @@ export function App({ args }: { args: TuiArgs }) {
     setLogs(
       capped.map((line) => {
         seq.current += 1;
-        return { id: seq.current, kind: line.kind, text: line.text };
+        return {
+          id: seq.current,
+          kind: line.kind,
+          text: line.text,
+          ...(line.toolCallId ? { toolCallId: line.toolCallId } : {}),
+          ...(line.durationMs !== undefined ? { durationMs: line.durationMs } : {}),
+        };
       }),
     );
     setScroll(0);
@@ -456,13 +466,23 @@ export function App({ args }: { args: TuiArgs }) {
             inflightTools.current.set(event.toolCallId, event.name);
             setToolName(event.name);
             setContinuing(false);
-            pushLine("tool", summarizeToolCall(event.name, event.args));
+            pushLine("tool", summarizeToolCall(event.name, event.args), event.toolCallId);
             return;
           }
           if (event.type === "tool_end") {
             inflightTools.current.delete(event.toolCallId);
             const names = [...inflightTools.current.values()];
             setToolName(names.length > 0 ? names[names.length - 1]! : null);
+            const durationMs = recordedDuration(event.durationMs);
+            if (durationMs !== undefined) {
+              setLogs((prev) =>
+                prev.map((line) =>
+                  line.kind === "tool" && line.toolCallId === event.toolCallId
+                    ? { ...line, durationMs }
+                    : line,
+                ),
+              );
+            }
             const body = event.content.trim();
             pushLine(
               event.ok ? "tool-result" : "tool-error",
@@ -1657,11 +1677,18 @@ function toDisplayLines(
   thinking: string,
   detailsExpanded: boolean,
 ): TranscriptSource[] {
-  const lines: TranscriptSource[] = logs.map((line) => ({
-    key: String(line.id),
-    kind: line.kind,
-    text: line.text,
-  }));
+  const lines: TranscriptSource[] = logs.map((line) => {
+    const duration =
+      line.kind === "tool" ? recordedDuration(line.durationMs) : undefined;
+    const durationLabel =
+      duration !== undefined ? formatToolDuration(duration) : undefined;
+    return {
+      key: String(line.id),
+      kind: line.kind,
+      text: line.text,
+      ...(durationLabel ? { durationLabel } : {}),
+    };
+  });
   if (thinking && detailsExpanded) {
     lines.push({ key: "thinking", kind: "thinking", text: thinking, streaming: true });
   }

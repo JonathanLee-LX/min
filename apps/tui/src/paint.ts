@@ -33,6 +33,8 @@ export interface TranscriptSource {
   text: string;
   /** Assistant text that is still streaming. The caret is drawn after Markdown. */
   streaming?: boolean;
+  /** Right-hand column for a finished tool call. Absent when duration was not recorded. */
+  durationLabel?: string;
 }
 
 export interface PaintedSpan {
@@ -168,7 +170,7 @@ export function createPaintCache(theme: TuiTheme = defaultTheme): {
       const rows: PaintedRow[] = [];
       for (const line of separateTurns(lines)) {
         seen.add(line.key);
-        const sig = `${theme.id}\0${columns}\0${detailsExpanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.text}`;
+        const sig = `${theme.id}\0${columns}\0${detailsExpanded}\0${line.kind}\0${line.streaming === true ? "1" : "0"}\0${line.durationLabel ?? ""}\0${line.text}`;
         const cached = cache.get(line.key);
         if (cached?.sig === sig) {
           rows.push(...cached.rows);
@@ -208,11 +210,13 @@ function paintOne(
   const { gutter, blank, bodyWidth } = frameFor(line.kind, columns, theme);
   const expanded = options.detailsExpanded === true;
   const sourceText =
-    line.kind === "tool-result" || line.kind === "tool-error"
-      ? foldToolOutput(line.text, expanded)
-      : line.kind === "thinking"
-        ? foldThinking(line.text, expanded)
-        : line.text;
+    line.kind === "tool" && line.durationLabel
+      ? placeToolDuration(line.text, line.durationLabel, bodyWidth)
+      : line.kind === "tool-result" || line.kind === "tool-error"
+        ? foldToolOutput(line.text, expanded)
+        : line.kind === "thinking"
+          ? foldThinking(line.text, expanded)
+          : line.text;
   const blocks = renderContent({
     role: roleFor(line.kind),
     text: sourceText,
@@ -246,6 +250,33 @@ function fillRowWidth(row: PaintedRow, bodyWidth: number, fillBackground: boolea
   row.body += pad;
   row.spans.push({ text: pad, tone: "plain", bold: false, italic: false });
   row.text = row.gutter + row.body;
+}
+
+/** Put the duration in its own right-hand column and clip the command first. */
+export function placeToolDuration(summary: string, duration: string, width: number): string {
+  const gap = 2;
+  const room = Math.max(1, width);
+  const durW = displayWidth(duration);
+  if (durW >= room) return clipCell(duration, room);
+  const summaryRoom = Math.max(1, room - durW - gap);
+  const clipped = clipCell(summary, summaryRoom);
+  const spaces = Math.max(gap, room - displayWidth(clipped) - durW);
+  return `${clipped}${" ".repeat(spaces)}${duration}`;
+}
+
+function clipCell(text: string, width: number): string {
+  if (displayWidth(text) <= width) return text;
+  const ellipsis = "…";
+  const budget = Math.max(0, width - displayWidth(ellipsis));
+  let out = "";
+  let used = 0;
+  for (const ch of text) {
+    const w = displayWidth(ch);
+    if (used + w > budget) break;
+    out += ch;
+    used += w;
+  }
+  return out + ellipsis;
 }
 
 function roleFor(kind: LogKind): RenderRole {

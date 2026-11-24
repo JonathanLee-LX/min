@@ -48,6 +48,37 @@ describe("createEventTranslator", () => {
     expect(t.push({ type: "turn_start", turn: 1 })).toEqual([]);
   });
 
+  it("copies a recorded tool duration and leaves a missing one off the event", () => {
+    const t = createEventTranslator();
+    t.push({
+      type: "tool_call",
+      toolCall: { type: "tool_call", id: "c1", name: "bash", arguments: {} },
+    });
+    expect(
+      t.push({
+        type: "tool_result",
+        toolCallId: "c1",
+        content: "ok",
+        isError: false,
+        durationMs: 12,
+      }),
+    ).toMatchObject([{ type: "tool_end", durationMs: 12 }]);
+
+    const bare = createEventTranslator();
+    bare.push({
+      type: "tool_call",
+      toolCall: { type: "tool_call", id: "c2", name: "bash", arguments: {} },
+    });
+    const [event] = bare.push({
+      type: "tool_result",
+      toolCallId: "c2",
+      content: "ok",
+      isError: true,
+    });
+    expect(event).toMatchObject({ type: "tool_end", ok: false });
+    expect(event).not.toHaveProperty("durationMs");
+  });
+
   it("keeps the full tool output and clips only the one-line preview", () => {
     const t = createEventTranslator();
     t.push({

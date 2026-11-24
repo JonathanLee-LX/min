@@ -53,6 +53,12 @@ export interface ToolResultPart {
   toolCallId: string;
   content: string;
   isError?: boolean;
+  /**
+   * Wall time of the tool body, in milliseconds.
+   * Absent on history written before durations were recorded.
+   * Does not include permission confirmation or queue wait.
+   */
+  durationMs?: number;
 }
 
 export type ContentPart =
@@ -111,7 +117,14 @@ export type RunEvent =
   /** Model reasoning / chain-of-thought stream (not persisted as ContentPart). */
   | { type: "thinking_delta"; text: string }
   | { type: "tool_call"; toolCall: ToolCallPart }
-  | { type: "tool_result"; toolCallId: string; content: string; isError?: boolean }
+  | {
+      type: "tool_result";
+      toolCallId: string;
+      content: string;
+      isError?: boolean;
+      /** Tool-body elapsed time. Omitted when it was not recorded. */
+      durationMs?: number;
+    }
   | { type: "turn_end"; turn: number; message: Message }
   | { type: "done"; messages: Message[] }
   | { type: "error"; error: Error };

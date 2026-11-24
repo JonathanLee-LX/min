@@ -41,6 +41,7 @@ export function createEventTranslator(): EventTranslator {
           const preview = event.content.replace(/\s+/g, " ").trim();
           const clipped =
             preview.length > 200 ? `${preview.slice(0, 197)}...` : preview;
+          const durationMs = recordedDuration(event.durationMs);
           return [
             {
               type: "tool_end",
@@ -49,6 +50,7 @@ export function createEventTranslator(): EventTranslator {
               ok: !event.isError,
               preview: clipped,
               content: event.content,
+              ...(durationMs !== undefined ? { durationMs } : {}),
             },
           ];
         }
@@ -76,6 +78,11 @@ export function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as { name?: string; message?: string };
   return e.name === "AbortError" || /aborted/i.test(e.message ?? "");
+}
+
+function recordedDuration(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
+  return value;
 }
 
 export function previewArgs(args: Record<string, unknown>, max = 80): string {

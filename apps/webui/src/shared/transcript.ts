@@ -1,3 +1,5 @@
+import { recordedDuration } from "./duration.js";
+
 export interface TranscriptMessage {
   role: string;
   content: readonly TranscriptPart[];
@@ -7,8 +9,14 @@ export type TranscriptPart =
   | { type: "text"; text: string }
   | { type: "image"; filename?: string; blobId?: string }
   | { type: "document"; filename?: string; blobId?: string }
-  | { type: "tool_call"; name: string; arguments: unknown }
-  | { type: "tool_result"; content: string; isError?: boolean };
+  | { type: "tool_call"; id?: string; name: string; arguments: unknown }
+  | {
+      type: "tool_result";
+      toolCallId?: string;
+      content: string;
+      isError?: boolean;
+      durationMs?: number;
+    };
 
 export type LogKind =
   | "user"
@@ -25,6 +33,10 @@ export interface LogLine {
   id: string;
   kind: LogKind;
   text: string;
+  /** Set on a tool-call row so a later result can stamp that row only. */
+  toolCallId?: string;
+  /** Tool-body milliseconds. Absent when the history row did not record one. */
+  durationMs?: number;
 }
 
 const SALIENT_ARG = [
@@ -44,6 +56,7 @@ export function linesFromMessages(
   messages: readonly TranscriptMessage[],
 ): Array<Omit<LogLine, "id">> {
   const lines: Array<Omit<LogLine, "id">> = [];
+  const toolIndexById = new Map<string, number>();
   for (const message of messages) {
     if (message.role === "system") continue;
     for (const part of message.content ?? []) {
@@ -64,10 +77,22 @@ export function linesFromMessages(
         continue;
       }
       if (part.type === "tool_call") {
-        lines.push({ kind: "tool", text: summarizeToolCall(part.name, part.arguments) });
+        const line: Omit<LogLine, "id"> = {
+          kind: "tool",
+          text: summarizeToolCall(part.name, part.arguments),
+          ...(part.id ? { toolCallId: part.id } : {}),
+        };
+        if (part.id) toolIndexById.set(part.id, lines.length);
+        lines.push(line);
         continue;
       }
       if (part.type === "tool_result") {
+        const duration = recordedDuration(part.durationMs);
+        if (part.toolCallId && duration !== undefined) {
+          const index = toolIndexById.get(part.toolCallId);
+          const toolLine = index !== undefined ? lines[index] : undefined;
+          if (toolLine?.kind === "tool") toolLine.durationMs = duration;
+        }
         const text = part.content.trim();
         lines.push({
           kind: part.isError ? "tool-error" : "tool-result",

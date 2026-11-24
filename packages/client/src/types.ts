@@ -71,6 +71,11 @@ export type ClientEvent =
       preview: string;
       /** Full tool output, newlines included. */
       content: string;
+      /**
+       * Tool-body milliseconds. Absent when the result was stored before
+       * durations existed, or when the call never recorded one.
+       */
+      durationMs?: number;
     }
   | { type: "follow_up"; texts: readonly string[] }
   | {

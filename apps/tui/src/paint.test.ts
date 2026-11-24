@@ -8,6 +8,7 @@ import {
   SIDE_BLOCK_GAP,
   createPaintCache,
   paintTranscript,
+  placeToolDuration,
 } from "./paint.js";
 import { layoutViewport, summarizeToolCall } from "./transcript.js";
 import { displayWidth } from "./text.js";
@@ -78,6 +79,30 @@ describe("paintTranscript", () => {
       "then check files",
       "finally write the solution",
     ]);
+  });
+
+  it("shows a finished tool's duration in that call's row", () => {
+    const columns = 40;
+    const rows = paintTranscript(
+      [
+        { key: "fast", kind: "tool", text: "bash  true", durationLabel: "12ms" },
+        { key: "old", kind: "tool", text: "read_file  a.ts" },
+        { key: "slow", kind: "tool", text: "bash  sleep 1", durationLabel: "1.5s" },
+      ],
+      columns,
+    );
+    const tools = rows.filter((row) => row.kind === "tool");
+    expect(tools).toHaveLength(3);
+    expect(tools[0]?.body.endsWith("12ms")).toBe(true);
+    expect(tools[0]?.body).toContain("bash  true");
+    expect(tools[1]?.body.trimEnd()).toBe("read_file  a.ts");
+    expect(tools[1]?.body).not.toMatch(/\d+ms|<1ms|\ds/);
+    expect(tools[2]?.body.endsWith("1.5s")).toBe(true);
+    const bodyWidth = columns - displayWidth("▸ ");
+    expect(displayWidth(tools[0]!.body)).toBe(bodyWidth);
+    expect(displayWidth(tools[2]!.body)).toBe(bodyWidth);
+    expect(placeToolDuration("bash  ls", "400ms", 20).endsWith("400ms")).toBe(true);
+    expect(placeToolDuration("bash  ls", "400ms", 20)).not.toContain("0s");
   });
 
   it("nests tool output under the call and collapses it by default", () => {

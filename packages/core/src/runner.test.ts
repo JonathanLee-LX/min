@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createAgent } from "./agent.js";
 import { imagePart, userMessageWithParts } from "./messages.js";
@@ -167,6 +167,111 @@ describe("Runner / createAgent", () => {
     expect(events).not.toContain("attachment");
     expect(new Set(events)).toEqual(new Set(["turn_start", "text_delta", "turn_end", "done"]));
     await agent.dispose();
+  });
+
+  it("records each tool body's duration on the result and the event", async () => {
+    let now = 1_000;
+    const spy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    try {
+      const events: Array<{ type: string; durationMs?: number; toolCallId?: string }> = [];
+      const agent = await createAgent({
+        provider: mockProvider([
+          {
+            toolCalls: [
+              { id: "a", name: "fast", arguments: {} },
+              { id: "b", name: "slow", arguments: {} },
+            ],
+          },
+          { text: "done" },
+        ]),
+        tools: [
+          defineTool({
+            name: "fast",
+            description: "fast",
+            inputSchema: z.object({}),
+            async execute() {
+              now += 10;
+              return { content: "F" };
+            },
+          }),
+          defineTool({
+            name: "slow",
+            description: "slow",
+            inputSchema: z.object({}),
+            async execute() {
+              now += 30;
+              return { content: "S" };
+            },
+          }),
+        ],
+      });
+      const result = await agent.run({
+        input: "go",
+        onEvent(event) {
+          if (event.type === "tool_result") {
+            events.push({
+              type: event.type,
+              toolCallId: event.toolCallId,
+              durationMs: event.durationMs,
+            });
+          }
+        },
+      });
+      expect(events).toEqual([
+        { type: "tool_result", toolCallId: "a", durationMs: 10 },
+        { type: "tool_result", toolCallId: "b", durationMs: 30 },
+      ]);
+      const tool = result.messages.find((message) => message.role === "tool");
+      expect(tool?.content).toMatchObject([
+        { type: "tool_result", toolCallId: "a", durationMs: 10 },
+        { type: "tool_result", toolCallId: "b", durationMs: 30 },
+      ]);
+      await agent.dispose();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("emits the time already spent when a tool run is cancelled", async () => {
+    let now = 500;
+    const spy = vi.spyOn(performance, "now").mockImplementation(() => now);
+    const ac = new AbortController();
+    try {
+      const events: Array<{ type: string; durationMs?: number }> = [];
+      const agent = await createAgent({
+        provider: mockProvider([
+          { toolCalls: [{ id: "c", name: "hang", arguments: {} }] },
+          { text: "should not continue" },
+        ]),
+        tools: [
+          defineTool({
+            name: "hang",
+            description: "hang",
+            inputSchema: z.object({}),
+            async execute() {
+              now += 22;
+              ac.abort();
+              return { content: "late" };
+            },
+          }),
+        ],
+      });
+      await expect(
+        agent.run({
+          input: "go",
+          signal: ac.signal,
+          onEvent(event) {
+            if (event.type === "tool_result") {
+              events.push({ type: event.type, durationMs: event.durationMs });
+            }
+          },
+        }),
+      ).rejects.toMatchObject({ name: "AbortError" });
+      expect(events).toEqual([{ type: "tool_result", durationMs: 22 }]);
+      await agent.dispose();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("aborts when signal is already aborted", async () => {

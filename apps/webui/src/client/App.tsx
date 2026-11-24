@@ -48,6 +48,7 @@ import {
   summarizeToolCall,
   type LogKind,
 } from "../shared/transcript";
+import { recordedDuration } from "../shared/duration";
 
 type PermissionPrompt = {
   id: string;
@@ -69,6 +70,7 @@ type Wire =
       toolCallId: string;
       ok: boolean;
       content: string;
+      durationMs?: number;
     }
   | { type: "follow_up"; texts: string[] }
   | {
@@ -146,11 +148,11 @@ export default function App() {
   const inflight = useRef(new Map<string, string>());
   const onEvent = useRef<(event: Wire) => void>(() => {});
 
-  const push = useCallback((kind: LogKind, text: string) => {
+  const push = useCallback((kind: LogKind, text: string, toolCallId?: string) => {
     seq.current += 1;
     const id = `l${seq.current}`;
     setLines((prev) => {
-      const next = [...prev, { id, kind, text }];
+      const next = [...prev, { id, kind, text, ...(toolCallId ? { toolCallId } : {}) }];
       return next.length > 2000 ? next.slice(next.length - 2000) : next;
     });
   }, []);
@@ -294,13 +296,23 @@ export default function App() {
       inflight.current.set(event.toolCallId, event.name);
       setToolName(event.name);
       setContinuing(false);
-      push("tool", summarizeToolCall(event.name, event.args));
+      push("tool", summarizeToolCall(event.name, event.args), event.toolCallId);
       return;
     }
     if (event.type === "tool_end") {
       inflight.current.delete(event.toolCallId);
       const names = [...inflight.current.values()];
       setToolName(names.length > 0 ? names[names.length - 1]! : null);
+      const durationMs = recordedDuration(event.durationMs);
+      if (durationMs !== undefined) {
+        setLines((prev) =>
+          prev.map((line) =>
+            line.kind === "tool" && line.toolCallId === event.toolCallId
+              ? { ...line, durationMs }
+              : line,
+          ),
+        );
+      }
       const body = event.content.trim();
       push(event.ok ? "tool-result" : "tool-error", body || (event.ok ? "(no output)" : "(failed)"));
       return;

@@ -4,12 +4,15 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
+import { formatToolDuration, recordedDuration } from "../../shared/duration";
 import type { LogKind } from "../../shared/transcript";
 
 export interface TranscriptLine {
   id: string;
   kind: LogKind;
   text: string;
+  toolCallId?: string;
+  durationMs?: number;
 }
 
 export function Transcript({
@@ -136,10 +139,17 @@ function LineView({
     );
   }
   if (line.kind === "tool") {
+    const duration = recordedDuration(line.durationMs);
+    const label = duration !== undefined ? formatToolDuration(duration) : "";
     return (
       <div className="flex items-start gap-2 border-l-2 border-tool py-1 pl-3 text-sm text-tool">
         <span aria-hidden="true">▸</span>
-        <span className="min-w-0 break-all font-mono text-xs">{line.text}</span>
+        <span className="min-w-0 flex-1 break-all font-mono text-xs">{line.text}</span>
+        {label ? (
+          <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+            {label}
+          </span>
+        ) : null}
       </div>
     );
   }

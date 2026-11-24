@@ -1,4 +1,5 @@
 import type { RunEvent } from "@min-agent/core";
+import { formatToolDuration, recordedDuration } from "./duration.js";
 
 export interface EventPrinter {
   onEvent: (event: RunEvent) => void;
@@ -43,7 +44,9 @@ export function createEventPrinter(): EventPrinter {
       } else if (event.type === "tool_result") {
         const body = event.content.replace(/\s+/g, " ").trim();
         const clipped = body.length > 160 ? `${body.slice(0, 157)}...` : body;
-        console.log(`← ${event.isError ? "ERR " : ""}${clipped}`);
+        const duration = recordedDuration(event.durationMs);
+        const time = duration !== undefined ? `${formatToolDuration(duration)}  ` : "";
+        console.log(`← ${event.isError ? "ERR " : ""}${time}${clipped}`);
       } else if (event.type === "error" && event.error) {
         // Runner also throws; keep a short line for visibility during stream.
         if (!isQuietAbort(event.error)) {

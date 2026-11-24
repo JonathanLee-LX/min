@@ -25,8 +25,20 @@ export function toolResultPart(
   toolCallId: string,
   content: string,
   isError = false,
+  durationMs?: number,
 ): ToolResultPart {
-  return { type: "tool_result", toolCallId, content, isError };
+  return {
+    type: "tool_result",
+    toolCallId,
+    content,
+    isError,
+    ...(isRecordedDuration(durationMs) ? { durationMs } : {}),
+  };
+}
+
+/** Finite, non-negative millisecond count. Missing and invalid values stay absent. */
+export function isRecordedDuration(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 export function userMessage(text: string): Message {

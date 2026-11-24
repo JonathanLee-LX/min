@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { isRecordedDuration } from "./messages.js";
 import type { JsonSchema, Message, ToolDefinition } from "./types.js";
 
 export interface ToolContext {
@@ -20,6 +21,12 @@ export interface ToolContext {
 export interface ToolResult {
   content: string;
   isError?: boolean;
+  /**
+   * Milliseconds spent inside the tool body.
+   * Set by the registry or the permission gate. A gate measurement wins so
+   * confirmation time is not substituted later.
+   */
+  durationMs?: number;
 }
 
 export interface Tool<TInput = unknown> {
@@ -93,11 +100,29 @@ export class ToolRegistry {
       };
     }
 
+    const started = performance.now();
     try {
-      return await tool.execute(parsed.data, ctx);
+      const result = await tool.execute(parsed.data, ctx);
+      return keepToolDuration(result, started);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      return { content: message, isError: true };
+      return { content: message, isError: true, durationMs: elapsedMs(started) };
     }
   }
+}
+
+/**
+ * Keep a duration measured around the tool body (for example after a
+ * permission prompt). Otherwise record the time spent in this execute.
+ */
+function keepToolDuration(result: ToolResult, started: number): ToolResult {
+  if (isRecordedDuration(result.durationMs)) return result;
+  return { ...result, durationMs: elapsedMs(started) };
+}
+
+function elapsedMs(started: number): number {
+  const ms = performance.now() - started;
+  // A finished body that the clock did not advance still ran.
+  if (!Number.isFinite(ms) || ms <= 0) return 0.01;
+  return ms;
 }

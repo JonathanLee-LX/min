@@ -37,6 +37,18 @@ describe("foldText", () => {
 });
 
 describe("foldMessagesForView", () => {
+  it("keeps a recorded tool duration and does not invent one", () => {
+    const messages = [
+      toolMessage([
+        { type: "tool_result", toolCallId: "c1", content: "ok", durationMs: 12 },
+        { type: "tool_result", toolCallId: "c2", content: "old" },
+      ]),
+    ];
+    const { messages: view } = foldMessagesForView(messages, false);
+    expect(view[0]?.content[0]).toMatchObject({ toolCallId: "c1", durationMs: 12 });
+    expect(view[0]?.content[1]).not.toHaveProperty("durationMs");
+  });
+
   it("does not mutate originals and folds long tool results", () => {
     const big = "x".repeat(20_000);
     const original = toolResultPart("c1", big);

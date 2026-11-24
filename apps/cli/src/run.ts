@@ -151,6 +151,7 @@ export async function runTurn(
         toolCallId: event.toolCallId,
         content: event.preview,
         isError: !event.ok,
+        ...(typeof event.durationMs === "number" ? { durationMs: event.durationMs } : {}),
       });
       return;
     }

@@ -86,7 +86,7 @@ function wrapTool(
       });
 
       if (decision.action === "allow") {
-        return tool.execute(input, ctx);
+        return runTool(tool, input, ctx);
       }
       if (decision.action === "deny") {
         return denied(decision.reason);
@@ -104,11 +104,71 @@ function wrapTool(
       if (answer === "deny") {
         return denied(decision.reason);
       }
-      return tool.execute(input, ctx);
+      return runTool(tool, input, ctx);
     },
   };
 }
 
+/**
+ * Time only `tool.execute`. Permission asks happen before this, and each call
+ * keeps its own start time so overlapping calls do not share a clock.
+ * Abort settles with the time already spent instead of waiting out the body.
+ */
+async function runTool(
+  tool: Tool,
+  input: unknown,
+  ctx: ToolContext,
+): Promise<ToolResult> {
+  if (ctx.signal?.aborted) {
+    return { content: "aborted", isError: true, durationMs: 0 };
+  }
+  const started = performance.now();
+  let settled = false;
+  const pending = Promise.resolve()
+    .then(() => tool.execute(input, ctx))
+    .then(
+      (result) => finish(result),
+      (err: unknown) =>
+        finish({
+          content: err instanceof Error ? err.message : String(err),
+          isError: true,
+        }),
+    );
+
+  const signal = ctx.signal;
+  if (!signal) return pending;
+
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve({ content: "aborted", isError: true, durationMs: elapsedMs(started) });
+    };
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then((result) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      resolve(result);
+    });
+  });
+
+  function finish(result: ToolResult): ToolResult {
+    return { ...result, durationMs: elapsedMs(started) };
+  }
+}
+
+function elapsedMs(started: number): number {
+  const ms = performance.now() - started;
+  if (!Number.isFinite(ms) || ms <= 0) return 0.01;
+  return ms;
+}
+
 function denied(reason: string): ToolResult {
-  return { content: `Permission denied: ${reason}`, isError: true };
+  return { content: `Permission denied: ${reason}`, isError: true, durationMs: 0 };
 }

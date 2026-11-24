@@ -1,4 +1,5 @@
 import {
+  isRecordedDuration,
   lastAssistantText,
   messageToolCalls,
   toolMessage,
@@ -88,16 +89,23 @@ export class Runner {
             },
           );
 
+          const durationMs = isRecordedDuration(toolResult.durationMs)
+            ? toolResult.durationMs
+            : undefined;
           await emit({
             type: "tool_result",
             toolCallId: call.id,
             content: toolResult.content,
             isError: toolResult.isError,
+            ...(durationMs !== undefined ? { durationMs } : {}),
           });
 
           results.push(
-            toolResultPart(call.id, toolResult.content, toolResult.isError),
+            toolResultPart(call.id, toolResult.content, toolResult.isError, durationMs),
           );
+          if (signal?.aborted) {
+            throw new DOMException("Run aborted", "AbortError");
+          }
         }
 
         messages.push(toolMessage(results));

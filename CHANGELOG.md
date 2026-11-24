@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Releases publish only from GitHub Actions. Push `main` and the `v*` tag to `JonathanLee-LX/min`; do not upload from a local `npm publish`.
+- Each finished tool call shows how long that call's body ran. The clock starts when execution starts and stops when it ends, so a permission prompt or a queued message is not included. Success, failure, and cancel each show the time already spent, and overlapping calls keep separate clocks. A sub-millisecond run is shown as `<1ms`. Older transcripts that have no duration field render unchanged.
 
 ## 0.1.0-alpha.14
 
